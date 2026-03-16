@@ -1,0 +1,12 @@
+{
+  "current_strategy_id": "coord_attention",
+  "last_experiment": {
+    "description": "coord_pe+rdrop_a1+focal_g1+no_inst+gc05+step_lr (sinusoidal 2D positional encoding from patch coords)",
+    "status": "keep",
+    "composite": 0.851295,
+    "timestamp": "2026-03-16T14:30:00"
+  },
+  "best_composite": 0.851295,
+  "total_experiments": 176,
+  "loop_active": true
+}

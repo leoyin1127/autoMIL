@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# Experiment artifacts
+run.log
+*.pt
+*.pth
+*.ckpt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Data (too large for git)
+*.h5
+*.hdf5
+*.svs
+*.tiff
+
+# Flag file (managed manually)
+.autoresearch_active

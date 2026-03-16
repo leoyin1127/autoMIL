@@ -1,0 +1,56 @@
+# autoMIL Configuration: Ovarian HRD Prediction
+#
+# Task: Predict HRD (Homologous Recombination Deficiency) status from
+# H&E whole-slide images of high-grade serous ovarian carcinoma.
+
+project:
+  name: "Ovarian HRD Optimization"
+  task: "hrd"
+  branch_prefix: "autoMIL"
+
+paths:
+  features_dir: "/mnt/pool/ovariancancer/ovarian2026/trident_output/20x_256px_0px_overlap"
+  benchmark_dir: "/mnt/pool/ovariancancer/ovarian2026/benchmark_full/nnmil/uhn_baseline"
+  output_dir: "./checkpoints"
+
+files:
+  editable:
+    - "train.py"
+  readonly:
+    - "prepare.py"
+
+metrics:
+  optimize: "composite"
+  composite_formula: "(test_auc + test_bacc) / 2"
+  keep_threshold: 1e-6
+  display:
+    - "val_auc"
+    - "val_bacc"
+    - "test_auc"
+    - "test_bacc"
+    - "composite"
+
+run:
+  command: "uv run python train.py > run.log 2>&1"
+  extract_command: 'grep "^test_auc_roc:\|^val_auc_roc:\|^peak_vram_mb:\|^elapsed_seconds:" run.log'
+  timeout_minutes: 120
+
+baseline:
+  composite: 0.814
+  description: "hoptimus1 + clam_mb benchmark (5-fold CV)"
+
+dataset:
+  name: "UHN ovarian cohort"
+  size: 206
+  class_balance: "144 HRD-positive, 62 HRD-negative"
+  cv_folds: 5
+
+context: |
+  HRD status prediction from WSI. 206 slides from UHN (Toronto).
+  Best encoder: hoptimus1 (1536d). Best model: CLAM_MB.
+  CLAM models process slides individually (per-sample loop), no DataParallel benefit.
+  Available encoders: conch_v15 (768d), h0_mini (768d), hibou_l (1024d),
+  uni_v2 (1536d), hoptimus1 (1536d), midnight12k (1536d), virchow2 (2560d).
+  Available models: CLAM_SB, CLAM_MB, AB_MIL, TransMIL, DTFD_MIL, ILRA_MIL, ViT.
+  DeepHRD (JCO 2024) achieved AUC 0.74 on ovarian HRD from WSI.
+  HRDPath (2025) achieved AUC 0.846 with multi-task dual-model architecture.
