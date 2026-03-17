@@ -37,6 +37,10 @@ what to edit.
 
 ## Configuration
 
+The most important field is `run.script` - set this to your training script's
+filename (e.g., "train.py", "main.py", "src/experiment.py"). The orchestrator
+will run this script for each experiment.
+
 Edit `automil/config.yaml`:
 
 1. **Data paths**: Set `data.features_dir`, `data.splits_dir`, `data.mapping_csv`
@@ -118,6 +122,7 @@ automil viz start       # 3D dashboard at localhost:8420
 | Command | Description |
 |---------|-------------|
 | `automil init` | Add autoMIL to current git repo |
+| `automil check` | Validate project setup |
 | `automil submit --node <id> --desc "..." --files <f>` | Queue an experiment |
 | `automil rank` | Show top-ranked proposals |
 | `automil propose --parent <id> --desc "..."` | Add a proposal |

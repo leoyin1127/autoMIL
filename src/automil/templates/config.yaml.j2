@@ -53,6 +53,10 @@ files:
   editable: []       # TODO: list files the agent may modify
   readonly: []       # TODO: list files the agent should not modify
 
+run:
+  script: "train.py"              # training script name (relative to project root)
+  command: null                   # optional: full command override (e.g., "python src/train.py --config config.yaml")
+
 orchestrator:
   poll_interval_sec: 5
   safety_margin_gb: 2.0

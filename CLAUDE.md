@@ -19,6 +19,7 @@ autoMIL overlays an `automil/` subdirectory onto an existing git repo. It does N
 - `viz/server.py` - Real-time 3D dashboard (aiohttp + SSE + Three.js)
 
 **Key design decisions:**
+- The training script is configurable via `run.script` in config.yaml (defaults to "train.py")
 - Experiments are tracked as a directed tree in `graph.json`, not a flat log
 - Each experiment stores only its changed files (overlay), not the full repo
 - The orchestrator runs experiments in git worktrees, overlaying modified files on a base commit
@@ -47,6 +48,7 @@ automil submit --node <id> --desc "..." --files train.py
 automil rank
 automil propose --parent <id> --desc "..."
 automil reconcile
+automil check                   # validate project setup
 automil status
 automil orchestrator start
 automil viz start

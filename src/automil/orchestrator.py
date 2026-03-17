@@ -142,6 +142,11 @@ class ExperimentOrchestrator:
         else:
             self.config = {}
 
+        # Run script config
+        run_config = self.config.get("run", {}) if self.config else {}
+        self.run_script = run_config.get("script", "train.py")
+        self.run_command = run_config.get("command")
+
         orch_cfg = self.config.get("orchestrator", {}) if self.config else {}
         self.poll_interval = orch_cfg.get("poll_interval_sec", POLL_INTERVAL_SEC)
         self.safety_margin_gb = orch_cfg.get("safety_margin_gb", SAFETY_MARGIN_GB)
@@ -362,8 +367,12 @@ class ExperimentOrchestrator:
         log_path = archive / "run.log"
         log_fh = open(log_path, "w")
         try:
+            if self.run_command:
+                cmd = self.run_command.split()
+            else:
+                cmd = [sys.executable, self.run_script]
             process = subprocess.Popen(
-                [sys.executable, "train.py"],
+                cmd,
                 cwd=str(wt_path),
                 stdout=log_fh,
                 stderr=subprocess.STDOUT,
@@ -462,6 +471,18 @@ class ExperimentOrchestrator:
             "completed_at": datetime.now().isoformat(),
             "graph_metadata": result.get("graph_metadata") or spec.get("graph_metadata") or {},
         }
+
+        # Include error details in completion for better agent visibility
+        status = result.get("status", "completed")
+        if status in ("crash", "oom", "timeout"):
+            log_path = archive / "run.log"
+            error_tail = ""
+            if log_path.exists():
+                lines = log_path.read_text().splitlines()
+                error_tail = "\n".join(lines[-20:])
+            completion["error"] = error_tail
+            completion["log_location"] = str(log_path)
+
         (self.completed_dir / f"{node_id}.json").write_text(
             json.dumps(completion, indent=2) + "\n"
         )

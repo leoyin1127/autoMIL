@@ -100,6 +100,17 @@ class TestInit:
         assert "orchestrator/" in gitignore
 
 
+class TestCheck:
+    def test_check_reports_placeholder_paths(self, cli_runner, tmp_path, monkeypatch):
+        """automil check warns about placeholder data paths."""
+        _init_git_repo(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        cli_runner.invoke(main, ["init"])
+        result = cli_runner.invoke(main, ["check"])
+        assert result.exit_code == 0
+        assert "placeholder" in result.output.lower() or "ISSUES" in result.output
+
+
 class TestSubmit:
     def test_submit_captures_files(self, cli_runner, tmp_path, monkeypatch):
         """automil submit snapshots specified files to archive."""

@@ -5,40 +5,33 @@ description: Start or stop the autonomous MIL experiment loop
 
 # autoMIL Skill
 
-Start the autonomous experiment loop for improving MIL models.
+## First-time setup
 
-## Starting the loop
+If `automil/config.yaml` doesn't exist or has placeholder values:
 
-1. Create the activation flag:
-   ```bash
-   automil start-loop
-   ```
+1. Run `automil init` (if not already done)
+2. Follow Phase 1 (Setup) in `automil/program.md`:
+   - Scope the codebase
+   - Configure `automil/config.yaml` (especially `run.script` and `files.editable`)
+   - Verify the training script writes `result.json`
+   - Run `automil check` to validate
+   - Establish baseline via `automil submit`
+3. Run `automil start-loop`
+4. Start `automil orchestrator start`
 
-2. Read the current state:
-   - `config.yaml` for project settings
-   - `graph.json` for experiment tree
-   - `learnings.md` for accumulated insights
-   - `train.py` for current training recipe
-   - `program.md` for full loop instructions
+## Resuming the loop
 
-3. Start the orchestrator if not running:
-   ```bash
-   automil orchestrator start
-   ```
+1. Read `automil/config.yaml`, `automil/graph.json`, `automil/learnings.md`, `automil/program.md`
+2. Run `automil reconcile`
+3. Continue the experiment loop (Phase 2 in program.md)
 
-4. Begin the experiment loop as described in `program.md`.
+## Stopping
 
-## Stopping the loop
-
-The human stops the loop by running:
-```bash
-automil stop-loop
-```
+Run `automil stop-loop` to allow the agent to exit.
 
 ## Rules
 
-- Follow `program.md` exactly
-- Optimization target: composite = (test_auc + test_bacc) / 2
+- Follow `automil/program.md` exactly
 - Use `automil submit` to queue experiments
 - Use `automil rank` to get top proposals
 - Use `automil reconcile` to sync state
