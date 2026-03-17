@@ -1,79 +1,92 @@
+<div align="center">
+
 # autoMIL
 
-Autonomous agent-driven Multiple Instance Learning for computational pathology.
+**Autonomous Agent-Driven Multiple Instance Learning**
 
-autoMIL is a plug-and-play framework that overlays onto your existing ML project.
-A coding agent autonomously designs experiments, edits your codebase, and the
-framework handles GPU scheduling, parallel execution, result tracking, and
-knowledge accumulation. You bring the project; autoMIL brings the experiment
-infrastructure.
+*Let AI agents run your ML experiments while you sleep.*
 
-## Why autoMIL?
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-49%20passing-brightgreen.svg)](#)
 
-Manual ML development is slow: try an idea, edit code, run training, check
-results, repeat. AutoML tools like Optuna can search hyperparameters, but they
+---
+
+**autoMIL** is a plug-and-play experiment framework for computational pathology.
+It overlays onto your existing ML project and lets any coding agent autonomously
+design, run, and learn from experiments, pushing your models further than
+manual iteration ever could.
+
+[Getting Started](#quick-start) | [How It Works](#how-it-works) | [Documentation](docs/getting-started.md)
+
+</div>
+
+---
+
+## The Problem
+
+Manual ML development is a grind: tweak hyperparameters, edit code, run training,
+check results, repeat. AutoML tools like Optuna search parameter spaces, but they
 can't invent new architectures, combine techniques creatively, or learn from
-failed experiments.
+what failed last time.
 
-autoMIL bridges this gap. It gives a coding agent the tools to:
+## The Solution
 
-- **Explore multiple branches** simultaneously, not just iterate linearly
-- **Remember what worked** across sessions via persistent learnings
-- **Run experiments in parallel** across GPUs without file conflicts
-- **Track the full experiment tree** with scoring that balances exploitation and exploration
+autoMIL gives coding agents the infrastructure to run experiments autonomously:
 
-## How It Works
+<table>
+<tr>
+<td width="50%">
 
-```
-Your existing project repo
-    |
-    | automil init (adds automil/ subdirectory)
-    v
-Agent reads codebase, scopes editable files
-    |
-    | automil submit (snapshots changed files)
-    v
-Orchestrator creates git worktree + overlay
-    |
-    | runs on GPU in isolation
-    v
-result.json --> graph promotion --> learnings update --> next experiment
-```
+**What the agent does:**
+- Reads your codebase
+- Designs experiments
+- Modifies any file (models, losses, augmentations)
+- Submits experiments via CLI
+- Learns from results
+- Repeats forever
 
-1. **Setup** (`/automil-setup`): The agent scopes your codebase, configures
-   `automil/config.yaml`, verifies the training contract, and establishes a baseline.
-2. **Loop** (`/automil`): The agent designs experiments, edits files, submits via CLI.
-   The orchestrator runs each in an isolated git worktree with only the changed files
-   overlaid. Results feed back into the experiment graph for the next iteration.
+</td>
+<td width="50%">
 
-Each experiment stores only its diff (the files that changed), not the full repo.
-The orchestrator creates a temporary git worktree at the base commit and overlays
-the changed files on top, so experiments run in a complete project environment
-without copying the entire codebase.
+**What autoMIL handles:**
+- GPU scheduling (best-fit bin packing)
+- Parallel execution (git worktree isolation)
+- Experiment tracking (directed tree, not flat log)
+- Knowledge persistence (learnings.md)
+- Result evaluation (Pareto-dominance keep/discard)
+- 3D visualization (live dashboard)
 
-## Features
+</td>
+</tr>
+</table>
 
-- **Plug-and-play**: Overlays onto any existing ML project. No restructuring required.
-- **Agent-agnostic**: Works with Claude Code (first-class), Cursor, Codex, Aider,
-  Windsurf, or any agent with file editing and shell access.
-- **Full-codebase scope**: The agent can modify any file, not just a single training
-  script. Architecture changes, new model files, loss functions, all captured.
-- **Configurable training script**: Set `run.script` in config to point at your
-  entry point, whatever it's called.
-- **Experiment graph**: Tree-based tracking with UCB-inspired scoring for
-  multi-branch exploration. Pareto-dominance keep/discard.
-- **Git worktree isolation**: Each experiment runs in a snapshot. Only changed
-  files are stored per experiment. Parallel execution without conflicts.
-- **GPU orchestrator**: Background daemon with best-fit bin packing across GPUs.
-  Handles OOM detection, timeouts, crash recovery, and orphan cleanup.
-- **3D visualization**: Interactive Three.js dashboard for exploring the
-  experiment tree in real time via Server-Sent Events.
-- **Persistent knowledge**: Learnings accumulate in `learnings.md` across sessions.
-  The agent reads past failures and successes before designing new experiments.
-- **Setup validation**: `automil check` validates your project configuration
-  before you start running experiments.
+> **Real result:** On ovarian cancer HRD prediction, autoMIL autonomously ran
+> 189 experiments and improved the composite score from 0.814 to 0.851 (+4.5%),
+> discovering techniques like R-Drop, focal loss, gradient clipping, and
+> coordinate positional encoding that human researchers hadn't tried.
 
-## Installation
+---
+
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Plug-and-play** | Overlays onto any existing ML project. No restructuring needed. |
+| **Agent-agnostic** | Claude Code (first-class), Cursor, Codex, Aider, Windsurf, or any agent. |
+| **Full-codebase scope** | Agent edits any file: architectures, losses, augmentations, optimizers. |
+| **Git worktree isolation** | Each experiment runs in a snapshot. Only changed files stored. |
+| **Multi-GPU orchestrator** | Background daemon with bin packing, OOM detection, crash recovery. |
+| **Experiment tree** | UCB-inspired scoring balances exploitation and exploration across branches. |
+| **3D dashboard** | Interactive Three.js visualization with live SSE updates. |
+| **Persistent learnings** | Knowledge accumulates across sessions. Agents don't repeat mistakes. |
+| **Setup validation** | `automil check` catches config issues before experiments run. |
+
+---
+
+## Quick Start
+
+### 1. Install
 
 ```bash
 git clone https://github.com/leoyin1127/autoMIL.git
@@ -81,74 +94,122 @@ cd autoMIL
 pip install -e .
 ```
 
-## Quick Start
-
-### 1. Initialize in your project
+### 2. Initialize in your project
 
 ```bash
-cd /path/to/your/project    # must be an existing git repo
+cd /path/to/your/project    # any existing git repo
 automil init                 # creates automil/ subdirectory
 ```
 
-### 2. Setup (agent-driven or manual)
+### 3. Setup
 
-**With Claude Code:**
+<details>
+<summary><b>With Claude Code (recommended)</b></summary>
+
 ```bash
 claude
 # Type: /automil-setup
 ```
 
-The agent will scope your codebase, fill in `automil/config.yaml`, verify the
-training contract, and establish a baseline. This runs once.
+The agent scopes your codebase, configures everything, verifies the training
+contract, and establishes a baseline. Fully autonomous.
 
-**Manual setup:**
+</details>
+
+<details>
+<summary><b>Manual setup</b></summary>
+
 Edit `automil/config.yaml`:
-- Set `run.script` to your training script (e.g., `"train.py"`, `"src/main.py"`)
-- Set `data.*` paths to your features, splits, and metadata
-- Set `files.editable` to the files the agent can modify
-- Set `files.readonly` to files that must not change
-- Set `baseline.*` to your starting model's performance
 
-Ensure your training script writes `result.json` before exiting (see
-[Training Script Contract](#training-script-contract)).
+```yaml
+run:
+  script: "train.py"          # your training script (any name)
 
-Validate: `automil check`
+files:
+  editable: ["train.py", "models/"]   # what the agent can modify
+  readonly: ["evaluate.py"]           # what must not change
 
-### 3. Run experiments
-
-```bash
-automil orchestrator start   # start GPU scheduler
-automil viz start            # optional: 3D dashboard at localhost:8420
+baseline:
+  composite: 0.814             # your starting performance
 ```
 
-**With Claude Code:**
+Ensure your training script writes [`result.json`](#training-script-contract)
+before exiting, then validate:
+
 ```bash
-claude
+automil check
+```
+
+</details>
+
+### 4. Run
+
+```bash
+automil orchestrator start   # GPU scheduler
+automil viz start            # 3D dashboard at localhost:8420 (optional)
+```
+
+```bash
+claude                       # or any coding agent
 # Type: /automil
 ```
 
-**With other agents:** Point them at `automil/program.md` and tell them to
-follow Phase 2 (Experiment Loop).
-
-### 4. Monitor
+### 5. Watch
 
 ```bash
 automil status               # quick summary
-automil rank                 # see top proposals
-# Open http://localhost:8420  for 3D experiment tree
+automil rank                 # top proposals
+# Open http://localhost:8420  # 3D experiment tree
 ```
 
-### 5. Stop
+---
 
-```bash
-automil stop-loop            # lets the agent exit
-automil orchestrator stop    # stops GPU scheduler
+## How It Works
+
 ```
+  Your Project (unchanged)          autoMIL Overlay
+  ========================          ===============
+  src/models/clam.py           -->  automil/config.yaml
+  src/train.py                      automil/program.md
+  src/data_loader.py                automil/learnings.md
+  ...                               automil/orchestrator/
+                                       queue/ -> running/ -> archive/
+                                       completed/
+```
+
+**The experiment cycle:**
+
+```
+Agent designs experiment
+    |
+    v
+automil submit --files train.py models/clam.py
+    |  (snapshots only changed files)
+    v
+Orchestrator picks up from queue
+    |  (creates git worktree at base commit)
+    |  (overlays changed files on top)
+    v
+Runs on GPU in isolation
+    |  (CUDA_VISIBLE_DEVICES masked)
+    v
+Collects result.json
+    |  (Pareto dominance: keep or discard?)
+    v
+Updates experiment graph
+    |  (UCB scoring across branches)
+    v
+Agent reads results + learnings --> designs next experiment
+```
+
+Each experiment stores **only its diff**, not the full repo. A worktree provides
+the complete project context at runtime.
+
+---
 
 ## Training Script Contract
 
-Your training script must write a `result.json` file to its working directory
-before exiting. This is the only contract between your code and autoMIL:
+The only thing autoMIL needs from your code: write `result.json` before exiting.
 
 ```json
 {
@@ -165,103 +226,100 @@ before exiting. This is the only contract between your code and autoMIL:
 }
 ```
 
-The orchestrator provides these environment variables to your script:
+<details>
+<summary><b>Environment variables available to your script</b></summary>
 
 | Variable | Value | Description |
 |----------|-------|-------------|
 | `CUDA_VISIBLE_DEVICES` | Physical GPU ID | Masked by orchestrator |
-| `AUTOMIL_GPU` | `0` | Logical device (always 0, use `cuda:0`) |
-| `AUTOMIL_NODE_ID` | e.g., `node_0042` | Experiment identifier |
-| `AUTOMIL_DESC` | e.g., `"try focal loss"` | Experiment description |
+| `AUTOMIL_GPU` | `0` | Logical device (always 0) |
+| `AUTOMIL_NODE_ID` | `node_0042` | Experiment identifier |
+| `AUTOMIL_DESC` | `"try focal loss"` | Experiment description |
 
-If the script crashes before writing `result.json`, the experiment is marked
-as crashed. OOM is detected from log content.
+</details>
 
-## How Experiments Run
-
-1. The agent edits files in your repo (any files in `files.editable`)
-2. Runs `automil submit --node node_0001 --desc "try focal loss" --files train.py models/clam.py`
-3. The CLI snapshots only the changed files to `automil/orchestrator/archive/node_0001/`
-4. The orchestrator creates a git worktree at the base commit
-5. Changed files are overlaid on the worktree
-6. The experiment runs in isolation on a GPU
-7. `result.json` is collected; completion notification written
-8. The agent runs `automil reconcile` to update the experiment graph
-9. Keep/discard is computed via Pareto dominance (must improve composite AND
-   not regress on any tracked metric vs parent)
+---
 
 ## CLI Reference
 
-| Command | Description |
-|---------|-------------|
-| `automil init` | Add autoMIL to current git repo |
-| `automil check` | Validate project setup |
-| `automil submit --node <id> --desc "..." --files <f>` | Queue an experiment |
-| `automil rank` | Show top-ranked proposals |
-| `automil propose --parent <id> --desc "..."` | Add a proposal |
-| `automil reconcile` | Sync graph with orchestrator |
-| `automil status` | Show experiment summary |
-| `automil start-loop` | Enable continuous loop |
-| `automil stop-loop` | Allow agent to stop |
-| `automil orchestrator start/stop/status` | Manage GPU scheduler |
-| `automil viz start/stop/status` | Manage 3D dashboard |
+```
+automil init                                    Add autoMIL to current repo
+automil check                                   Validate project setup
+automil submit --node <id> --desc "..." --files <f>   Queue an experiment
+automil rank                                    Show top proposals
+automil propose --parent <id> --desc "..."      Add a proposal
+automil reconcile                               Sync graph with orchestrator
+automil status                                  Show experiment summary
+automil start-loop / stop-loop                  Control agent loop
+automil orchestrator start / stop / status      GPU scheduler daemon
+automil viz start / stop / status               3D visualization dashboard
+```
+
+---
 
 ## Project Structure
 
-After `automil init`, your project looks like:
-
 ```
-your-project/               # your existing repo (untouched)
+your-project/                    # your repo (untouched)
   src/
   models/
-  train.py                  # your training script
+  train.py
   ...
-  automil/                  # added by autoMIL
-    config.yaml             # project configuration
-    program.md              # agent instructions
-    learnings.md            # accumulated insights
-    .gitignore              # excludes runtime files
-    graph.json              # experiment tree (runtime, gitignored)
-    results.tsv             # flat log (runtime, gitignored)
+  automil/                       # added by autoMIL
+    config.yaml                  # project settings
+    program.md                   # agent instructions
+    learnings.md                 # accumulated insights
+    graph.json                   # experiment tree (gitignored)
     orchestrator/
-      queue/                # pending experiments
-      running/              # active experiments
-      archive/              # permanent record per experiment
+      queue/                     # pending
+      archive/                   # permanent record
         node_0001/
-          train.py          # only the files that changed
-          spec.json
-          run.log
-          result.json
-      completed/            # completion notifications
+          train.py               # only changed files
+          spec.json              # experiment spec
+          run.log                # stdout/stderr
+          result.json            # metrics
+      completed/                 # notifications
 ```
+
+---
 
 ## Agent Compatibility
 
-| Agent | Support | Setup |
-|-------|---------|-------|
-| Claude Code | First-class (skills + hooks) | `/automil-setup` then `/automil` |
-| Cursor | CLI + program.md | Add `automil/program.md` to rules |
-| Codex | CLI + program.md | Include program.md in context |
-| Aider | CLI + program.md | `/read automil/program.md` |
-| Windsurf | CLI + program.md | Add program.md to Cascade |
+| Agent | Support Level | How to Start |
+|-------|:------------:|-------------|
+| **Claude Code** | First-class | `/automil-setup` then `/automil` |
+| **Cursor** | Full | Add `automil/program.md` to rules |
+| **Codex** | Full | Include `automil/program.md` in context |
+| **Aider** | Full | `/read automil/program.md` |
+| **Windsurf** | Full | Add `automil/program.md` to Cascade |
 
-See [Agent Compatibility Guide](docs/agent-compatibility.md) for detailed setup per agent.
+Any agent that can read files, edit code, and run shell commands works.
+See [Agent Compatibility Guide](docs/agent-compatibility.md) for details.
+
+---
 
 ## Examples
 
-Reference configurations in `examples/`:
+| Example | Task | Dataset | Experiments | Result |
+|---------|------|---------|:-----------:|--------|
+| [`ovarian_hrd`](examples/ovarian_hrd/) | Binary HRD classification | 206 ovarian WSIs | 189 | 0.814 -> 0.851 (+4.5%) |
+| [`clwd`](examples/clwd/) | 7-class subtype classification | 408 lung WSIs | - | Skeleton |
+| [`placeholder`](examples/placeholder/) | - | - | - | Template |
 
-- **`ovarian_hrd/`** - Binary HRD classification from ovarian cancer WSIs.
-  189 experiments, best composite 0.851 (from 0.814 baseline, +4.5% improvement).
-- **`clwd/`** - Multi-class lung adenocarcinoma subtyping (7 classes, 408 WSIs).
-- **`placeholder/`** - Minimal template showing what `automil init` creates.
+---
 
 ## Documentation
 
-- [Getting Started](docs/getting-started.md) - Full setup and usage guide
-- [Agent Compatibility](docs/agent-compatibility.md) - Per-agent setup instructions
-- [Implementation Report](docs/implementation-report.md) - Architecture and design decisions
+- **[Getting Started](docs/getting-started.md)** - Full setup, configuration, and usage
+- **[Agent Compatibility](docs/agent-compatibility.md)** - Per-agent setup instructions
+- **[Implementation Report](docs/implementation-report.md)** - Architecture and design decisions
 
-## License
+---
 
-Apache 2.0. See [LICENSE](LICENSE).
+<div align="center">
+
+**[Get Started](docs/getting-started.md)** | **[View Examples](examples/)** | **[Report Issues](https://github.com/leoyin1127/autoMIL/issues)**
+
+Apache 2.0 License
+
+</div>
