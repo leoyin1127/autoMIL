@@ -139,7 +139,8 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
             ["git", "ls-files", "--others", "--exclude-standard"],
             cwd=root, capture_output=True, text=True,
         ).stdout.strip().splitlines()
-        all_changed = [f for f in tracked + untracked if f]
+        # Exclude automil/ directory from auto-detect (framework files, not experiments)
+        all_changed = [f for f in tracked + untracked if f and not f.startswith("automil/")]
 
         if editable:
             # Only capture files that are both editable AND changed
@@ -166,13 +167,16 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
     archive.mkdir(parents=True, exist_ok=True)
 
     overlay_manifest = {}
+    deletions = []
     for f in file_list:
         # Reject absolute paths and directory traversal
         if os.path.isabs(f) or ".." in Path(f).parts:
             raise click.ClickException(f"Invalid path (must be relative, no ..): {f}")
         src = root / f
         if not src.exists():
-            click.echo(f"Warning: {f} does not exist (deleted file? skipping)")
+            # File was deleted - record as deletion
+            deletions.append(f)
+            click.echo(f"  {f}: deleted (will be removed in worktree)")
             continue
         # Verify resolved path is inside the project root
         try:
@@ -185,8 +189,12 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
         content_hash = hashlib.sha256(src.read_bytes()).hexdigest()
         overlay_manifest[f] = f"sha256:{content_hash}"
 
-    # Compute config_hash from manifest
+    if not overlay_manifest and not deletions:
+        raise click.ClickException("No files to snapshot or delete")
+
+    # Compute config_hash from manifest + deletions
     parts = [f"{p}:{h}" for p, h in sorted(overlay_manifest.items())]
+    parts.extend(f"DELETE:{d}" for d in sorted(deletions))
     config_hash = hashlib.sha256(
         (base_commit + "\n" + "\n".join(parts)).encode()
     ).hexdigest()[:16]
@@ -198,6 +206,7 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
         "base_commit": base_commit,
         "overlay_dir": f"archive/{node}",
         "overlay_manifest": overlay_manifest,
+        "deletions": deletions,
         "priority": priority,
         "estimated_vram_gb": vram,
         "timeout_min": timeout,
@@ -212,7 +221,14 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
     queue_file = adir / "orchestrator" / "queue" / f"{node}.json"
     queue_file.write_text(json.dumps(spec, indent=2))
 
-    click.echo(f"Submitted {node}: {len(file_list)} file(s) snapshotted")
+    n_snap = len(overlay_manifest)
+    n_del = len(deletions)
+    parts_msg = []
+    if n_snap:
+        parts_msg.append(f"{n_snap} file(s) snapshotted")
+    if n_del:
+        parts_msg.append(f"{n_del} file(s) deleted")
+    click.echo(f"Submitted {node}: {', '.join(parts_msg)}")
     click.echo(f"  base_commit: {base_commit[:8]}")
     click.echo(f"  config_hash: {config_hash}")
 
@@ -231,6 +247,7 @@ def rank(n: int, max_per_branch: int):
 
     from automil.graph import ExperimentGraph
     graph = ExperimentGraph(path=str(graph_path))
+    graph.recalculate_scores()
     proposals = graph.rank_proposals(n=n, max_per_branch=max_per_branch)
 
     if not proposals:
@@ -262,6 +279,7 @@ def propose(parent: str, desc: str, techniques: tuple):
         description=desc,
         techniques=list(techniques),
     )
+    graph.recalculate_scores()
     graph.save()
     click.echo(f"Added proposal {node_id}: {desc}")
 

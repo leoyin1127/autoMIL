@@ -341,8 +341,11 @@ class ExperimentOrchestrator:
             return
 
         overlay_dir = spec.get("overlay_dir")
+        deletions = spec.get("deletions")
         if overlay_dir:
-            self.runner.apply_overlay(wt_path, self.orch_dir / overlay_dir)
+            self.runner.apply_overlay(
+                wt_path, self.orch_dir / overlay_dir, deletions=deletions
+            )
 
         # CUDA_VISIBLE_DEVICES masks physical GPU; logical device is always 0
         env = {

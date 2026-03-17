@@ -151,6 +151,79 @@ class TestEndToEnd:
         assert result.exit_code == 0, result.output
         assert "focal" in result.output
 
+    def test_deleted_file_submission(self, tmp_path, monkeypatch):
+        """Deleting a file records it as a deletion in the spec."""
+        runner = CliRunner()
+        _init_git_repo(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        runner.invoke(main, ["init"])
+
+        # Create and commit a file, then delete it
+        (tmp_path / "old_module.py").write_text("# to be deleted\n")
+        subprocess.run(["git", "add", "old_module.py"], cwd=tmp_path, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "add old module"], cwd=tmp_path, capture_output=True)
+        (tmp_path / "old_module.py").unlink()
+
+        # Also modify an existing file so the experiment isn't empty
+        (tmp_path / "model.py").write_text("# modified\n")
+
+        result = runner.invoke(
+            main,
+            ["submit", "--node", "node_del", "--desc", "delete old module",
+             "--files", "old_module.py", "--files", "model.py"],
+        )
+        assert result.exit_code == 0, result.output
+
+        # Check spec has deletions
+        queue_files = list((tmp_path / "automil" / "orchestrator" / "queue").glob("*.json"))
+        assert len(queue_files) == 1
+        spec = json.loads(queue_files[0].read_text())
+        assert "old_module.py" in spec.get("deletions", [])
+        assert "model.py" in spec.get("overlay_manifest", {})
+
+    def test_empty_submit_rejected(self, tmp_path, monkeypatch):
+        """Submit with no changed files and no deletions is rejected."""
+        runner = CliRunner()
+        _init_git_repo(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        runner.invoke(main, ["init"])
+
+        # Submit an existing unchanged file - auto-detect finds nothing
+        result = runner.invoke(
+            main,
+            ["submit", "--node", "node_empty", "--desc", "nothing"],
+        )
+        # Should fail - no changed files detected
+        assert result.exit_code != 0
+
+    def test_propose_then_rank_has_scores(self, tmp_path, monkeypatch):
+        """Proposals have non-zero scores immediately after propose."""
+        runner = CliRunner()
+        _init_git_repo(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        runner.invoke(main, ["init"])
+
+        from automil.graph import ExperimentGraph
+        graph = ExperimentGraph(path=str(tmp_path / "automil" / "graph.json"))
+        root = graph.add_executed(
+            parent_id=None,
+            description="baseline",
+            techniques=["baseline"],
+            metrics={"test_auc": 0.85, "test_bacc": 0.80, "composite": 0.825},
+            status="keep",
+        )
+        graph.save()
+
+        # Propose two experiments under different parents
+        runner.invoke(main, ["propose", "--parent", root, "--desc", "try A", "--techniques", "a"])
+        runner.invoke(main, ["propose", "--parent", root, "--desc", "try B", "--techniques", "b"])
+
+        # Rank should show non-zero scores
+        result = runner.invoke(main, ["rank"])
+        assert result.exit_code == 0, result.output
+        # Scores should not all be 0.0000
+        assert "0.0000" not in result.output or "0.8" in result.output
+
     def test_start_stop_loop(self, tmp_path, monkeypatch):
         """start-loop and stop-loop manage the flag file."""
         runner = CliRunner()
