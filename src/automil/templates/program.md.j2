@@ -1,0 +1,38 @@
+# autoMIL Experiment Loop
+
+## Project: {{ project_name }}
+
+Autonomous research loop for improving MIL models via iterative experimentation.
+
+## Restart Protocol
+
+On every session start or context reset:
+
+1. Run `automil reconcile` to sync graph with orchestrator state
+2. Read `graph.json` for experiment tree state
+3. Read `learnings.md` for accumulated insights
+4. Read `config.yaml` for project settings
+5. Read `train.py` for current best training recipe
+6. Continue the experiment loop
+
+## The Experiment Loop
+
+**Prerequisites:** `automil orchestrator start`
+
+**LOOP FOREVER:**
+
+1. Run `automil reconcile`
+2. Run `automil rank` to get top proposals. If none, brainstorm new ones.
+3. Read `learnings.md` to avoid repeating failed approaches.
+4. For each selected proposal:
+   a. Edit project files (train.py, models, etc.) to implement the idea
+   b. Run `automil submit --node <id> --desc "..." --files <changed files>`
+   c. Restore working tree for next experiment
+5. Wait for completion notifications in `orchestrator/completed/`
+6. Read results, update graph via `automil reconcile`
+7. Update `learnings.md` with insights
+8. If composite improved: commit the winning changes
+9. If no proposals remain: brainstorm and use `automil propose`
+10. Repeat
+
+**NEVER STOP** while `.automil_active` exists.

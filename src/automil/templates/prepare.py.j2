@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+"""Data loading and evaluation utilities. Typically read-only."""
+
+import os
+
+import numpy as np
+import yaml
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+with open(os.path.join(SCRIPT_DIR, "config.yaml")) as f:
+    _CONFIG = yaml.safe_load(f)
+
+# Encoder dimensions - add your encoders here
+ENCODER_DIMS = _CONFIG.get("encoders", {}).get("available", {})
+
+N_FOLDS = _CONFIG["data"]["num_folds"]
+
+
+def create_fold_loaders(fold, encoder, task, config):
+    """Create train/val/test data loaders for a fold.
+
+    TODO: Implement for your dataset. Must return (train_loader, val_loader, test_loader).
+    """
+    raise NotImplementedError("Implement data loading for your dataset")
+
+
+def compute_metrics(y_true, y_prob, y_pred):
+    """Compute classification metrics."""
+    from sklearn.metrics import roc_auc_score, balanced_accuracy_score, f1_score
+
+    metrics = {}
+    try:
+        metrics["auc_roc"] = float(roc_auc_score(y_true, y_prob))
+    except ValueError:
+        metrics["auc_roc"] = 0.0
+    metrics["balanced_accuracy"] = float(balanced_accuracy_score(y_true, y_pred))
+    metrics["f1"] = float(f1_score(y_true, y_pred, average="weighted"))
+    return metrics
+
+
+def print_results(val_metrics_list, test_metrics_list):
+    """Print results in the standard format."""
+    def _summarize(metrics_list, prefix):
+        for key in ["auc_roc", "balanced_accuracy", "f1"]:
+            vals = [m[key] for m in metrics_list]
+            mean, std = np.mean(vals), np.std(vals)
+            print(f"{prefix}_{key}: {mean:.6f} (+/- {std:.4f})")
+
+    print("---")
+    _summarize(val_metrics_list, "val")
+    _summarize(test_metrics_list, "test")
+    print("---")

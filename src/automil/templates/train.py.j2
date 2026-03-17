@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""Training script for {{ project_name }}. Modify freely."""
+
+import json
+import os
+import sys
+import time
+
+import yaml
+
+# -- Project setup --
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, SCRIPT_DIR)
+
+GPU = int(os.environ.get("AUTOMIL_GPU", os.environ.get("CUDA_VISIBLE_DEVICES", "0")))
+EXPERIMENT_DESCRIPTION = os.environ.get("AUTOMIL_DESC", "manual run")
+
+# Load config
+with open(os.path.join(SCRIPT_DIR, "config.yaml")) as f:
+    PROJECT_CONFIG = yaml.safe_load(f)
+
+from prepare import create_fold_loaders, compute_metrics, print_results, ENCODER_DIMS
+
+# ==================== CONFIG (agent modifies this) ====================
+CONFIG = {
+    "learning_rate": PROJECT_CONFIG["training"]["learning_rate"],
+    "weight_decay": PROJECT_CONFIG["training"]["weight_decay"],
+    "dropout": PROJECT_CONFIG["training"]["dropout"],
+    "num_epochs": PROJECT_CONFIG["training"]["num_epochs"],
+    "warmup_epochs": PROJECT_CONFIG["training"]["warmup_epochs"],
+    "patience": PROJECT_CONFIG["training"]["patience"],
+    "batch_size": PROJECT_CONFIG["training"]["batch_size"],
+    "max_seq_length": PROJECT_CONFIG["training"]["max_seq_length"],
+}
+# ======================================================================
+
+
+def create_model(input_dim, num_classes, config):
+    """Create the MIL model. Replace with your architecture."""
+    raise NotImplementedError("Configure your model in create_model()")
+
+
+def create_loss_fn():
+    """Create loss function."""
+    import torch.nn as nn
+    return nn.CrossEntropyLoss()
+
+
+def create_optimizer(model, config):
+    """Create optimizer."""
+    import torch.optim as optim
+    return optim.AdamW(
+        model.parameters(),
+        lr=config["learning_rate"],
+        weight_decay=config["weight_decay"],
+    )
+
+
+def train_single_fold(fold, config):
+    """Train one fold. Returns (val_metrics, test_metrics)."""
+    raise NotImplementedError("Implement your training loop")
+
+
+def main():
+    start_time = time.time()
+    num_folds = PROJECT_CONFIG["data"]["num_folds"]
+
+    all_val_metrics = []
+    all_test_metrics = []
+
+    for fold in range(num_folds):
+        val_m, test_m = train_single_fold(fold, CONFIG)
+        all_val_metrics.append(val_m)
+        all_test_metrics.append(test_m)
+
+    # Aggregate and print results
+    print_results(all_val_metrics, all_test_metrics)
+
+    elapsed = time.time() - start_time
+
+    # Compute composite
+    import numpy as np
+    test_auc = np.mean([m["auc_roc"] for m in all_test_metrics])
+    test_bacc = np.mean([m["balanced_accuracy"] for m in all_test_metrics])
+    composite = (test_auc + test_bacc) / 2
+
+    # Write result.json (framework contract)
+    result = {
+        "status": "completed",
+        "metrics": {
+            "val_auc": float(np.mean([m["auc_roc"] for m in all_val_metrics])),
+            "val_bacc": float(np.mean([m["balanced_accuracy"] for m in all_val_metrics])),
+            "test_auc": float(test_auc),
+            "test_bacc": float(test_bacc),
+        },
+        "composite": float(composite),
+        "elapsed_seconds": elapsed,
+    }
+    with open(os.path.join(SCRIPT_DIR, "result.json"), "w") as f:
+        json.dump(result, f, indent=2)
+
+
+if __name__ == "__main__":
+    main()

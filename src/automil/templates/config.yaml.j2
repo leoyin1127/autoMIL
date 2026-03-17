@@ -1,0 +1,59 @@
+project:
+  name: "{{ project_name }}"
+  description: "MIL model improvement project"
+
+task:
+  name: "{{ project_name }}"
+  type: "{{ task_type }}"
+  num_classes: 2
+  label_column: "label"
+  positive_label: 1
+
+data:
+  features_dir: "/path/to/features/"
+  splits_dir: "/path/to/splits/"
+  mapping_csv: "/path/to/mapping.csv"
+  num_folds: 5
+  seed: 42
+
+encoders:
+  primary: "{{ encoder }}"
+  available:
+    # TODO: Set correct dimension for your encoder
+    {{ encoder }}: 1536  # e.g., hoptimus1=1536, hibou_l=1024, uni_v2=1536
+
+baseline:
+  model: "clam_mb"
+  framework: "CLAM"
+  test_auc: 0.0
+  composite: 0.0
+
+metrics:
+  primary: "composite"
+  composite_formula: "(test_auc + test_bacc) / 2"
+  track: ["val_auc", "val_bacc", "test_auc", "test_bacc"]
+
+training:
+  learning_rate: 3e-4
+  weight_decay: 1e-4
+  dropout: 0.25
+  num_epochs: 100
+  warmup_epochs: 5
+  patience: 10
+  batch_size: 32
+  max_seq_length: 4096
+
+files:
+  editable: ["train.py"]
+  readonly: ["prepare.py"]
+
+orchestrator:
+  poll_interval_sec: 5
+  safety_margin_gb: 2.0
+  default_timeout_min: 150
+  max_concurrent_per_gpu: 1
+  default_vram_estimate_gb: 0.5
+
+viz:
+  port: 8420
+  host: "0.0.0.0"
