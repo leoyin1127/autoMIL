@@ -169,8 +169,8 @@ class ExperimentOrchestrator:
         for d in (self.queue_dir, self.running_dir, self.archive_dir, self.completed_dir):
             d.mkdir(parents=True, exist_ok=True)
 
-        # Load persisted state
-        self._load_state()
+        # Load persisted state (don't recover orphans until run() is called)
+        self._load_state(recover=False)
 
     @staticmethod
     def _parse_yaml_fallback(config_path: Path) -> dict:
@@ -197,8 +197,8 @@ class ExperimentOrchestrator:
 
     # --- State persistence ---
 
-    def _load_state(self):
-        """Load counter from persisted state and recover orphans."""
+    def _load_state(self, recover: bool = True):
+        """Load counter from persisted state. Only recover orphans if requested."""
         if self.gpu_state_file.exists():
             try:
                 state = json.loads(self.gpu_state_file.read_text())
@@ -206,7 +206,8 @@ class ExperimentOrchestrator:
             except (json.JSONDecodeError, KeyError):
                 pass
 
-        self._recover_orphans()
+        if recover:
+            self._recover_orphans()
 
     def _save_state(self):
         """Persist GPU state and counters to disk."""
@@ -326,6 +327,11 @@ class ExperimentOrchestrator:
         spec_clean = {k: v for k, v in spec.items() if k not in ("_file",)}
         (archive / "spec.json").write_text(json.dumps(spec_clean, indent=2))
 
+        # Remove from queue before attempting launch (prevents infinite retry)
+        src_file = spec.get("_file")
+        if src_file and Path(src_file).exists():
+            Path(src_file).unlink()
+
         base_commit = spec.get("base_commit", "HEAD")
         try:
             wt_path = self.runner.create_worktree(base_commit, node_id)
@@ -383,12 +389,10 @@ class ExperimentOrchestrator:
         )
         self.gpu_allocations.setdefault(gpu_id, []).append(node_id)
 
-        # Move spec from queue to running
-        src_file = spec.get("_file")
-        if src_file and Path(src_file).exists():
-            dst = self.running_dir / Path(src_file).name
-            import shutil
-            shutil.move(str(src_file), str(dst))
+        # Copy spec to running dir for orphan recovery
+        import shutil
+        running_spec = self.running_dir / f"{node_id}.json"
+        shutil.copy2(archive / "spec.json", running_spec)
 
         logger.info(
             f"Launched {node_id} on GPU {gpu_id} "

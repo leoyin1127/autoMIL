@@ -414,6 +414,9 @@ class ExperimentGraph:
                             except Exception:
                                 pass
                     parent_id_check = gm.get("parent_id")
+                    # Fall back to existing node's parent if metadata is missing
+                    if not parent_id_check and node:
+                        parent_id_check = node.get("parent_id")
                     parent_node = self.get_node(parent_id_check) if parent_id_check else None
                     if parent_node:
                         p_auc = parent_node.get("test_auc", 0)

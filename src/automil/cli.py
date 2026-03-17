@@ -167,9 +167,18 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
 
     overlay_manifest = {}
     for f in file_list:
+        # Reject absolute paths and directory traversal
+        if os.path.isabs(f) or ".." in Path(f).parts:
+            raise click.ClickException(f"Invalid path (must be relative, no ..): {f}")
         src = root / f
         if not src.exists():
-            raise click.ClickException(f"File not found: {f}")
+            click.echo(f"Warning: {f} does not exist (deleted file? skipping)")
+            continue
+        # Verify resolved path is inside the project root
+        try:
+            src.resolve().relative_to(root.resolve())
+        except ValueError:
+            raise click.ClickException(f"Path escapes project root: {f}")
         dst = archive / f
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
@@ -371,15 +380,17 @@ def viz_start(port: int):
 @viz.command("stop")
 def viz_stop():
     """Stop the visualization dashboard."""
+    root = _find_project_root()
     from automil.viz.server import cmd_stop
-    cmd_stop()
+    cmd_stop(project_root=root)
 
 
 @viz.command("status")
 def viz_status():
     """Show visualization server status."""
+    root = _find_project_root()
     from automil.viz.server import cmd_status
-    cmd_status()
+    cmd_status(project_root=root)
 
 
 if __name__ == "__main__":

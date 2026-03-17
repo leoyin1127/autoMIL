@@ -268,9 +268,11 @@ class TestReconciliation:
         pid = self.g.add_proposed(self.root, "focal", ["focal_g1"], rationale="test")
         self.g.mark_running(pid)
         completion = {
-            "id": pid, "status": "completed", "tsv_status": "keep",
-            "composite": 0.832, "test_auc_roc": 0.867, "test_bacc": 0.797,
-            "elapsed_min": 69.5, "gpu": 1,
+            "id": pid, "status": "completed",
+            "composite": 0.832,
+            "metrics": {"test_auc": 0.867, "test_bacc": 0.797},
+            "elapsed_seconds": 4170, "peak_vram_mb": 500, "gpu": 1,
+            "graph_metadata": {"parent_id": self.root},
         }
         with open(os.path.join(self.completed_dir, f"{pid}.json"), "w") as f:
             json.dump(completion, f)

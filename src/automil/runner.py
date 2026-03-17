@@ -34,14 +34,26 @@ class Runner:
         )
         return wt_path
 
-    def apply_overlay(self, worktree_path: Path, overlay_dir: Path) -> None:
-        """Copy modified files from overlay_dir on top of worktree."""
+    def apply_overlay(self, worktree_path: Path, overlay_dir: Path,
+                      deletions: list[str] | None = None) -> None:
+        """Copy modified files from overlay_dir on top of worktree.
+
+        Also removes files listed in `deletions` from the worktree to support
+        experiments that delete or rename files.
+        """
         for src_file in overlay_dir.rglob("*"):
             if src_file.is_file() and src_file.name not in ("spec.json", "run.log", "result.json"):
                 rel = src_file.relative_to(overlay_dir)
                 dst = worktree_path / rel
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src_file, dst)
+
+        # Apply deletions
+        if deletions:
+            for rel_path in deletions:
+                target = worktree_path / rel_path
+                if target.exists():
+                    target.unlink()
 
     def collect_result(self, worktree_path: Path, archive_dir: Path) -> dict | None:
         """Copy result.json from worktree to archive. Returns parsed result or None."""

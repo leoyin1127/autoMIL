@@ -222,9 +222,17 @@ def cmd_start(port: int = DEFAULT_PORT, project_root: Path | None = None):
         logging.info("Viz server stopped.")
 
 
-def cmd_status():
-    if PID_FILE.exists():
-        pid = int(PID_FILE.read_text().strip())
+def _resolve_pid_file(project_root: Path | None = None) -> Path:
+    """Get the PID file path for the viz server."""
+    if project_root is None:
+        project_root = Path.cwd()
+    return project_root / "automil" / "orchestrator" / "viz_server.pid"
+
+
+def cmd_status(project_root: Path | None = None):
+    pid_file = _resolve_pid_file(project_root)
+    if pid_file.exists():
+        pid = int(pid_file.read_text().strip())
         try:
             os.kill(pid, 0)
             print(f"Viz server: RUNNING (PID {pid})")
@@ -234,17 +242,18 @@ def cmd_status():
         print("Viz server: NOT RUNNING")
 
 
-def cmd_stop():
-    if not PID_FILE.exists():
+def cmd_stop(project_root: Path | None = None):
+    pid_file = _resolve_pid_file(project_root)
+    if not pid_file.exists():
         print("Viz server not running")
         return
-    pid = int(PID_FILE.read_text().strip())
+    pid = int(pid_file.read_text().strip())
     try:
         os.kill(pid, signal.SIGTERM)
         print(f"Sent SIGTERM to PID {pid}")
     except OSError as e:
         print(f"Failed to stop: {e}")
-        PID_FILE.unlink()
+        pid_file.unlink()
 
 
 def main():
