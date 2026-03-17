@@ -1,0 +1,121 @@
+"""Tests for the git worktree overlay runner."""
+
+import json
+import os
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from automil.runner import Runner
+
+
+@pytest.fixture
+def project_repo(tmp_path):
+    """Create a minimal git repo simulating an automil project."""
+    repo = tmp_path / "project"
+    repo.mkdir()
+    (repo / "train.py").write_text("print('baseline')\n")
+    (repo / "prepare.py").write_text("ENCODER_DIMS = {}\n")
+    (repo / "config.yaml").write_text("project:\n  name: test\n")
+    subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+    subprocess.run(["git", "add", "."], cwd=repo, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "initial"],
+        cwd=repo, capture_output=True, check=True,
+        env={**os.environ, "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "test@test.com",
+             "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "test@test.com"},
+    )
+    return repo
+
+
+@pytest.fixture
+def runner(project_repo):
+    return Runner(project_root=project_repo)
+
+
+class TestWorktreeLifecycle:
+    def test_create_and_cleanup(self, runner, project_repo):
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=project_repo, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        wt_path = runner.create_worktree(base_commit=base, node_id="node_0001")
+        assert wt_path.exists()
+        assert (wt_path / "train.py").read_text() == "print('baseline')\n"
+        assert (wt_path / "prepare.py").exists()
+        runner.cleanup_worktree(wt_path)
+        assert not wt_path.exists()
+
+    def test_overlay_files(self, runner, project_repo):
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=project_repo, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        overlay_dir = project_repo / "orchestrator" / "archive" / "node_0001"
+        overlay_dir.mkdir(parents=True)
+        (overlay_dir / "train.py").write_text("print('modified')\n")
+        wt_path = runner.create_worktree(base_commit=base, node_id="node_0001")
+        runner.apply_overlay(wt_path, overlay_dir)
+        assert (wt_path / "train.py").read_text() == "print('modified')\n"
+        assert (wt_path / "prepare.py").read_text() == "ENCODER_DIMS = {}\n"
+        runner.cleanup_worktree(wt_path)
+
+    def test_overlay_new_file(self, runner, project_repo):
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=project_repo, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        overlay_dir = project_repo / "orchestrator" / "archive" / "node_0002"
+        overlay_dir.mkdir(parents=True)
+        sub = overlay_dir / "models"
+        sub.mkdir()
+        (sub / "custom.py").write_text("class Custom: pass\n")
+        wt_path = runner.create_worktree(base_commit=base, node_id="node_0002")
+        runner.apply_overlay(wt_path, overlay_dir)
+        assert (wt_path / "models" / "custom.py").read_text() == "class Custom: pass\n"
+        runner.cleanup_worktree(wt_path)
+
+    def test_prune_stale_worktrees(self, runner, project_repo):
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=project_repo, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        wt_path = runner.create_worktree(base_commit=base, node_id="node_0003")
+        assert wt_path.exists()
+        import shutil
+        shutil.rmtree(wt_path)
+        runner.prune_stale_worktrees()
+
+    def test_worktree_path(self, runner):
+        assert runner.worktree_path("node_0001").name == "node_0001"
+
+
+class TestResultCollection:
+    def test_collect_result(self, runner, project_repo):
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=project_repo, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        wt_path = runner.create_worktree(base_commit=base, node_id="node_0004")
+        result = {"status": "completed", "composite": 0.85, "metrics": {"test_auc": 0.87}}
+        (wt_path / "result.json").write_text(json.dumps(result))
+        archive_dir = project_repo / "orchestrator" / "archive" / "node_0004"
+        archive_dir.mkdir(parents=True)
+        collected = runner.collect_result(wt_path, archive_dir)
+        assert collected is not None
+        assert collected["status"] == "completed"
+        assert (archive_dir / "result.json").exists()
+        runner.cleanup_worktree(wt_path)
+
+    def test_missing_result_returns_none(self, runner, project_repo):
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=project_repo, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        wt_path = runner.create_worktree(base_commit=base, node_id="node_0005")
+        archive_dir = project_repo / "orchestrator" / "archive" / "node_0005"
+        archive_dir.mkdir(parents=True)
+        collected = runner.collect_result(wt_path, archive_dir)
+        assert collected is None
+        runner.cleanup_worktree(wt_path)
