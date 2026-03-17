@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>autoMIL Experiment Graph</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header class="top-bar">
+        <div class="top-bar-left">
+            <h1 class="logo">autoMIL</h1>
+            <nav class="tab-bar">
+                <button class="tab active" data-tab="tree">Tree</button>
+                <button class="tab" data-tab="leaderboard">Leaderboard</button>
+                <button class="tab" data-tab="potential">Branch Potential</button>
+                <button class="tab" data-tab="techniques">Techniques</button>
+            </nav>
+        </div>
+        <div class="top-bar-right">
+            <div class="stats-bar">
+                <div class="stat-card">
+                    <span class="stat-label">Executed</span>
+                    <strong id="stat-executed">0</strong>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Proposed</span>
+                    <strong id="stat-proposed">0</strong>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Best Composite</span>
+                    <strong id="stat-best">0.000</strong>
+                </div>
+            </div>
+            <div class="connection-status" id="connection-status">
+                <span class="status-dot disconnected"></span>
+                <span class="status-text">Offline</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="layout">
+        <main class="content" id="content">
+            <div class="view active" id="view-tree">
+                <div id="tree-3d"></div>
+                <div class="tree-legend">
+                    <div class="legend-item"><span class="legend-dot" style="background:#34d399; box-shadow:0 0 6px #34d399"></span>Keep</div>
+                    <div class="legend-item"><span class="legend-dot" style="background:#475569"></span>Discard</div>
+                    <div class="legend-item"><span class="legend-dot" style="background:#f59e0b; box-shadow:0 0 6px #f59e0b"></span>Proposed</div>
+                    <div class="legend-item"><span class="legend-dot" style="background:#ef4444; box-shadow:0 0 6px #ef4444"></span>Running</div>
+                    <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span>Crash/OOM</div>
+                    <div class="legend-item legend-size">Size = composite score</div>
+                </div>
+                <div class="nav-hint">Rotate: left drag &middot; Pan: right drag &middot; Zoom: scroll &middot; Click: select node</div>
+                <button class="reset-view-btn" id="reset-view" title="Reset camera to fit all nodes">Reset View</button>
+                <div class="empty-state" id="tree-empty">No experiment data available.</div>
+            </div>
+            <div class="view" id="view-leaderboard">
+                <div class="glass-card">
+                    <h2 class="view-title">Leaderboard</h2>
+                    <div id="leaderboard-lineage" class="lineage-bar"></div>
+                    <div class="table-wrap">
+                        <table id="leaderboard-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Description</th>
+                                    <th>Composite</th>
+                                    <th>Parent &Delta;</th>
+                                    <th>Global &Delta;</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div class="empty-state" id="leaderboard-empty">No executed experiments yet.</div>
+                </div>
+            </div>
+            <div class="view" id="view-potential">
+                <div class="glass-card">
+                    <h2 class="view-title">Branch Potential</h2>
+                    <div class="table-wrap">
+                        <table id="potential-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Description</th>
+                                    <th>Parent Node</th>
+                                    <th>Techniques</th>
+                                    <th>Potential</th>
+                                    <th>Tier</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div class="empty-state" id="potential-empty">No proposed experiments.</div>
+                </div>
+            </div>
+            <div class="view" id="view-techniques">
+                <div class="glass-card">
+                    <h2 class="view-title">Technique Effectiveness</h2>
+                    <div class="table-wrap">
+                        <table id="techniques-table">
+                            <thead>
+                                <tr>
+                                    <th>Technique</th>
+                                    <th>Times Tried</th>
+                                    <th>Best Parent &Delta;</th>
+                                    <th>Avg Parent &Delta;</th>
+                                    <th>Verdict</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div class="empty-state" id="techniques-empty">No technique data available.</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Detail panel overlay -->
+    <div class="detail-panel" id="detail-panel">
+        <button class="detail-close" id="detail-close">&times;</button>
+        <div class="detail-composite" id="detail-composite">-</div>
+        <div class="detail-header">
+            <span class="detail-id" id="detail-id"></span>
+            <span class="detail-badge" id="detail-status"></span>
+        </div>
+        <div class="detail-type" id="detail-type"></div>
+
+        <div class="detail-section">
+            <h4>Metrics</h4>
+            <div class="metrics-grid" id="detail-metrics"></div>
+        </div>
+
+        <div class="detail-section">
+            <h4>Deltas</h4>
+            <div class="metrics-grid" id="detail-deltas"></div>
+        </div>
+
+        <div class="detail-section">
+            <h4>Techniques</h4>
+            <div class="tags" id="detail-techniques"></div>
+        </div>
+
+        <div class="detail-section">
+            <h4>Description</h4>
+            <p id="detail-description"></p>
+        </div>
+
+        <div class="detail-section">
+            <h4>Lineage</h4>
+            <div class="lineage-bar" id="detail-lineage"></div>
+        </div>
+
+        <div class="detail-section">
+            <h4>Info</h4>
+            <div class="info-grid" id="detail-info"></div>
+        </div>
+    </div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+    <script src="https://unpkg.com/three-spritetext@1.10.0/dist/three-spritetext.min.js"></script>
+    <script src="https://unpkg.com/3d-force-graph@1.79.1/dist/3d-force-graph.min.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>
