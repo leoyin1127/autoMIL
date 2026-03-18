@@ -84,11 +84,30 @@ def init(path: str, task: str, encoder: str):
         template = env.get_template(template_name)
         (automil_dir / target_name).write_text(template.render(**context))
 
+    # Install Claude Code skills and hooks into the project
+    package_dir = Path(__file__).parent
+    claude_src = package_dir / "claude_assets"
+
+    project_claude = project_root / ".claude"
+    if claude_src.exists():
+        for subdir in ("skills", "hooks"):
+            src_dir = claude_src / subdir
+            if src_dir.exists():
+                dst_dir = project_claude / subdir
+                dst_dir.mkdir(parents=True, exist_ok=True)
+                for f in src_dir.iterdir():
+                    if f.is_file():
+                        dst = dst_dir / f.name
+                        if not dst.exists():
+                            shutil.copy2(f, dst)
+                            if f.suffix == ".sh":
+                                dst.chmod(dst.stat().st_mode | 0o111)
+
     click.echo(f"autoMIL initialized at {automil_dir}/")
     click.echo("Next steps:")
     click.echo(f"  1. Edit {automil_dir}/config.yaml with your project settings")
     click.echo(f"  2. Run: automil orchestrator start")
-    click.echo(f"  3. Start your coding agent")
+    click.echo(f"  3. Start your coding agent (claude -> /automil-setup)")
 
 
 @main.command()
@@ -139,8 +158,11 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
             ["git", "ls-files", "--others", "--exclude-standard"],
             cwd=root, capture_output=True, text=True,
         ).stdout.strip().splitlines()
-        # Exclude automil/ directory from auto-detect (framework files, not experiments)
-        all_changed = [f for f in tracked + untracked if f and not f.startswith("automil/")]
+        # Exclude framework directories from auto-detect
+        all_changed = [
+            f for f in tracked + untracked
+            if f and not f.startswith("automil/") and not f.startswith(".claude/")
+        ]
 
         if editable:
             # Only capture files that are both editable AND changed

@@ -28,6 +28,9 @@ ml = [
 [project.scripts]
 automil = "automil.cli:main"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/automil"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
