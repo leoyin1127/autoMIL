@@ -41,12 +41,16 @@ class Runner:
         Also removes files listed in `deletions` from the worktree to support
         experiments that delete or rename files.
         """
+        metadata_files = {Path("spec.json"), Path("run.log"), Path("result.json")}
         for src_file in overlay_dir.rglob("*"):
-            if src_file.is_file() and src_file.name not in ("spec.json", "run.log", "result.json"):
-                rel = src_file.relative_to(overlay_dir)
-                dst = worktree_path / rel
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src_file, dst)
+            if not src_file.is_file():
+                continue
+            rel = src_file.relative_to(overlay_dir)
+            if rel in metadata_files:
+                continue
+            dst = worktree_path / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src_file, dst)
 
         # Apply deletions
         if deletions:
