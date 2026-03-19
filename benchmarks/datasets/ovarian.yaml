@@ -1,0 +1,74 @@
+name: ovarian
+description: "Ovarian cancer BRCA mutation and HRD status classification"
+
+paths:
+  data_root: "${AUTOBENCH_OVARIAN_ROOT}"
+  wsi_dir: "${data_root}/organized_raw_data_flat/files"
+  mapping_csv: "${data_root}/organized_raw_data_flat/mapping.csv"
+  output_dir: "${data_root}/trident_output"
+  benchmark_dir: "${data_root}/benchmark"
+  features_base_dir: "${output_dir}/20x_256px_0px_overlap"
+
+tasks:
+  brca:
+    label_col: "BRCA_predict_label"
+    label_map:
+      0: "neg"
+      1: "pos"
+    n_classes: 2
+  hrd:
+    label_col: "HRD_label"
+    label_map:
+      0: "neg"
+      1: "pos"
+    n_classes: 2
+
+split_strategies:
+  standard:
+    train_cohorts: []
+    test_cohorts: []
+
+task_strategy_feasibility:
+  brca: ["standard"]
+  hrd: ["standard"]
+
+slide_id_column: "new_name"
+slide_id_transform: "strip_svs"
+wsi_extension: null
+case_id_column: "primary_case_id"
+status_column: "status"
+status_value: "mapped_unique_case_id"
+
+encoders:
+  models:
+    "histai/hibou-L": "hibou_l"
+    "MahmoodLab/conchv1_5": "conch_v15"
+    "paige-ai/Virchow2": "virchow2"
+    "kaiko-ai/midnight": "midnight12k"
+    "bioptimus/H-optimus-1": "hoptimus1"
+    "bioptimus/H0-mini": "h0_mini"
+    "MahmoodLab/UNI2-h": "uni_v2"
+  dims:
+    conch_v15: 768
+    hibou_l: 1024
+    uni_v2: 1536
+    hoptimus1: 1536
+    midnight12k: 1536
+    virchow2: 2560
+    h0_mini: 768
+
+nnmil_models:
+  - ab_mil
+  - trans_mil
+  - ds_mil
+  - dtfd_mil
+  - ilra_mil
+  - wikg_mil
+  - simple_mil
+  - vision_transformer
+  - rrt
+
+extraction:
+  magnification: 20
+  patch_size: 256
+  batch_size: 64

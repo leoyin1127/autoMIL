@@ -1,0 +1,66 @@
+# Placeholder dataset configuration — replace with your third dataset.
+#
+# To add a new dataset:
+# 1. Copy this file and rename it (e.g., tcga_brca.yaml)
+# 2. Fill in all fields below
+# 3. Run: python benchmarks/scripts/run_benchmark.py --dataset your_dataset --prep_only
+
+name: placeholder
+description: "Third dataset — TBD"
+
+paths:
+  data_root: "${AUTOBENCH_PLACEHOLDER_ROOT}"
+  wsi_dir: "${data_root}/wsi"
+  mapping_csv: "${data_root}/metadata.csv"
+  output_dir: "${data_root}/trident_output"
+  benchmark_dir: "${data_root}/benchmark"
+  features_base_dir: "${output_dir}/20x_256px_0px_overlap"
+
+tasks:
+  # Define your classification task(s) here.
+  # Each task maps integer labels in the CSV to class names.
+  example_task:
+    label_col: "label_column_name"
+    label_map:
+      0: "class_a"
+      1: "class_b"
+    n_classes: 2
+
+split_strategies:
+  standard:
+    train_cohorts: []
+    test_cohorts: []
+
+task_strategy_feasibility:
+  example_task: ["standard"]
+
+# Column in the CSV that contains the slide/file identifier
+slide_id_column: "slide_id"
+# Set to "strip_svs" to remove .svs extension, or null to keep as-is
+slide_id_transform: null
+# Set to ".svs" if CSV slide IDs lack the file extension, null if they already include it
+wsi_extension: null
+# Column in the CSV that contains patient/case identifier
+case_id_column: "case_id"
+# Optional: filter rows by a status column (set both to null to load all rows)
+status_column: null
+status_value: null
+
+encoders:
+  models:
+    "histai/hibou-L": "hibou_l"
+    "MahmoodLab/conchv1_5": "conch_v15"
+    "bioptimus/H-optimus-1": "hoptimus1"
+  dims:
+    conch_v15: 768
+    hibou_l: 1024
+    hoptimus1: 1536
+
+nnmil_models:
+  - ab_mil
+  - trans_mil
+
+extraction:
+  magnification: 20
+  patch_size: 256
+  batch_size: 64

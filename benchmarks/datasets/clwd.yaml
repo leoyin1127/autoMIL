@@ -1,0 +1,83 @@
+name: clwd
+description: "CLWD — Lung adenocarcinoma subtype classification (7-class and 6-class)"
+
+paths:
+  data_root: "${AUTOBENCH_CLWD_ROOT}"
+  wsi_dir: "${data_root}/wsi"
+  mapping_csv: "${data_root}/CLWD.csv"
+  output_dir: "${data_root}/trident_output"
+  benchmark_dir: "${data_root}/benchmark"
+  features_base_dir: "${output_dir}/20x_256px_0px_overlap"
+
+tasks:
+  subtype_7class:
+    label_col: "Benchmark_Label_7class"
+    label_map:
+      0: "Acinar"
+      1: "Cribriform"
+      2: "In situ"
+      3: "Lepidic"
+      4: "Micropapillary"
+      5: "Papillary"
+      6: "Solid"
+    n_classes: 7
+  subtype_6class:
+    label_col: "Benchmark_Label_2021_6class"
+    label_map:
+      0: "Acinar"
+      1: "In situ"
+      2: "Lepidic"
+      3: "Micropapillary"
+      4: "Papillary"
+      5: "Solid"
+    n_classes: 6
+
+split_strategies:
+  standard:
+    train_cohorts: []
+    test_cohorts: []
+
+task_strategy_feasibility:
+  subtype_7class: ["standard"]
+  subtype_6class: ["standard"]
+
+slide_id_column: "WSI_ID"
+slide_id_transform: null
+wsi_extension: ".svs"
+case_id_column: "SampleNumber"
+status_column: null
+status_value: null
+
+encoders:
+  models:
+    "paige-ai/Virchow2": "virchow2"
+    "MahmoodLab/UNI2-h": "uni_v2"
+    "bioptimus/H-optimus-1": "hoptimus1"
+    "histai/hibou-L": "hibou_l"
+    "MahmoodLab/conchv1_5": "conch_v15"
+    "kaiko-ai/midnight": "midnight12k"
+    "bioptimus/H0-mini": "h0_mini"
+  dims:
+    conch_v15: 768
+    hibou_l: 1024
+    uni_v2: 1536
+    hoptimus1: 1536
+    midnight12k: 1536
+    virchow2: 2560
+    h0_mini: 768
+
+nnmil_models:
+  - ab_mil
+  - trans_mil
+  - ds_mil
+  - dtfd_mil
+  - ilra_mil
+  - wikg_mil
+  - simple_mil
+  - vision_transformer
+  - rrt
+
+extraction:
+  magnification: 20
+  patch_size: 256
+  batch_size: 64

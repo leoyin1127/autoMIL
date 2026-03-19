@@ -1,0 +1,60 @@
+# autoMIL Configuration — CLWD Lung Adenocarcinoma Subtype Classification
+# This overlay configures autoMIL to improve MIL models on the CLWD 7-class task.
+
+project:
+  name: "clwd_subtype"
+  description: "CLWD lung adenocarcinoma subtype classification using MIL"
+
+task:
+  name: "subtype_7class"
+  type: "multiclass"
+  num_classes: 7
+  label_column: "label"
+
+data:
+  features_dir: "${AUTOBENCH_CLWD_ROOT}/benchmark/features"
+  splits_dir: "${AUTOBENCH_CLWD_ROOT}/benchmark/splits/standard/subtype_7class"
+  mapping_csv: "${AUTOBENCH_CLWD_ROOT}/CLWD.csv"
+  num_folds: 5
+  seed: 42
+
+encoders:
+  primary: "hoptimus1"
+  available:
+    hoptimus1: 1536
+
+baseline:
+  model: "clam_mb"
+  framework: "CLAM"
+  test_auc: 0.0
+  composite: 0.0
+
+metrics:
+  primary: "composite"
+  composite_formula: "(test_auc + test_bacc) / 2"
+  track: ["val_auc", "val_bacc", "test_auc", "test_bacc"]
+
+training:
+  learning_rate: 3e-4
+  weight_decay: 1e-4
+  dropout: 0.25
+  num_epochs: 100
+  warmup_epochs: 5
+  patience: 10
+  batch_size: 32
+  max_seq_length: 4096
+
+files:
+  editable: ["train.py", "models/"]
+  readonly: ["evaluate.py", "prepare.py"]
+
+run:
+  script: "train.py"
+  command: null
+
+orchestrator:
+  poll_interval_sec: 5
+  safety_margin_gb: 2.0
+  default_timeout_min: 150
+  max_concurrent_per_gpu: 1
+  default_vram_estimate_gb: 0.5

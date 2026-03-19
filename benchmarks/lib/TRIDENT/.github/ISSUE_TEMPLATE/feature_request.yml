@@ -1,0 +1,31 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: What problem are you trying to solve or improve?
+      placeholder: "I want to extract features from JPEGs directly without using pyramidal images..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: How do you imagine this could be solved or implemented?
+      placeholder: "Add a JPEG loader class and map it in `wsi_reader_factory`..."
+    validations:
+      required: false
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Who does this help?
+      options:
+        - Just me
+        - Some users
+        - Most Trident users

@@ -1,0 +1,40 @@
+name: Bug Report
+description: Report something that isn't working as expected
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the issue and what you expected instead.
+      placeholder: "The `--remove_artifacts` flag fails when I run on XYZ dataset..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: how-to-reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: What commands did you run? What were the inputs?
+      placeholder: |
+        1. Installed Trident on workstation with 1 RTX 4090
+        2. Ran `python run_single_slide.py --slide_path ...`
+        3. Got error blablabla
+    validations:
+      required: false
+
+  - type: input
+    id: trident-version
+    attributes:
+      label: Trident version
+      description: Commit hash or version (e.g., main branch or commit ID)
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or error messages
+      description: Paste any error message or logs
+      render: shell

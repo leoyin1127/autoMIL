@@ -1,0 +1,13 @@
+name: Question
+description: Ask a general usage or implementation question
+title: "[Question] "
+labels: ["question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: What's your question?
+      description: Ask anything related to usage, models, parameters, etc.
+      placeholder: "Can I use `grandqc` segmenter on IHC-stained slides?"
+    validations:
+      required: true

@@ -1,0 +1,61 @@
+# autoMIL Configuration — Ovarian Cancer HRD Prediction
+# This overlay configures autoMIL to improve MIL models on the ovarian HRD task.
+
+project:
+  name: "ovarian_hrd"
+  description: "Ovarian cancer HRD status prediction using MIL"
+
+task:
+  name: "hrd"
+  type: "binary"
+  num_classes: 2
+  label_column: "label"
+  positive_label: 1
+
+data:
+  features_dir: "${AUTOBENCH_OVARIAN_ROOT}/benchmark/features"
+  splits_dir: "${AUTOBENCH_OVARIAN_ROOT}/benchmark/splits/standard/hrd"
+  mapping_csv: "${AUTOBENCH_OVARIAN_ROOT}/organized_raw_data_flat/mapping.csv"
+  num_folds: 5
+  seed: 42
+
+encoders:
+  primary: "hoptimus1"
+  available:
+    hoptimus1: 1536
+
+baseline:
+  model: "clam_mb"
+  framework: "CLAM"
+  test_auc: 0.0
+  composite: 0.814
+
+metrics:
+  primary: "composite"
+  composite_formula: "(test_auc + test_bacc) / 2"
+  track: ["val_auc", "val_bacc", "test_auc", "test_bacc"]
+
+training:
+  learning_rate: 3e-4
+  weight_decay: 1e-4
+  dropout: 0.25
+  num_epochs: 100
+  warmup_epochs: 5
+  patience: 10
+  batch_size: 32
+  max_seq_length: 4096
+
+files:
+  editable: ["train.py", "models/"]
+  readonly: ["evaluate.py", "prepare.py"]
+
+run:
+  script: "train.py"
+  command: null
+
+orchestrator:
+  poll_interval_sec: 5
+  safety_margin_gb: 2.0
+  default_timeout_min: 150
+  max_concurrent_per_gpu: 1
+  default_vram_estimate_gb: 0.5

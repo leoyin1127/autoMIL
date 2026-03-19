@@ -1,0 +1,71 @@
+"""nnMIL experiment runner: all folds for one (task, encoder, model, strategy) combo."""
+
+from __future__ import annotations
+
+import json
+import os
+
+from autobench.pipeline.config import ExperimentConfig
+from autobench.pipeline.evaluate import compute_confidence_intervals
+from autobench.pipeline.nnmil.train import train_nnmil_fold
+
+
+def run_nnmil_experiment(
+    exp_cfg: ExperimentConfig,
+    benchmark_dir: str,
+    device: str = "cuda:0",
+) -> dict:
+    """Run all folds for a single nnMIL experiment and return aggregated results.
+
+    Returns a summary dict in the SAME schema as the CLAM runner
+    (``run_experiment``), enabling seamless aggregation.
+    """
+    results_dir = os.path.join(benchmark_dir, "results", exp_cfg.results_subdir)
+    os.makedirs(results_dir, exist_ok=True)
+
+    exp_cfg.save(os.path.join(results_dir, "config.json"))
+
+    # Locate the plan file for this (task, encoder, strategy)
+    plan_path = os.path.join(
+        benchmark_dir, "nnmil",
+        exp_cfg.strategy,
+        f"{exp_cfg.task.name}_{exp_cfg.encoder_key}",
+        "dataset_plan.json",
+    )
+    if not os.path.exists(plan_path):
+        raise FileNotFoundError(
+            f"nnMIL plan not found: {plan_path}. "
+            f"Run data preparation first."
+        )
+
+    fold_results: list[dict] = []
+    for fold in range(exp_cfg.n_folds):
+        result = train_nnmil_fold(
+            exp_cfg, plan_path, fold, results_dir, device=device,
+        )
+        fold_results.append(result)
+
+    test_fold_metrics = [fr["test_metrics"] for fr in fold_results]
+    val_fold_metrics = [fr["val_metrics"] for fr in fold_results]
+
+    exp_summary = {
+        "experiment_id": exp_cfg.experiment_id,
+        "task": exp_cfg.task.name,
+        "encoder": exp_cfg.encoder_key,
+        "embed_dim": exp_cfg.embed_dim,
+        "model_type": exp_cfg.model.model_type,
+        "framework": exp_cfg.framework.value,
+        "strategy": exp_cfg.strategy,
+        "n_folds": exp_cfg.n_folds,
+        "seed": exp_cfg.train.seed,
+        "test": compute_confidence_intervals(test_fold_metrics),
+        "val": compute_confidence_intervals(val_fold_metrics),
+        "per_fold_test": test_fold_metrics,
+        "per_fold_val": val_fold_metrics,
+    }
+
+    summary_path = os.path.join(results_dir, "summary.json")
+    with open(summary_path, "w") as f:
+        json.dump(exp_summary, f, indent=2)
+
+    return exp_summary

@@ -1,0 +1,52 @@
+[tool.poetry]
+name = "trident"
+version = "0.2.3"
+description = "A package for preprocessing whole-slide images."
+authors = [
+    "Guillaume Jaume <gjaume@bwh.harvard.edu>",
+    "Andrew Zhang <andrewzh@mit.edu>",
+    "Paul Doucet <homedoucetpaul@gmail.com>"
+]
+license = "CC BY-NC-ND 4.0"  
+repository = "https://github.com/mahmoodlab/TRIDENT"
+
+[tool.poetry.dependencies]
+python = "^3.10"  # Specify the Python version compatibility.
+ipywidgets = "*"
+torch = "*"
+tqdm = "*"
+h5py = "*"
+matplotlib = "*"
+opencv-python = "*"
+openslide-python = "*"
+Pillow = "*"
+geopandas = "*"
+huggingface_hub = "*"
+openslide-bin = "*"
+
+# Optional dependencies (can be marked as optional in later versions)
+transformers = "*"
+timm = "0.9.16"
+einops_exts = "*"
+scipy = "*"
+segmentation-models-pytorch = "*"
+safetensors = "*"
+
+[tool.poetry.dev-dependencies]
+# Optional development dependencies 
+
+[tool.poetry.scripts]
+run_batch_of_slides = "run_batch_of_slides:main"
+run_single_slide = "run_single_slide:main"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.package]
+include = [
+    { format = "file", path = "trident/slide_encoder_models/local_ckpts.json" },
+    { format = "file", path = "trident/patch_encoder_models/local_ckpts.json" },
+    { format = "file", path = "trident/segmentation_models/local_ckpts.json" },
+]
+include_package_data = true
