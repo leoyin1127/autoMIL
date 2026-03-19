@@ -6,3 +6,11 @@ build/
 .venv/
 *.log
 *.pid
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+benchmarks/.env
+benchmarks/**/__pycache__/
+datasets/
+logs/
