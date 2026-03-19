@@ -76,6 +76,21 @@ class TestWorktreeLifecycle:
         assert (wt_path / "models" / "custom.py").read_text() == "class Custom: pass\n"
         runner.cleanup_worktree(wt_path)
 
+    def test_overlay_keeps_nested_result_json(self, runner, project_repo):
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=project_repo, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        overlay_dir = project_repo / "orchestrator" / "archive" / "node_nested"
+        overlay_dir.mkdir(parents=True)
+        nested = overlay_dir / "configs"
+        nested.mkdir()
+        (nested / "result.json").write_text('{"config": true}\n')
+        wt_path = runner.create_worktree(base_commit=base, node_id="node_nested")
+        runner.apply_overlay(wt_path, overlay_dir)
+        assert (wt_path / "configs" / "result.json").read_text() == '{"config": true}\n'
+        runner.cleanup_worktree(wt_path)
+
     def test_prune_stale_worktrees(self, runner, project_repo):
         base = subprocess.run(
             ["git", "rev-parse", "HEAD"],
