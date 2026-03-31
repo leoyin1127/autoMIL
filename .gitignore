@@ -14,3 +14,5 @@ benchmarks/.env
 benchmarks/**/__pycache__/
 datasets/
 logs/
+paper/
+tasks/
