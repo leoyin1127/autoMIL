@@ -1,0 +1,97 @@
+name: hancock
+description: "HANCOCK — Head & neck squamous cell carcinoma (tumor site, HPV, survival, treatment outcome, grading)"
+
+paths:
+  data_root: "${AUTOBENCH_HANCOCK_ROOT}"
+  wsi_dir: "${data_root}/wsi"
+  mapping_csv: "${data_root}/hancock_metadata.csv"
+  output_dir: "${data_root}/trident_output"
+  benchmark_dir: "${data_root}/benchmark"
+  features_base_dir: "${output_dir}/20x_224px_0px_overlap"
+
+tasks:
+  tumor_site:
+    label_col: "label_tumor_site"
+    label_map:
+      0: "Hypopharynx"
+      1: "Larynx"
+      2: "Oral_Cavity"
+      3: "Oropharynx"
+    n_classes: 4
+  hpv_p16:
+    label_col: "label_hpv_p16"
+    label_map:
+      0: "negative"
+      1: "positive"
+    n_classes: 2
+  survival:
+    label_col: "label_survival"
+    label_map:
+      0: "living"
+      1: "deceased"
+    n_classes: 2
+  treatment_outcome:
+    label_col: "label_treatment_outcome"
+    label_map:
+      0: "no_event"
+      1: "recurrence_or_death"
+    n_classes: 2
+  high_grade:
+    label_col: "label_high_grade"
+    label_map:
+      0: "low"
+      1: "high"
+    n_classes: 2
+
+split_strategies:
+  standard:
+    train_cohorts: []
+    test_cohorts: []
+
+task_strategy_feasibility:
+  tumor_site: ["standard"]
+  hpv_p16: ["standard"]
+  survival: ["standard"]
+  treatment_outcome: ["standard"]
+  high_grade: ["standard"]
+
+slide_id_column: "slide_id"
+slide_id_transform: null
+wsi_extension: ".svs"
+case_id_column: "patient_id"
+status_column: null
+status_value: null
+
+encoders:
+  models:
+    "paige-ai/Virchow2": "virchow2"
+    "MahmoodLab/UNI2-h": "uni_v2"
+    "bioptimus/H-optimus-1": "hoptimus1"
+    "histai/hibou-L": "hibou_l"
+    "MahmoodLab/conchv1_5": "conch_v15"
+    "kaiko-ai/midnight": "midnight12k"
+    "bioptimus/H0-mini": "h0_mini"
+  dims:
+    conch_v15: 768
+    hibou_l: 1024
+    uni_v2: 1536
+    hoptimus1: 1536
+    midnight12k: 1536
+    virchow2: 2560
+    h0_mini: 768
+
+nnmil_models:
+  - ab_mil
+  - trans_mil
+  - ds_mil
+  - dtfd_mil
+  - ilra_mil
+  - wikg_mil
+  - simple_mil
+  - vision_transformer
+  - rrt
+
+extraction:
+  magnification: 20
+  patch_size: 224
+  batch_size: 64
