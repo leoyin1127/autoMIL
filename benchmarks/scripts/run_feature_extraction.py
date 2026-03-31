@@ -164,6 +164,12 @@ def main():
     else:
         print("Warning: HF_TOKEN not found. Gated model downloads may fail.")
 
+    # Worker count — respect SLURM CPU allocation over raw os.cpu_count()
+    slurm_cpus = os.environ.get("SLURM_CPUS_PER_TASK")
+    num_cpus = int(slurm_cpus) if slurm_cpus else (os.cpu_count() or 16)
+    max_workers = max(1, num_cpus - 2)  # leave headroom for main + GPU threads
+    print(f"DataLoader workers: {max_workers} (from {num_cpus} CPUs)")
+
     # GPU setup
     if torch.cuda.is_available():
         num_gpus = torch.cuda.device_count()
@@ -224,16 +230,19 @@ def main():
         wsi_source=wsi_dir,
         custom_list_of_wsis=wsi_csv,
         skip_errors=True,
+        max_workers=max_workers,
     )
 
     if not args.skip_seg:
         if args.all_gpus and len(gpu_ids) > 1:
-            _run_multigpu_segmentation(gpu_ids, wsi_csv, output_dir, wsi_dir)
+            _run_multigpu_segmentation(gpu_ids, wsi_csv, output_dir, wsi_dir,
+                                       max_workers=max_workers)
             processor = Processor(
                 job_dir=output_dir,
                 wsi_source=wsi_dir,
                 custom_list_of_wsis=wsi_csv,
                 skip_errors=True,
+                max_workers=max_workers,
             )
         else:
             from trident.segmentation_models import segmentation_model_factory
@@ -260,7 +269,7 @@ def main():
     # Run feature extraction
     if args.all_gpus and len(gpu_ids) > 1:
         _run_multigpu(encoder_keys, gpu_ids, wsi_csv, coords_dir, batch_size,
-                      output_dir, wsi_dir)
+                      output_dir, wsi_dir, max_workers=max_workers)
     else:
         _run_single_gpu(encoder_keys, processor, device, coords_dir, batch_size)
 
@@ -291,12 +300,13 @@ def _run_single_gpu(encoder_keys, processor, device, coords_dir, batch_size):
         gc.collect()
 
 
-def _run_multigpu_segmentation(gpu_ids, wsi_csv, output_dir, wsi_dir):
+def _run_multigpu_segmentation(gpu_ids, wsi_csv, output_dir, wsi_dir, max_workers=None):
     """Run tissue segmentation across multiple GPUs."""
     from autobench.pipeline._gpu_worker import gpu_init
 
-    num_cores = os.cpu_count() or 16
-    workers_per_gpu = max(1, num_cores // (2 * len(gpu_ids)))
+    slurm_cpus = os.environ.get("SLURM_CPUS_PER_TASK")
+    num_cores = int(slurm_cpus) if slurm_cpus else (os.cpu_count() or 16)
+    workers_per_gpu = max_workers or max(1, num_cores // (2 * len(gpu_ids)))
     print(f"\nMulti-GPU segmentation across {len(gpu_ids)} GPUs ({workers_per_gpu} workers each)")
 
     ctx = multiprocessing.get_context("spawn")
@@ -325,7 +335,7 @@ def _run_multigpu_segmentation(gpu_ids, wsi_csv, output_dir, wsi_dir):
 
 
 def _run_multigpu(encoder_keys, gpu_ids, wsi_csv, coords_dir, batch_size,
-                  output_dir, wsi_dir):
+                  output_dir, wsi_dir, max_workers=None):
     """Run models concurrently, one model per GPU."""
     from autobench.pipeline._gpu_worker import gpu_init
 
@@ -333,8 +343,9 @@ def _run_multigpu(encoder_keys, gpu_ids, wsi_csv, coords_dir, batch_size,
     for idx, key in enumerate(encoder_keys):
         assignments[gpu_ids[idx % len(gpu_ids)]].append(key)
 
-    num_cores = os.cpu_count() or 16
-    workers_per_gpu = max(1, num_cores // (2 * len(gpu_ids)))
+    slurm_cpus = os.environ.get("SLURM_CPUS_PER_TASK")
+    num_cores = int(slurm_cpus) if slurm_cpus else (os.cpu_count() or 16)
+    workers_per_gpu = max_workers or max(1, num_cores // (2 * len(gpu_ids)))
 
     ctx = multiprocessing.get_context("spawn")
     pools = []
