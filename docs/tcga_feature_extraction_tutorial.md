@@ -74,7 +74,7 @@ export PATH="$HOME/bin:$PATH"  # add to ~/.bashrc to make permanent
 ```
 
 ### 4. HuggingFace Access
-Virchow2 and UNI2-h are **gated models** — you need to request access:
+Virchow2, Hoptimus-1 and UNI2-h are **gated models** — you need to request access:
 1. Create a HuggingFace account at https://huggingface.co/
 2. Go to https://huggingface.co/paige-ai/Virchow2 and request access
 3. Go to https://huggingface.co/MahmoodLab/UNI2-h and request access
@@ -82,7 +82,7 @@ Virchow2 and UNI2-h are **gated models** — you need to request access:
 5. Refer to the `benchmarks/.env.example` file, copy to `benchmarks/.env`, and add your `HF_TOKEN=your_hf_token_here`
 
 ### 5. Configure the SLURM Script
-
+  
 The default SLURM script (`benchmarks/scripts/submit_feature_extraction.sh`) references Leo's project directory and email. Update it for your account:
 
 ```bash
