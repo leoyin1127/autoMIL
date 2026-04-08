@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/jma/Documents/yinshuol/autoMIL/benchmarks/experiments/ccrcc/.claude/hooks/on_stop.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
