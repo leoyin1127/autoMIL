@@ -15,20 +15,33 @@ import click
 import yaml
 
 
-def _find_project_root() -> Path:
-    """Walk up from cwd to find a directory containing automil/config.yaml."""
+def _find_automil_dir() -> Path:
+    """Walk up from cwd to find a directory containing automil/config.yaml.
+
+    Returns the ``automil/`` directory itself.
+    """
     p = Path.cwd()
     while p != p.parent:
-        if (p / "automil" / "config.yaml").exists():
-            return p
+        candidate = p / "automil" / "config.yaml"
+        if candidate.exists():
+            return p / "automil"
         p = p.parent
     raise click.ClickException(
         "No automil/config.yaml found. Run 'automil init' in your project root."
     )
 
 
-def _automil_dir(root: Path) -> Path:
-    return root / "automil"
+def _find_git_root(start: Path | None = None) -> Path:
+    """Walk up from *start* (default: cwd) to find the git repo root."""
+    p = (start or Path.cwd()).resolve()
+    while p != p.parent:
+        if (p / ".git").exists():
+            return p
+        p = p.parent
+    raise click.ClickException(
+        "Not inside a git repository."
+    )
+
 
 
 def _matches_scope(path: str, patterns: list[str] | set[str]) -> bool:
@@ -68,10 +81,12 @@ def init(path: str, task: str, encoder: str):
     project_root = Path.cwd()
     automil_dir = project_root / path
 
-    # Verify we're in a git repo
-    if not (project_root / ".git").exists():
+    # Verify we're inside a git repo (can be a subdirectory)
+    try:
+        _find_git_root(project_root)
+    except click.ClickException:
         raise click.ClickException(
-            "Not a git repository. Run 'git init' first or cd into your project."
+            "Not inside a git repository. Run 'git init' or cd into your project."
         )
 
     if automil_dir.exists() and (automil_dir / "config.yaml").exists():
@@ -184,8 +199,14 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
     """Snapshot changed files and queue an experiment."""
     import hashlib
 
-    root = _find_project_root()
-    adir = _automil_dir(root)
+    git_root = _find_git_root()
+    adir = _find_automil_dir()
+
+    # Compute automil dir prefix relative to git root for exclusion filtering
+    try:
+        automil_rel = adir.resolve().relative_to(git_root.resolve()).as_posix() + "/"
+    except ValueError:
+        automil_rel = "automil/"
 
     # Determine files to snapshot
     if files:
@@ -209,19 +230,19 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
         else:
             editable = set()
 
-        # Get all changed files from git
+        # Get all changed files from git (paths relative to git root)
         tracked = subprocess.run(
             ["git", "diff", "--name-only"],
-            cwd=root, capture_output=True, text=True,
+            cwd=git_root, capture_output=True, text=True,
         ).stdout.strip().splitlines()
         untracked = subprocess.run(
             ["git", "ls-files", "--others", "--exclude-standard"],
-            cwd=root, capture_output=True, text=True,
+            cwd=git_root, capture_output=True, text=True,
         ).stdout.strip().splitlines()
-        # Exclude framework directories from auto-detect
+        # Exclude automil and .claude directories from auto-detect
         all_changed = [
             f for f in tracked + untracked
-            if f and not f.startswith("automil/") and not f.startswith(".claude/")
+            if f and not f.startswith(automil_rel) and not f.startswith(".claude/")
         ]
 
         if editable:
@@ -241,7 +262,7 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
     # Get base commit
     base_commit = subprocess.run(
         ["git", "rev-parse", "HEAD"],
-        cwd=root, capture_output=True, text=True, check=True,
+        cwd=git_root, capture_output=True, text=True, check=True,
     ).stdout.strip()
 
     # Create archive directory and copy files
@@ -254,17 +275,17 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
         # Reject absolute paths and directory traversal
         if os.path.isabs(f) or ".." in Path(f).parts:
             raise click.ClickException(f"Invalid path (must be relative, no ..): {f}")
-        src = root / f
+        src = git_root / f
         if not src.exists():
             # File was deleted - record as deletion
             deletions.append(f)
             click.echo(f"  {f}: deleted (will be removed in worktree)")
             continue
-        # Verify resolved path is inside the project root
+        # Verify resolved path is inside the git root
         try:
-            src.resolve().relative_to(root.resolve())
+            src.resolve().relative_to(git_root.resolve())
         except ValueError:
-            raise click.ClickException(f"Path escapes project root: {f}")
+            raise click.ClickException(f"Path escapes repository root: {f}")
         dst = archive / f
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
@@ -320,8 +341,8 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
 @click.option("--max-per-branch", default=2, help="Max proposals per branch")
 def rank(n: int, max_per_branch: int):
     """Show top-ranked proposals from the experiment graph."""
-    root = _find_project_root()
-    graph_path = _automil_dir(root) / "graph.json"
+    adir = _find_automil_dir()
+    graph_path = adir / "graph.json"
 
     if not graph_path.exists():
         click.echo("No graph.json found. Run some experiments first.")
@@ -353,9 +374,9 @@ def rank(n: int, max_per_branch: int):
 @click.option("--techniques", multiple=True, help="Technique tags")
 def propose(parent: str, desc: str, techniques: tuple):
     """Add a new experiment proposal to the graph."""
-    root = _find_project_root()
+    adir = _find_automil_dir()
     from automil.graph import ExperimentGraph
-    graph = ExperimentGraph(path=str(_automil_dir(root) / "graph.json"))
+    graph = ExperimentGraph(path=str(adir / "graph.json"))
     node_id = graph.add_proposed(
         parent_id=parent,
         description=desc,
@@ -369,8 +390,7 @@ def propose(parent: str, desc: str, techniques: tuple):
 @main.command()
 def reconcile():
     """Sync experiment graph with orchestrator state."""
-    root = _find_project_root()
-    adir = _automil_dir(root)
+    adir = _find_automil_dir()
     orch = adir / "orchestrator"
     from automil.graph import ExperimentGraph
     graph = ExperimentGraph(path=str(adir / "graph.json"))
@@ -387,8 +407,7 @@ def reconcile():
 @main.command()
 def status():
     """Show experiment status summary."""
-    root = _find_project_root()
-    adir = _automil_dir(root)
+    adir = _find_automil_dir()
 
     queue = list((adir / "orchestrator" / "queue").glob("*.json"))
     completed = list((adir / "orchestrator" / "completed").glob("*.json"))
@@ -410,16 +429,16 @@ def status():
 @main.command("start-loop")
 def start_loop():
     """Create .automil_active flag to prevent agent stopping."""
-    root = _find_project_root()
-    (root / ".automil_active").touch()
+    adir = _find_automil_dir()
+    (adir.parent / ".automil_active").touch()
     click.echo("Loop started. Agent will not stop until 'automil stop-loop' is run.")
 
 
 @main.command("stop-loop")
 def stop_loop():
     """Remove .automil_active flag to allow agent stopping."""
-    root = _find_project_root()
-    flag = root / ".automil_active"
+    adir = _find_automil_dir()
+    flag = adir.parent / ".automil_active"
     if flag.exists():
         flag.unlink()
         click.echo("Loop stopped. Agent can now exit.")
@@ -430,8 +449,8 @@ def stop_loop():
 @main.command()
 def check():
     """Validate project setup before running experiments."""
-    root = _find_project_root()
-    adir = _automil_dir(root)
+    git_root = _find_git_root()
+    adir = _find_automil_dir()
     issues = []
     warnings = []
 
@@ -442,25 +461,26 @@ def check():
     else:
         config = yaml.safe_load(config_path.read_text())
 
-        # Check run script
-        run_script = config.get("run", {}).get("script", "train.py")
-        if not (root / run_script).exists():
-            issues.append(f"Training script '{run_script}' not found at {root / run_script}")
-        else:
-            # Check if it writes result.json
-            script_content = (root / run_script).read_text()
-            if "result.json" not in script_content:
-                warnings.append(f"Training script '{run_script}' may not write result.json")
+        # Check run script (skip if run.command is set — script may not exist)
+        run_command = config.get("run", {}).get("command")
+        run_script = config.get("run", {}).get("script") or "train.py"
+        if not run_command:
+            if not (git_root / run_script).exists():
+                issues.append(f"Training script '{run_script}' not found at {git_root / run_script}")
+            else:
+                script_content = (git_root / run_script).read_text()
+                if "result.json" not in script_content:
+                    warnings.append(f"Training script '{run_script}' may not write result.json")
 
         # Check data paths
         for key in ["features_dir", "splits_dir", "mapping_csv"]:
             path = config.get("data", {}).get(key, "")
             if path and path.startswith("/path/to"):
                 issues.append(f"data.{key} is still a placeholder: {path}")
-            elif path:
+            elif path and "${" not in path:
                 resolved = Path(path)
                 if not resolved.is_absolute():
-                    resolved = root / resolved
+                    resolved = git_root / resolved
                 if not resolved.exists():
                     warnings.append(f"data.{key} path does not exist: {path}")
 
@@ -522,27 +542,30 @@ def orchestrator():
 @orchestrator.command("start")
 def orch_start():
     """Start the orchestrator daemon."""
-    root = _find_project_root()
     from automil.orchestrator import ExperimentOrchestrator
-    orch = ExperimentOrchestrator(project_root=root)
+    orch = ExperimentOrchestrator(
+        project_root=_find_git_root(), automil_dir=_find_automil_dir(),
+    )
     orch.cmd_start()
 
 
 @orchestrator.command("stop")
 def orch_stop():
     """Stop the orchestrator daemon."""
-    root = _find_project_root()
     from automil.orchestrator import ExperimentOrchestrator
-    orch = ExperimentOrchestrator(project_root=root)
+    orch = ExperimentOrchestrator(
+        project_root=_find_git_root(), automil_dir=_find_automil_dir(),
+    )
     orch.cmd_stop()
 
 
 @orchestrator.command("status")
 def orch_status():
     """Show orchestrator status."""
-    root = _find_project_root()
     from automil.orchestrator import ExperimentOrchestrator
-    orch = ExperimentOrchestrator(project_root=root)
+    orch = ExperimentOrchestrator(
+        project_root=_find_git_root(), automil_dir=_find_automil_dir(),
+    )
     orch.cmd_status()
 
 
@@ -557,25 +580,25 @@ def viz():
 @click.option("--port", default=8420, help="Server port")
 def viz_start(port: int):
     """Start the 3D visualization dashboard."""
-    root = _find_project_root()
+    adir = _find_automil_dir()
     from automil.viz.server import cmd_start
-    cmd_start(port=port, project_root=root)
+    cmd_start(port=port, project_root=adir.parent)
 
 
 @viz.command("stop")
 def viz_stop():
     """Stop the visualization dashboard."""
-    root = _find_project_root()
+    adir = _find_automil_dir()
     from automil.viz.server import cmd_stop
-    cmd_stop(project_root=root)
+    cmd_stop(project_root=adir.parent)
 
 
 @viz.command("status")
 def viz_status():
     """Show visualization server status."""
-    root = _find_project_root()
+    adir = _find_automil_dir()
     from automil.viz.server import cmd_status
-    cmd_status(project_root=root)
+    cmd_status(project_root=adir.parent)
 
 
 if __name__ == "__main__":

@@ -39,16 +39,26 @@ DEFAULT_VRAM_ESTIMATE_GB = 0.5
 logger = logging.getLogger(__name__)
 
 
-def _find_project_root() -> Path:
-    """Walk up from cwd to find a directory containing automil/config.yaml."""
+def _find_automil_dir() -> Path:
+    """Walk up from cwd to find automil/config.yaml. Returns the automil/ dir."""
     p = Path.cwd()
     while p != p.parent:
         if (p / "automil" / "config.yaml").exists():
-            return p
+            return p / "automil"
         p = p.parent
     raise RuntimeError(
         "No automil/config.yaml found. Run 'automil init' in your project root."
     )
+
+
+def _find_git_root(start: Path | None = None) -> Path:
+    """Walk up from *start* (default: cwd) to find the git repo root."""
+    p = (start or Path.cwd()).resolve()
+    while p != p.parent:
+        if (p / ".git").exists():
+            return p
+        p = p.parent
+    raise RuntimeError("Not inside a git repository.")
 
 
 # ---------------------------------------------------------------------------
@@ -117,9 +127,10 @@ def query_gpus() -> list[GPUInfo]:
 class ExperimentOrchestrator:
     """Schedules and manages experiment lifecycle across GPUs."""
 
-    def __init__(self, project_root: Path | None = None):
-        self.project_root = project_root or _find_project_root()
-        self.automil_dir = self.project_root / "automil"
+    def __init__(self, project_root: Path | None = None,
+                 automil_dir: Path | None = None):
+        self.automil_dir = automil_dir or _find_automil_dir()
+        self.project_root = project_root or _find_git_root()
         self.orch_dir = self.automil_dir / "orchestrator"
         self.queue_dir = self.orch_dir / "queue"
         self.running_dir = self.orch_dir / "running"

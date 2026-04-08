@@ -75,7 +75,7 @@ class TestInit:
 
         result = cli_runner.invoke(main, ["init"])
         assert result.exit_code != 0
-        assert "Not a git repository" in result.output
+        assert "git repository" in result.output
 
     def test_errors_if_already_initialized(self, cli_runner, tmp_path, monkeypatch):
         """automil init errors if automil/ already has config.yaml."""
