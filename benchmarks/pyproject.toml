@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "MIL benchmark suite for computational pathology — demonstrates autoMIL across multiple datasets"
 requires-python = ">=3.10"
 dependencies = [
-    "trident @ file:////home/yinshuol/scratch/autoMIL/autoMIL/benchmarks/lib/TRIDENT",
+    "trident @ file:///home/jma/Documents/yinshuol/autoMIL/benchmarks/lib/TRIDENT",
     "python-dotenv",
     "transformers>=4.35,<5",
     "scikit-learn>=1.3",

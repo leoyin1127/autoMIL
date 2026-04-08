@@ -256,7 +256,7 @@ requires-dist = [
     { name = "torch-geometric", specifier = ">=2.7.0" },
     { name = "tqdm", specifier = ">=4.60" },
     { name = "transformers", specifier = ">=4.35,<5" },
-    { name = "trident", directory = "../../../../home/yinshuol/scratch/autoMIL/autoMIL/benchmarks/lib/TRIDENT" },
+    { name = "trident", directory = "benchmarks/lib/TRIDENT" },
     { name = "wandb", specifier = ">=0.25.0" },
 ]
 
@@ -4154,7 +4154,7 @@ wheels = [
 [[package]]
 name = "trident"
 version = "0.2.3"
-source = { directory = "../../../../home/yinshuol/scratch/autoMIL/autoMIL/benchmarks/lib/TRIDENT" }
+source = { directory = "benchmarks/lib/TRIDENT" }
 dependencies = [
     { name = "einops-exts" },
     { name = "geopandas" },
