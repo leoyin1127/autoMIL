@@ -1,0 +1,85 @@
+# autoMIL Configuration — CCRCC (Clear Cell Renal Cell Carcinoma)
+# Benchmark results exist for: pbrm1, high_grade × {hoptimus1, uni_v2, virchow2}
+# Best baseline: clam_mb + uni_v2 on high_grade → AUC 0.790
+
+project:
+  name: "ccrcc"
+  description: "CCRCC mutation and grade prediction from WSI features"
+
+task:
+  name: "high_grade"
+  type: "binary"
+  num_classes: 2
+  label_column: "label"
+  positive_label: 1
+
+data:
+  features_dir: "/home/jma/Documents/yinshuol/autoMIL/datasets/CCRCC/benchmark/features"
+  splits_dir: "/home/jma/Documents/yinshuol/autoMIL/datasets/CCRCC/benchmark/splits/standard"
+  mapping_csv: "/home/jma/Documents/yinshuol/autoMIL/datasets/CCRCC/CCRCC_metadata.csv"
+  num_folds: 5
+  seed: 42
+
+encoders:
+  primary: "uni_v2"
+  available:
+    uni_v2: 1536
+    hoptimus1: 1536
+    virchow2: 2560
+    conch_v15: 768
+    hibou_l: 1024
+    midnight12k: 1536
+    h0_mini: 768
+
+baseline:
+  model: "clam_mb"
+  framework: "clam"
+  test_auc: 0.790
+  test_bacc: 0.698
+  composite: 0.744
+
+metrics:
+  primary: "composite"
+  composite_formula: "(test_auc + test_bacc) / 2"
+  track: ["val_auc", "val_bacc", "test_auc", "test_bacc"]
+
+training:
+  learning_rate: 1e-4
+  weight_decay: 1e-5
+  dropout: 0.25
+  num_epochs: 200
+  patience: 20
+  stop_epoch: 50
+  batch_size: 1
+  max_seq_length: null
+
+files:
+  editable:
+    - "benchmarks/src/autobench/pipeline/clam/train.py"
+    - "benchmarks/src/autobench/pipeline/nnmil/train.py"
+    - "benchmarks/src/autobench/pipeline/config.py"
+    - "benchmarks/lib/CLAM/models/model_clam.py"
+    - "benchmarks/lib/CLAM/models/model_mil.py"
+    - "benchmarks/lib/CLAM/utils/core_utils.py"
+    - "benchmarks/scripts/run_experiment.py"
+  readonly:
+    - "benchmarks/src/autobench/pipeline/evaluate.py"
+    - "benchmarks/src/autobench/pipeline/clam/dataset.py"
+    - "benchmarks/src/autobench/pipeline/clam/runner.py"
+    - "benchmarks/src/autobench/pipeline/splits.py"
+    - "benchmarks/src/autobench/pipeline/prepare.py"
+
+run:
+  script: null
+  command: "python benchmarks/scripts/run_experiment.py --dataset ccrcc --task high_grade --encoder uni_v2 --model clam_mb --framework clam --no_wandb"
+
+orchestrator:
+  poll_interval_sec: 5
+  safety_margin_gb: 2.0
+  default_timeout_min: 150
+  max_concurrent_per_gpu: 1
+  default_vram_estimate_gb: 4.0
+
+viz:
+  port: 8421
+  host: "0.0.0.0"

@@ -1,0 +1,9 @@
+# autoMIL runtime (not tracked)
+graph.json
+results.tsv
+result.json
+orchestrator/
+.automil_active
+.automil_worktrees/
+*.log
+*.pid
