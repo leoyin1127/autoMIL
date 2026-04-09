@@ -10,7 +10,7 @@ End-to-end guide for running MIL benchmark experiments on TCGA (and other) datas
 - **Tasks** — biomarker prediction targets (e.g., EGFR mutation, KRAS mutation)
 - **Frameworks** — CLAM and nnMIL
 
-**Recommended defaults** (from `submit_3dataset_benchmark.sh`):
+**Recommended reference** (from `submit_3dataset_benchmark.sh`):
 - Encoders: `hoptimus1`, `uni_v2`, `virchow2`
 - CLAM model: `clam_mb`
 - nnMIL model: `simple_mil`
@@ -31,6 +31,8 @@ Before running benchmarks, you must have:
 4. **Repository set up** — `automil` and `autobench` packages installed
 
 If you haven't done these, follow the [feature extraction tutorial](tcga_feature_extraction_tutorial.md) first.
+
+> **Important for TCGA datasets:** Your dataset YAML must have `slide_id_transform: "strip_svs"`. The GOLDMARK manifest's `slide_name` column includes the `.svs` extension, but H5/PT feature files do not. Without this transform, the H5→PT conversion silently produces zero files.
 
 ### Verify Your Setup
 
@@ -61,10 +63,10 @@ Replace `{code}` with your TCGA cancer type (e.g., `luad`) and `TCGA_XXX` with y
 
 ## Understanding the Pipeline
 
-The benchmark pipeline has four phases:
+The benchmark pipeline has four phases, all handled automatically by the SLURM script:
 
 ```
-Phase 1: Data Preparation
+Phase 1: Data Preparation (automatic)
   mapping CSV → task CSVs (case_id, slide_id, label)
                 → stratified k-fold splits (5 folds)
                 → H5 features → PyTorch .pt tensors
@@ -110,7 +112,7 @@ This is the same configuration used in `submit_3dataset_benchmark.sh` across all
 </details>
 
 <details>
-<summary>nnMIL Framework (9 models)</summary>
+<summary>nnMIL Framework (up to 9 models)</summary>
 
 | Model | Key | Description |
 |-------|-----|-------------|
@@ -124,6 +126,8 @@ This is the same configuration used in `submit_3dataset_benchmark.sh` across all
 | Vision Transformer | `vision_transformer` | ViT-based bag aggregation |
 | RRT | `rrt` | Recurrent Relational Transformer |
 
+> **Note:** Available nnMIL models depend on your dataset YAML's `nnmil_models` list. Not all datasets enable all 9 models. Check your YAML to see which are configured.
+>
 > **Note:** `vision_transformer`, `rrt`, `trans_mil`, and `ilra_mil` are memory-intensive. The pipeline automatically caps their batch size at 4 and sequence length at 4096.
 
 </details>
@@ -142,68 +146,9 @@ Cross-fold aggregation reports **mean**, **standard deviation**, and **95% confi
 
 ## Step-by-Step Guide
 
-### Step 1: Data Preparation (prep_only mode)
+### Step 1: Run Benchmark Experiments
 
-Run data preparation separately first to verify everything works before committing GPU time.
-
-```bash
-cd ~/scratch/autoMIL
-source .venv/bin/activate
-set -a && source benchmarks/.env && set +a
-
-python benchmarks/scripts/run_benchmark.py \
-    --dataset tcga_{code} \
-    --prep_only
-```
-
-This creates:
-
-```
-{benchmark_dir}/
-├── dataset_csv/
-│   ├── egfr.csv              # slide_id, case_id, label for each task
-│   └── kras.csv
-├── splits/
-│   └── standard/
-│       ├── egfr/
-│       │   ├── splits_0.csv  # fold 0: train/val/test slide IDs
-│       │   ├── splits_1.csv
-│       │   ├── splits_2.csv
-│       │   ├── splits_3.csv
-│       │   └── splits_4.csv
-│       └── kras/
-│           └── ...
-└── features/
-    ├── virchow2/
-    │   └── pt_files/         # .pt tensors converted from .h5
-    ├── hoptimus1/
-    │   └── pt_files/
-    └── uni_v2/
-        └── pt_files/
-```
-
-**Verify the output:**
-
-```bash
-BENCHMARK_DIR="${AUTOBENCH_TCGA_XXX_ROOT}/benchmark"
-
-# Check task CSVs were created
-for f in $BENCHMARK_DIR/dataset_csv/*.csv; do
-    echo "$(basename $f): $(tail -n +2 $f | wc -l) slides"
-done
-
-# Check splits were generated
-ls $BENCHMARK_DIR/splits/standard/*/splits_*.csv | head -20
-
-# Check PT conversion (should match H5 count)
-for encoder in virchow2 hoptimus1 uni_v2; do
-    echo "$encoder: $(ls $BENCHMARK_DIR/features/$encoder/pt_files/*.pt 2>/dev/null | wc -l) PT files"
-done
-```
-
-> **Note:** Data preparation is idempotent — re-running skips files that already exist. If you add a new encoder later, just re-run `--prep_only` and only the new encoder's features will be converted.
-
-### Step 2: Run Benchmark Experiments
+> **Note:** Data preparation (task CSVs, stratified splits, H5→PT conversion) runs automatically as Phase 1 inside the SLURM job — no separate step needed. The pipeline is idempotent: re-running skips files that already exist.
 
 #### Option A: Interactive (single GPU, small runs)
 
@@ -324,7 +269,7 @@ python benchmarks/scripts/run_benchmark.py \
     --no_wandb
 ```
 
-### Step 3: Understand the Experiment Grid
+### Step 2: Understand the Experiment Grid
 
 The pipeline generates a Cartesian product: **frameworks × strategies × tasks × encoders × models**. With the recommended settings, the grid is focused and manageable:
 
@@ -375,7 +320,34 @@ for e in exps:
 
 > **Extended benchmarks:** If you want to run all available models, omit the `--models` and `--nnmil_models` flags. This expands the grid significantly (3 CLAM + up to 9 nnMIL models), so plan for longer wall times. See [All Available Models](#all-available-models-for-extended-benchmarks) above.
 
-### Step 4: Understanding the Output
+### Step 3: Understanding the Output
+
+#### Data Preparation Output (Phase 1)
+
+The SLURM script's Phase 1 creates:
+
+```
+{benchmark_dir}/
+├── dataset_csv/
+│   ├── egfr.csv              # slide_id, case_id, label for each task
+│   └── kras.csv
+├── splits/
+│   └── standard/
+│       ├── egfr/
+│       │   ├── splits_0.csv  # fold 0: train/val/test slide IDs
+│       │   └── ...           # splits_1.csv through splits_4.csv
+│       └── kras/
+│           └── ...
+└── features/
+    ├── virchow2/
+    │   └── pt_files/         # .pt tensors converted from .h5
+    ├── hoptimus1/
+    │   └── pt_files/
+    └── uni_v2/
+        └── pt_files/
+```
+
+#### Training Results (Phase 3–4)
 
 After training completes, the results directory looks like:
 
@@ -445,18 +417,18 @@ This is the key output. Each experiment produces one:
 }
 ```
 
-#### The predictions.csv File
+#### The predictions.csv File (CLAM only)
 
-Per-fold, per-slide predictions for detailed analysis:
+Per-fold, per-slide predictions for detailed analysis. **Only CLAM** saves `predictions.csv`; nnMIL saves `metrics.json` per fold but not per-slide predictions.
 
 ```csv
 slide_id,y_true,y_prob_0,y_prob_1,y_hat
-TCGA-05-4244-01Z-00-DX1.abc123.svs,0,0.82,0.18,0
-TCGA-05-4249-01Z-00-DX1.def456.svs,1,0.35,0.65,1
+TCGA-05-4244-01Z-00-DX1.abc123,0,0.82,0.18,0
+TCGA-05-4249-01Z-00-DX1.def456,1,0.35,0.65,1
 ...
 ```
 
-### Step 5: Analyze Results
+### Step 4: Analyze Results
 
 #### Quick Summary
 
@@ -544,7 +516,7 @@ for model, aucs in sorted(by_model.items(), key=lambda x: -sum(x[1])/len(x[1])):
 "
 ```
 
-### Step 6: Update the Tracking Sheet
+### Step 5: Update the Tracking Sheet
 
 After benchmarks complete, update your row in the [tracking sheet](https://docs.google.com/spreadsheets/d/1DVzgG7EfkQwOw-hjWqI8gwagAzdG9jG-fR8z7-IDbEk/edit?usp=sharing):
 
@@ -596,7 +568,7 @@ Logging:
 
 Other:
   --experiments_per_gpu N   Concurrent experiments per GPU (default: auto)
-  --prep_only               Only run data preparation, skip training
+  --prep_only               Only run data preparation, skip training (used internally by SLURM script)
 ```
 
 ### SLURM Environment Variables
@@ -775,8 +747,7 @@ The SLURM script disables W&B by default. For interactive runs, add `--no_wandb`
 | Step | Command |
 |------|---------|
 | Verify setup | `python -c "from autobench.config import load_dataset_config; print(load_dataset_config('tcga_{code}').name)"` |
-| Data prep only | `python benchmarks/scripts/run_benchmark.py --dataset tcga_{code} --prep_only` |
-| Single experiment (test) | `python benchmarks/scripts/run_benchmark.py --dataset tcga_{code} --gpu 0 --encoders hoptimus1 --models clam_mb --tasks egfr --no_wandb` |
+| Single experiment (interactive) | `python benchmarks/scripts/run_benchmark.py --dataset tcga_{code} --gpu 0 --encoders hoptimus1 --models clam_mb --tasks egfr --no_wandb` |
 | Standard benchmark (SLURM) | `DATASET=tcga_{code} ENCODERS="hoptimus1 uni_v2 virchow2" MODELS="clam_mb" NNMIL_MODELS="simple_mil" sbatch benchmarks/scripts/submit_benchmark.sh` |
 | CLAM only (SLURM) | `DATASET=tcga_{code} ENCODERS="hoptimus1 uni_v2 virchow2" MODELS="clam_mb" FRAMEWORKS="clam" sbatch benchmarks/scripts/submit_benchmark.sh` |
 | Extended benchmark (SLURM) | `DATASET=tcga_{code} sbatch benchmarks/scripts/submit_benchmark.sh` |
