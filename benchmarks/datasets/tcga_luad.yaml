@@ -33,7 +33,7 @@ task_strategy_feasibility:
   kras: ["standard"]
 
 slide_id_column: "slide_name"
-slide_id_transform: null
+slide_id_transform: "strip_svs"
 wsi_extension: null
 case_id_column: "sample_names"
 status_column: null

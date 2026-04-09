@@ -49,7 +49,7 @@ task_strategy_feasibility:
 # These column names are consistent across all GOLDMARK TCGA manifests.
 # You should NOT need to change these.
 slide_id_column: "slide_name"    # GDC filename — matches .svs files on disk
-slide_id_transform: null
+slide_id_transform: "strip_svs"  # slide_name includes .svs but H5/PT files don't
 wsi_extension: null              # slide_name already includes .svs
 case_id_column: "sample_names"   # TCGA patient/case ID
 status_column: null
