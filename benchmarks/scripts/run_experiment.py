@@ -101,6 +101,18 @@ def main() -> None:
     args = parse_args()
     start_time = time.time()
 
+    # Overlay activation diagnostic: prove which autobench + CLAM are actually
+    # loaded. If these paths don't match the current worktree, the overlay is
+    # being shadowed by the main-repo editable install (fix: set AUTOBENCH_ROOT
+    # and prepend the worktree src to PYTHONPATH in the orchestrator).
+    import autobench
+    print(f"[automil] autobench.__file__ = {autobench.__file__}")
+    print(f"[automil] autobench.LIB_ROOT = {autobench.LIB_ROOT}")
+    print(f"[automil] cwd                = {os.getcwd()}")
+    print(f"[automil] AUTOBENCH_ROOT env = {os.environ.get('AUTOBENCH_ROOT', '<unset>')}")
+    print(f"[automil] AUTOMIL_NODE_ID    = {os.environ.get('AUTOMIL_NODE_ID', '<unset>')}")
+    print(f"[automil] AUTOMIL_RESULTS_DIR= {os.environ.get('AUTOMIL_RESULTS_DIR', '<unset>')}")
+
     # Determine GPU
     gpu = args.gpu
     if gpu is None:
@@ -146,15 +158,15 @@ def main() -> None:
 
     benchmark_dir = ds.benchmark_dir
 
-    # When running under autoMIL, use a unique results directory per experiment
-    # to prevent fold-level resume from loading cached results from prior runs.
+    # When running under autoMIL, write per-fold checkpoints/metrics into
+    # this experiment's archive dir (set by the orchestrator) so that:
+    #   1. Each experiment is isolated (no cross-experiment cache hits)
+    #   2. Results are co-located with run.log/spec.json/result.json for
+    #      easy inspection in automil/orchestrator/archive/<node_id>/results/
     # Data preparation (splits, CSVs) still uses the shared benchmark_dir.
-    node_id = os.environ.get("AUTOMIL_NODE_ID")
-    if node_id:
-        import tempfile
-        automil_results_dir = os.path.join(
-            tempfile.gettempdir(), "automil_results", node_id
-        )
+    automil_results_dir = os.environ.get("AUTOMIL_RESULTS_DIR")
+    if automil_results_dir:
+        automil_results_dir = os.path.join(automil_results_dir, "results")
         os.makedirs(automil_results_dir, exist_ok=True)
 
     # Ensure data is prepared
@@ -170,13 +182,12 @@ def main() -> None:
     )
 
     # Run the experiment
-    exp_results_dir = automil_results_dir if node_id else None
     if framework == Framework.CLAM:
         from autobench.pipeline.clam.runner import run_experiment
         summary = run_experiment(
             exp_cfg, benchmark_dir, device,
             wandb_project=None if args.no_wandb else f"{ds.name}-automil",
-            results_dir=exp_results_dir,
+            results_dir=automil_results_dir,
         )
     else:
         from autobench.pipeline.nnmil.runner import run_nnmil_experiment
