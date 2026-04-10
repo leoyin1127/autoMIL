@@ -135,17 +135,42 @@ the point estimate is stable and positive.
 
 **Honest conclusion:**
 - LS 0.15 probably helps by about +0.01 composite (≈1 % relative).
-- The *single-seed* 0.7727 "winner" was a lucky split; the multi-seed
-  mean at LS 0.15 is 0.7633.
-- The baseline mean at 0.7537 is meaningfully above the single-seed
-  baseline of 0.7443 — again, seed 42 happens to be an unusually
-  *hard* split for the baseline.
+- The *single-seed* 0.7727 "winner" was a lucky initialization; the
+  multi-seed mean at LS 0.15 is 0.7633.
 - The task (CCRCC high_grade, n_train=204, n_test=68) is intrinsically
   high-variance; single-seed hyperparameter search here is unreliable
-  for deltas < 0.03. Any further progress needs either (a) more
-  training data, (b) paired multi-seed evaluation at every step, or
-  (c) a much larger structural change (different framework, different
-  task formulation).
+  for deltas < 0.03.
+
+## Splits are Globally Cached (major methodology bug, node_0040, 2026-04-10)
+
+`benchmarks/src/autobench/pipeline/prepare.py:117` only creates splits
+if `splits_0.csv` is absent. Once created, the splits are cached at
+`benchmark/splits/standard/high_grade/` and **reused forever,
+regardless of what `seed` is passed to `prepare_all`.** Every
+experiment in this session — including the "different seeds" for the
+noise study — used the same train/val/test partition.
+
+**Proof:** node_0040 (LS 0.15, split_seed=42 forced, train_seed=7) and
+node_0034 (LS 0.15, seed=7 for both) produced byte-identical metrics:
+val_auc 0.7744, val_bacc 0.6598, test_auc 0.8024, test_bacc 0.7114,
+composite 0.7569. Changing the "split seed" had no effect.
+
+**Revised variance interpretation:**
+- The ±0.020 composite variance I attributed to "data splits" is
+  actually entirely from **model initialization / training
+  non-determinism on the same fixed test set**.
+- Hyperparameter comparisons *were* valid (same test set throughout),
+  but the signal is dominated by the ±0.020 init noise.
+- CLAM already averages across 5 folds, yet still exhibits this ±0.020
+  init-level noise. That suggests fold-to-fold independence is fragile
+  with n_train=204.
+
+**Actionable next direction:** multi-init ensembling. Train the same
+config with ≥3 different random inits on the same splits and average
+the per-slide prediction logits. With model-init noise ±0.020, a
+3-model ensemble should reduce noise to ~0.012, a 5-model ensemble
+to ~0.009. This is the highest-leverage remaining lever for a real
+gain — probably more than any single hyperparameter.
 
 **Insight:** label smoothing did ~15× more work than cosine annealing for
 the same code-edit cost. The prior invalidated "0.7458" result for label
