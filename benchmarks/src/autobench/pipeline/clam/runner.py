@@ -18,9 +18,11 @@ def run_experiment(
     benchmark_dir: str,
     device: torch.device,
     wandb_project: str | None = None,
+    results_dir: str | None = None,
 ) -> dict:
     """Run all folds for a single CLAM experiment and return aggregated results."""
-    results_dir = os.path.join(benchmark_dir, "results", exp_cfg.results_subdir)
+    if results_dir is None:
+        results_dir = os.path.join(benchmark_dir, "results", exp_cfg.results_subdir)
     os.makedirs(results_dir, exist_ok=True)
 
     exp_cfg.save(os.path.join(results_dir, "config.json"))

@@ -166,7 +166,7 @@ def train(datasets, cur, args):
     print('\nInit optimizer ...', end=' ')
     optimizer = get_optim(model, args)
     print('Done!')
-    
+
     print('\nInit Loaders...', end=' ')
     train_loader = get_split_loader(train_split, training=True, testing = args.testing, weighted = args.weighted_sample)
     val_loader = get_split_loader(val_split,  testing = args.testing)
@@ -192,7 +192,7 @@ def train(datasets, cur, args):
             stop = validate(cur, epoch, model, val_loader, args.n_classes, 
                 early_stopping, writer, loss_fn, args.results_dir)
         
-        if stop: 
+        if stop:
             break
 
     if args.early_stopping:
