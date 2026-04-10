@@ -113,7 +113,7 @@ class ExperimentGraph:
                      bootstrapped: bool = False) -> str:
         nid = self.next_id()
         parent = self.get_node(parent_id) if parent_id else None
-        parent_composite = parent["composite"] if parent else 0.0
+        parent_composite = parent.get("composite", 0.0) if parent else 0.0
         composite = metrics.get("composite", 0.0)
 
         node = {
@@ -190,7 +190,7 @@ class ExperimentGraph:
     def promote(self, node_id: str, metrics: dict):
         node = self.nodes[node_id]
         parent = self.get_node(node.get("parent_id")) if node.get("parent_id") else None
-        parent_composite = parent["composite"] if parent else 0.0
+        parent_composite = parent.get("composite", 0.0) if parent else 0.0
         composite = metrics.get("composite", 0.0)
         status = metrics.get("status", "discard")
 
@@ -286,7 +286,7 @@ class ExperimentGraph:
                 )
             elif node["type"] == "proposed" and node["status"] != "cancelled":
                 parent = self.get_node(node.get("parent_id"))
-                parent_composite = parent["composite"] if parent else 0.0
+                parent_composite = parent.get("composite", 0.0) if parent else 0.0
                 siblings_tried = len([
                     n for n in self.nodes.values()
                     if n.get("parent_id") == node.get("parent_id")
@@ -544,7 +544,7 @@ class ExperimentGraph:
 
                         parent_id = gm.get("parent_id")
                         parent = self.get_node(parent_id) if parent_id else None
-                        parent_composite = parent["composite"] if parent else 0.0
+                        parent_composite = parent.get("composite", 0.0) if parent else 0.0
                         raw_status = result.get("status", "completed")
                         if raw_status == "completed":
                             if parent:
