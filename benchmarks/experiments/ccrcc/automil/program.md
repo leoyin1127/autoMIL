@@ -27,7 +27,22 @@ Fill in ALL fields:
 - `files.editable`: list of files the agent may modify (e.g., ["train.py", "models/clam.py"])
 - `files.readonly`: list of files that should not be modified (e.g., ["prepare.py", "data/*.py"])
 
-### 3. Ensure the result.json contract
+### 3. Set up environment variables (.env)
+
+Dataset configs use `${AUTOBENCH_<DATASET>_ROOT}` for paths. Since experiments
+run in git worktrees (where `.env` is not present because it's gitignored),
+the orchestrator loads `benchmarks/.env` on startup and propagates the
+variables to child processes.
+
+```bash
+cp benchmarks/.env.example benchmarks/.env
+# Fill in: AUTOBENCH_CCRCC_ROOT=/path/to/ccrcc/dataset
+```
+
+If this step is skipped, experiments will crash with:
+`ValueError: Environment variable ${AUTOBENCH_...} is not set`
+
+### 4. Ensure the result.json contract
 
 The training script MUST write a `result.json` file to its working directory
 before exiting. This is the only contract between your code and autoMIL.
@@ -52,7 +67,7 @@ If the training script crashes before writing result.json, the experiment
 is marked as crashed. The agent should verify this contract works by
 checking the training script's output.
 
-### 4. Establish baseline
+### 5. Establish baseline
 
 Run the unmodified training script to confirm it produces valid results.
 Use `automil submit` to record this as the baseline experiment:
@@ -61,7 +76,7 @@ Use `automil submit` to record this as the baseline experiment:
 automil submit --node node_0001 --desc "baseline" --files <training_script>
 ```
 
-### 5. Validate setup
+### 6. Validate setup
 
 Run `automil check` to verify everything is configured correctly.
 
