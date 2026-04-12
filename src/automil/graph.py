@@ -370,7 +370,8 @@ class ExperimentGraph:
 
     # --- Reconciliation ---
     def reconcile(self, queue_dir: str, running_dir: str,
-                  completed_dir: str, archive_dir: str):
+                  completed_dir: str, archive_dir: str,
+                  proposal_stale_hours: float = 6.0):
         queue_path = Path(queue_dir)
         running_path = Path(running_dir)
         completed_path = Path(completed_dir)
@@ -591,6 +592,43 @@ class ExperimentGraph:
             if node["type"] == "proposed" and node["status"] == "running":
                 if node["id"] not in orch_ids:
                     node["status"] = "pending"
+
+        # Zombie sweep: proposed/pending nodes that have no presence in
+        # orchestrator state (queue/running/completed) and no archive result,
+        # and whose created_at is older than proposal_stale_hours, are
+        # cancelled. This cleans up stale proposals left behind by agent
+        # resubmissions and orchestrator restarts — the class of zombies
+        # that accumulated as 0018/0047/0048/0049 in the ccrcc run.
+        now = datetime.now()
+        stale_sec = proposal_stale_hours * 3600
+        archive_path_obj = Path(archive_dir)
+        for node in list(self.nodes.values()):
+            if node.get("type") != "proposed":
+                continue
+            if node.get("status") != "pending":
+                continue
+            if node["id"] in orch_ids:
+                continue
+            result_file = archive_path_obj / node["id"] / "result.json"
+            if result_file.exists():
+                continue
+            created = node.get("created_at")
+            if not created:
+                continue
+            try:
+                age_s = (now - datetime.fromisoformat(created)).total_seconds()
+            except (ValueError, TypeError):
+                continue
+            if age_s <= stale_sec:
+                continue
+            node["status"] = "cancelled"
+            node["cancel_reason"] = (
+                f"stale: no orchestrator state, no archive result, "
+                f"age {age_s / 3600:.1f}h > {proposal_stale_hours}h"
+            )
+            self.meta["total_proposed"] = max(
+                0, self.meta["total_proposed"] - 1
+            )
 
         self.recalculate_scores()
 
