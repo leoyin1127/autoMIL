@@ -326,6 +326,75 @@ class TestReconciliation:
                          self.completed_dir, self.archive_dir)
         assert self.g.get_node(pid)["status"] == "running"
 
+    def test_stale_pending_proposal_cancelled(self):
+        """Guard 2: old proposed/pending nodes with no orchestrator state and
+        no archive result are cancelled by the reconcile zombie sweep."""
+        pid = self.g.add_proposed(self.root, "stale zombie", ["x"],
+                                  rationale="test")
+        # Back-date its created_at to older than the 6h threshold.
+        self.g.get_node(pid)["created_at"] = "2020-01-01T00:00:00"
+        self.g.reconcile(self.queue_dir, self.running_dir,
+                         self.completed_dir, self.archive_dir)
+        node = self.g.get_node(pid)
+        assert node["status"] == "cancelled"
+        assert "stale" in node.get("cancel_reason", "")
+
+    def test_fresh_pending_proposal_not_cancelled(self):
+        """Guard 2: recently-created proposals must not be swept."""
+        pid = self.g.add_proposed(self.root, "fresh", ["y"],
+                                  rationale="test")
+        # created_at is set by add_proposed to datetime.now(), so it's fresh.
+        self.g.reconcile(self.queue_dir, self.running_dir,
+                         self.completed_dir, self.archive_dir)
+        node = self.g.get_node(pid)
+        assert node["status"] == "pending"
+
+    def test_stale_pending_with_archive_result_not_cancelled(self):
+        """Guard 2: a stale proposal that has an archive result must be
+        left alone (it should get promoted via archive recovery, not
+        cancelled as a zombie)."""
+        pid = self.g.add_proposed(self.root, "stale but archived", ["z"],
+                                  rationale="test")
+        self.g.get_node(pid)["created_at"] = "2020-01-01T00:00:00"
+        # Plant an archive result and spec for it. The archive recovery
+        # path only recovers nodes NOT yet in self.nodes — so for a node
+        # that's already proposed/pending, the recovery branch won't fire.
+        # The sweep must still skip it because a result exists on disk.
+        os.makedirs(os.path.join(self.archive_dir, pid), exist_ok=True)
+        with open(os.path.join(self.archive_dir, pid, "result.json"), "w") as f:
+            json.dump({"status": "completed", "composite": 0.82,
+                       "metrics": {"test_auc": 0.85, "test_bacc": 0.79,
+                                   "val_auc": 0.85, "val_bacc": 0.79}}, f)
+        with open(os.path.join(self.archive_dir, pid, "spec.json"), "w") as f:
+            json.dump({"id": pid,
+                       "graph_metadata": {"parent_id": self.root}}, f)
+        self.g.reconcile(self.queue_dir, self.running_dir,
+                         self.completed_dir, self.archive_dir)
+        node = self.g.get_node(pid)
+        # It should NOT be cancelled. (The current node remains pending; the
+        # archive recovery branch only rebuilds missing nodes, so this node
+        # simply isn't touched — the important assertion is "not cancelled".)
+        assert node["status"] != "cancelled"
+
+    def test_stale_threshold_configurable(self):
+        """Guard 2: proposal_stale_hours kwarg controls the cutoff."""
+        pid = self.g.add_proposed(self.root, "recentish", ["w"],
+                                  rationale="test")
+        # Back-date by ~2h.
+        import datetime as dt
+        self.g.get_node(pid)["created_at"] = (
+            dt.datetime.now() - dt.timedelta(hours=2)
+        ).isoformat()
+        # With default 6h threshold, it stays pending.
+        self.g.reconcile(self.queue_dir, self.running_dir,
+                         self.completed_dir, self.archive_dir)
+        assert self.g.get_node(pid)["status"] == "pending"
+        # With a tighter 1h threshold, it gets cancelled.
+        self.g.reconcile(self.queue_dir, self.running_dir,
+                         self.completed_dir, self.archive_dir,
+                         proposal_stale_hours=1.0)
+        assert self.g.get_node(pid)["status"] == "cancelled"
+
 
 class TestMigration:
     def setup_method(self):
