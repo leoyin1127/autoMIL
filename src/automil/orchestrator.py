@@ -33,8 +33,11 @@ from automil.runner import Runner
 POLL_INTERVAL_SEC = 5
 SAFETY_MARGIN_GB = 2.0
 DEFAULT_TIMEOUT_MIN = 150
-MAX_CONCURRENT_PER_GPU = 1
-DEFAULT_VRAM_ESTIMATE_GB = 0.5
+# Saturate GPUs by default: the orchestrator's job is to pack experiments
+# until VRAM runs out, not to run them serially. Projects whose workloads
+# are heavier should override via config.yaml → orchestrator.max_concurrent_per_gpu.
+MAX_CONCURRENT_PER_GPU = 8
+DEFAULT_VRAM_ESTIMATE_GB = 1.0
 
 logger = logging.getLogger(__name__)
 
@@ -399,12 +402,29 @@ class ExperimentOrchestrator:
             )
 
         # CUDA_VISIBLE_DEVICES masks physical GPU; logical device is always 0
+        # AUTOMIL_RESULTS_DIR points to this experiment's archive dir so that
+        # training scripts write per-fold checkpoints/metrics there (not /tmp,
+        # not the shared benchmark_dir which would cache across experiments).
+        #
+        # AUTOBENCH_ROOT + PYTHONPATH force the `autobench` package (and its
+        # LIB_ROOT) to resolve inside the worktree. Without this the editable
+        # `pip install -e .` pointer in the parent env wins and overlays under
+        # benchmarks/src/autobench/ or benchmarks/lib/ are silently ignored.
+        worktree_benchmarks = wt_path / "benchmarks"
+        worktree_src = worktree_benchmarks / "src"
+        existing_pp = os.environ.get("PYTHONPATH", "")
+        pythonpath = (
+            f"{worktree_src}{os.pathsep}{existing_pp}" if existing_pp else str(worktree_src)
+        )
         env = {
             **os.environ,
             "CUDA_VISIBLE_DEVICES": str(gpu_id),
             "AUTOMIL_GPU": "0",
             "AUTOMIL_DESC": spec.get("description", ""),
             "AUTOMIL_NODE_ID": node_id,
+            "AUTOMIL_RESULTS_DIR": str(archive.resolve()),
+            "AUTOBENCH_ROOT": str(worktree_benchmarks.resolve()),
+            "PYTHONPATH": pythonpath,
         }
         for k, v in spec.get("env", {}).items():
             if k not in ("AUTOMIL_GPU", "CUDA_VISIBLE_DEVICES"):
@@ -617,8 +637,47 @@ class ExperimentOrchestrator:
 
     # --- Main loop ---
 
+    def _reload_orchestrator_config(self) -> None:
+        """Hot-reload the orchestrator section of config.yaml each tick.
+
+        Lets an operator raise/lower concurrency and VRAM estimates live
+        without restarting the daemon (which would orphan running jobs).
+        Only the orchestrator.* section is reloaded; other sections are
+        not used after construction.
+        """
+        config_path = self.automil_dir / "config.yaml"
+        if not config_path.exists():
+            return
+        try:
+            import yaml
+            cfg = yaml.safe_load(config_path.read_text()) or {}
+        except Exception:
+            return
+        orch_cfg = (cfg.get("orchestrator") or {}) if isinstance(cfg, dict) else {}
+        new_max = orch_cfg.get("max_concurrent_per_gpu", self.max_per_gpu)
+        new_vram = orch_cfg.get("default_vram_estimate_gb", self.default_vram)
+        new_safety = orch_cfg.get("safety_margin_gb", self.safety_margin_gb)
+        if new_max != self.max_per_gpu:
+            logger.info(
+                f"Config reload: max_concurrent_per_gpu {self.max_per_gpu} -> {new_max}"
+            )
+            self.max_per_gpu = new_max
+        if new_vram != self.default_vram:
+            logger.info(
+                f"Config reload: default_vram_estimate_gb {self.default_vram} -> {new_vram}"
+            )
+            self.default_vram = new_vram
+        if new_safety != self.safety_margin_gb:
+            logger.info(
+                f"Config reload: safety_margin_gb {self.safety_margin_gb} -> {new_safety}"
+            )
+            self.safety_margin_gb = new_safety
+
     def tick(self):
         """Single scheduling cycle."""
+        # 0. Hot-reload config so concurrency bumps take effect live
+        self._reload_orchestrator_config()
+
         # 1. Check running experiments
         self._check_running()
 
