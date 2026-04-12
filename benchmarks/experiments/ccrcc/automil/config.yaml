@@ -77,8 +77,12 @@ orchestrator:
   poll_interval_sec: 5
   safety_margin_gb: 2.0
   default_timeout_min: 150
-  max_concurrent_per_gpu: 1
-  default_vram_estimate_gb: 4.0
+  # Saturate GPUs: CLAM bag training peaks at ~0.4 GB per worker and the
+  # GPUs here have ~48 GB. Bin-pack aggressively — the queue must drain in
+  # parallel, not serially. If a worker OOMs, lower this cap; never leave
+  # it at 1 "just in case."
+  max_concurrent_per_gpu: 4
+  default_vram_estimate_gb: 1.0
 
 viz:
   port: 8421
