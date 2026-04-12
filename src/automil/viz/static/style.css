@@ -364,9 +364,9 @@ td {
 }
 
 .badge-running {
-    background: rgba(239, 68, 68, 0.15);
-    color: #ef4444;
-    box-shadow: 0 0 8px rgba(239, 68, 68, 0.15);
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.2);
     animation: pulse-badge 1.5s infinite;
 }
 

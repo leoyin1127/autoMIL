@@ -37,6 +37,7 @@ STATIC_DIR = VIZ_DIR / "static"
 
 # These are set at runtime by cmd_start() based on project_root
 GRAPH_FILE: Path = Path("graph.json")
+GPU_STATE_FILE: Path = Path("gpu_state.json")
 PID_FILE: Path = Path("viz_server.pid")
 LOG_FILE: Path = Path("viz_server.log")
 
@@ -53,10 +54,34 @@ class GraphWatcher(FileSystemEventHandler):
         self._loop = loop
 
     def _maybe_notify(self, path: str):
-        if Path(path).name == GRAPH_FILE.name and self._loop:
+        name = Path(path).name
+        if name in (GRAPH_FILE.name, GPU_STATE_FILE.name) and self._loop:
             self._loop.call_soon_threadsafe(
                 asyncio.ensure_future, self._notify()
             )
+
+    @staticmethod
+    def _overlay_running_status(data: dict) -> None:
+        """Mark nodes as 'running' based on orchestrator gpu_state.json.
+
+        graph.json is only updated by submit/reconcile, so in-flight
+        experiments still show as 'pending' there. The orchestrator
+        rewrites gpu_state.json every poll cycle with the running node
+        IDs per GPU; we merge that in so the viz reflects live state.
+        """
+        try:
+            state = json.loads(GPU_STATE_FILE.read_text())
+        except (json.JSONDecodeError, FileNotFoundError, OSError):
+            return
+        running_ids: set[str] = set()
+        for gpu in state.get("gpus", {}).values():
+            for nid in gpu.get("running", []) or []:
+                running_ids.add(nid)
+        nodes = data.get("nodes", {})
+        for nid in running_ids:
+            node = nodes.get(nid)
+            if node is not None:
+                node["status"] = "running"
 
     def on_modified(self, event):
         self._maybe_notify(event.src_path)
@@ -73,20 +98,34 @@ class GraphWatcher(FileSystemEventHandler):
         except (json.JSONDecodeError, FileNotFoundError):
             return
 
-        changed, added = [], []
-        if self._prev_data:
+        self._overlay_running_status(data)
+
+        changed, added, removed = [], [], []
+        meta_changed = False
+        if self._prev_data is not None:
             prev_nodes = set(self._prev_data.get("nodes", {}).keys())
             curr_nodes = set(data.get("nodes", {}).keys())
             added = list(curr_nodes - prev_nodes)
+            removed = list(prev_nodes - curr_nodes)
             for nid in curr_nodes & prev_nodes:
                 if data["nodes"][nid] != self._prev_data["nodes"].get(nid):
                     changed.append(nid)
+            meta_changed = (
+                data.get("meta") != self._prev_data.get("meta")
+                or data.get("technique_stats") != self._prev_data.get("technique_stats")
+            )
+            # gpu_state.json is rewritten every orchestrator poll cycle. If the
+            # overlaid payload is byte-identical to the previous broadcast, the
+            # client would only see a wasteful d3 force-layout reheat. Skip.
+            if not (changed or added or removed or meta_changed):
+                return
 
         self._prev_data = data
         event = json.dumps({
             "type": "graph_update",
             "changed": changed,
             "added": added,
+            "removed": removed,
             "full_graph": data,
         })
 
@@ -102,9 +141,10 @@ class GraphWatcher(FileSystemEventHandler):
     async def get_initial(self) -> str:
         try:
             data = json.loads(GRAPH_FILE.read_text())
-            self._prev_data = data
         except (json.JSONDecodeError, FileNotFoundError):
             data = {"nodes": {}, "meta": {}, "technique_stats": {}}
+        self._overlay_running_status(data)
+        self._prev_data = data
         return json.dumps({
             "type": "graph_update",
             "changed": [],
@@ -137,6 +177,8 @@ async def sse_handler(request):
     try:
         while True:
             event = await queue.get()
+            if event is None:  # shutdown sentinel
+                break
             await response.write(f"data: {event}\n\n".encode())
     except (asyncio.CancelledError, ConnectionResetError):
         pass
@@ -147,24 +189,43 @@ async def sse_handler(request):
     return response
 
 
+async def _on_shutdown(app):
+    """Wake all SSE handlers so they exit cleanly instead of blocking shutdown."""
+    for q in list(watcher.subscribers):
+        try:
+            q.put_nowait(None)
+        except asyncio.QueueFull:
+            pass
+
+
 async def index_handler(request):
     return web.FileResponse(STATIC_DIR / "index.html")
 
 
+@web.middleware
+async def _no_cache_static(request, handler):
+    response = await handler(request)
+    if request.path.startswith("/static/") or request.path == "/":
+        response.headers["Cache-Control"] = "no-store, must-revalidate"
+    return response
+
+
 def create_app() -> web.Application:
-    app = web.Application()
+    app = web.Application(middlewares=[_no_cache_static])
     app.router.add_get("/", index_handler)
     app.router.add_get("/events", sse_handler)
     app.router.add_static("/static", STATIC_DIR)
+    app.on_shutdown.append(_on_shutdown)
     return app
 
 
 def cmd_start(port: int = DEFAULT_PORT, project_root: Path | None = None):
-    global GRAPH_FILE, PID_FILE, LOG_FILE
+    global GRAPH_FILE, GPU_STATE_FILE, PID_FILE, LOG_FILE
     if project_root is None:
         project_root = Path.cwd()
     automil_dir = project_root / "automil"
     GRAPH_FILE = automil_dir / "graph.json"
+    GPU_STATE_FILE = automil_dir / "orchestrator" / "gpu_state.json"
     PID_FILE = automil_dir / "orchestrator" / "viz_server.pid"
     LOG_FILE = automil_dir / "orchestrator" / "viz_server.log"
 
@@ -187,13 +248,16 @@ def cmd_start(port: int = DEFAULT_PORT, project_root: Path | None = None):
 
     observer = Observer()
     observer.schedule(watcher, str(automil_dir), recursive=False)
+    orch_dir = automil_dir / "orchestrator"
+    if orch_dir.exists():
+        observer.schedule(watcher, str(orch_dir), recursive=False)
     observer.start()
 
     async def run_server():
         app = create_app()
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, "0.0.0.0", port)
+        site = web.TCPSite(runner, "0.0.0.0", port, shutdown_timeout=2.0)
         await site.start()
         logging.info(f"Viz server running on http://localhost:{port}")
 

@@ -7,13 +7,14 @@ var graphData = null;
 var selectedNode = null;
 var activeTab = 'tree';
 var graph3d = null;
+var lastTreeFingerprint = null;
 
 // Status color map
 var STATUS_COLORS = {
     keep: '#34d399',
     discard: '#475569',
     pending: '#f59e0b',
-    running: '#ef4444',
+    running: '#38bdf8',
     crash: '#ef4444',
     oom: '#ef4444',
     timeout: '#ef4444',
@@ -24,7 +25,7 @@ var STATUS_GLOW = {
     keep: 'rgba(52, 211, 153, 0.4)',
     discard: 'rgba(71, 85, 105, 0.2)',
     pending: 'rgba(245, 158, 11, 0.4)',
-    running: 'rgba(239, 68, 68, 0.5)',
+    running: 'rgba(56, 189, 248, 0.55)',
     crash: 'rgba(239, 68, 68, 0.3)',
     oom: 'rgba(239, 68, 68, 0.3)',
     timeout: 'rgba(239, 68, 68, 0.3)',
@@ -330,6 +331,25 @@ function buildGraphData(nodes) {
     return { nodes: graphNodes, links: graphLinks };
 }
 
+function computeTreeFingerprint(gData) {
+    // Cheap stable signature of just the structural fields the 3D view binds to.
+    // Sorted by id so order changes don't trigger a reheat.
+    var ids = gData.nodes.map(function (n) { return n.id; }).sort();
+    var parts = [];
+    var byId = {};
+    gData.nodes.forEach(function (n) { byId[n.id] = n; });
+    ids.forEach(function (id) {
+        var n = byId[id];
+        parts.push(id + ':' + n.status + ':' + (n.composite || 0).toFixed(4) + ':' + (n.isSpine ? '1' : '0'));
+    });
+    var linkSig = gData.links.map(function (l) {
+        var s = typeof l.source === 'object' ? l.source.id : l.source;
+        var t = typeof l.target === 'object' ? l.target.id : l.target;
+        return s + '>' + t + (l.isSpine ? '*' : '');
+    }).sort().join('|');
+    return parts.join(';') + '||' + linkSig;
+}
+
 function renderTree3D() {
     var allNodes = getNodes();
     var emptyEl = document.getElementById('tree-empty');
@@ -371,27 +391,35 @@ function renderTree3D() {
                 .nodeThreeObject(function (node) {
                     var group = new THREE.Group();
 
-                    // Sphere
-                    var radius = Math.max(2, Math.min(8, 2 + (node.composite || 0) * 8));
+                    // Sphere — running/pending nodes lack composite, give them a visible floor
+                    var baseRadius = 2 + (node.composite || 0) * 8;
+                    if (node.status === 'running' || node.status === 'pending') {
+                        baseRadius = Math.max(baseRadius, 4);
+                    }
+                    var radius = Math.max(2, Math.min(8, baseRadius));
                     var color = STATUS_COLORS[node.status] || '#475569';
-                    var geometry = new THREE.SphereGeometry(radius, 16, 12);
+                    var emissiveIntensity = node.isSpine ? 0.4 : 0.15;
+                    if (node.status === 'running') emissiveIntensity = 0.55;
                     var material = new THREE.MeshPhongMaterial({
                         color: color,
                         transparent: true,
-                        opacity: node.status === 'discard' ? 0.5 : 0.85,
+                        opacity: node.status === 'discard' ? 0.5 : 0.9,
                         emissive: color,
-                        emissiveIntensity: node.isSpine ? 0.4 : 0.15
+                        emissiveIntensity: emissiveIntensity
                     });
+                    var geometry = new THREE.SphereGeometry(radius, 16, 12);
                     var sphere = new THREE.Mesh(geometry, material);
                     group.add(sphere);
 
-                    // Glow for keep/running/pending nodes
+                    // Glow for keep/running/pending nodes (running gets a stronger halo)
                     if (node.status === 'keep' || node.status === 'running' || node.status === 'pending') {
-                        var glowGeometry = new THREE.SphereGeometry(radius * 1.6, 16, 12);
+                        var glowScale = node.status === 'running' ? 1.9 : 1.6;
+                        var glowOpacity = node.status === 'running' ? 0.18 : 0.08;
+                        var glowGeometry = new THREE.SphereGeometry(radius * glowScale, 16, 12);
                         var glowMaterial = new THREE.MeshBasicMaterial({
                             color: color,
                             transparent: true,
-                            opacity: 0.08
+                            opacity: glowOpacity
                         });
                         var glow = new THREE.Mesh(glowGeometry, glowMaterial);
                         group.add(glow);
@@ -453,14 +481,14 @@ function renderTree3D() {
                 .d3Force('charge', d3.forceManyBody().strength(-120))
                 .d3Force('link', d3.forceLink().id(function (node) {
                     return node.id;
-                }).distance(30).strength(0.7));
+                }).distance(30).strength(0.7))
+                // Freeze the layout after initial settle. Default cooldownTicks
+                // is Infinity, so nodes keep drifting (what looks like a
+                // "fold/unfold" pulse). Stop the simulation after ~200 ticks.
+                .cooldownTicks(200);
 
-            // Enable auto-rotation
-            var controls = graph3d.controls();
-            if (controls) {
-                controls.autoRotate = true;
-                controls.autoRotateSpeed = 0.5;
-            }
+            // Auto-rotate disabled — it adds continuous perceived motion on
+            // top of an already-busy scene. Use mouse drag to rotate manually.
 
             // Handle resize
             window.addEventListener('resize', function () {
@@ -469,16 +497,26 @@ function renderTree3D() {
                     graph3d.height(container.clientHeight || window.innerHeight - 56);
                 }
             });
-        }
 
-        graph3d.graphData(gData);
+            graph3d.graphData(gData);
+            lastTreeFingerprint = computeTreeFingerprint(gData);
 
-        // Fit to view after a short delay to let the layout settle
-        setTimeout(function () {
-            if (graph3d) {
-                graph3d.zoomToFit(800, 50);
+            // Fit to view once on initial render; subsequent updates preserve camera
+            setTimeout(function () {
+                if (graph3d) {
+                    graph3d.zoomToFit(800, 50);
+                }
+            }, 500);
+        } else {
+            // Skip graphData() if nothing structural changed — calling it
+            // triggers d3ForceLayout.alpha(1) inside the lib, reheating the
+            // simulation and visibly resetting the layout.
+            var fp = computeTreeFingerprint(gData);
+            if (fp !== lastTreeFingerprint) {
+                graph3d.graphData(gData);
+                lastTreeFingerprint = fp;
             }
-        }, 500);
+        }
     } catch (err) {
         var message = 'Tree render failed. Check the browser console for details.';
         if (err && err.message && err.message.indexOf('WebGL context') !== -1) {
