@@ -202,6 +202,79 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
     git_root = _find_git_root()
     adir = _find_automil_dir()
 
+    # Guard against overwriting an already-executed node. Submitting against
+    # an id that already has recorded results would cause the orchestrator to
+    # re-run it and clobber its archive/result.json — destroying prior data
+    # and corrupting graph state. The only valid targets for submit are:
+    #   (a) an unused id (new node), or
+    #   (b) an existing proposal that has not yet been executed.
+    graph_path_preflight = adir / "graph.json"
+    graph_json: dict = {"nodes": {}}
+    if graph_path_preflight.exists():
+        try:
+            graph_json = json.loads(graph_path_preflight.read_text())
+        except (json.JSONDecodeError, OSError):
+            graph_json = {"nodes": {}}
+        existing = graph_json.get("nodes", {}).get(node)
+        if existing is not None:
+            ntype = existing.get("type")
+            nstatus = existing.get("status")
+            if ntype == "executed" or nstatus in {
+                "keep", "discard", "crash", "completed", "running",
+            }:
+                raise click.ClickException(
+                    f"Refusing to submit: {node} is already {ntype}/{nstatus}. "
+                    f"Submitting would overwrite its archive and destroy prior "
+                    f"results. Use 'automil propose' to create a new proposal, "
+                    f"then submit against that new node id."
+                )
+    # Also refuse if a spec for this node is already in queue/ or running/.
+    for subdir in ("queue", "running"):
+        conflict = adir / "orchestrator" / subdir / f"{node}.json"
+        if conflict.exists():
+            raise click.ClickException(
+                f"Refusing to submit: {node} is already present in "
+                f"orchestrator/{subdir}/. Wait for it to finish or remove "
+                f"the stale spec file before resubmitting."
+            )
+
+    # Guard against submitting a child before its parent has completed.
+    # If the parent is still a pending/running proposal, the Pareto-dominance
+    # keep/discard computed at reconcile time has no basis (parent.composite
+    # is 0). This was the root cause of orphan subtrees like 0051-0055→0048
+    # where the child was submitted before 0048 had ever run. Failed parents
+    # (crash/oom/timeout) are allowed but warned: the child's comparison will
+    # be against composite=0, which the agent should know.
+    if parent:
+        parent_node = graph_json.get("nodes", {}).get(parent)
+        if parent_node is None:
+            raise click.ClickException(
+                f"Refusing to submit: --parent {parent} does not exist in "
+                f"graph.json. Either propose the parent first or omit --parent "
+                f"for a root-level submission."
+            )
+        p_type = parent_node.get("type")
+        p_status = parent_node.get("status")
+        if p_type == "proposed":
+            raise click.ClickException(
+                f"Refusing to submit: --parent {parent} has type=proposed "
+                f"(status={p_status}) and has not been executed yet. "
+                f"Submitting a child now means the keep/discard Pareto check "
+                f"will compare against composite=0. Wait for {parent} to "
+                f"finish, or pick a different --parent."
+            )
+        if p_type == "executed" and p_status == "running":
+            raise click.ClickException(
+                f"Refusing to submit: --parent {parent} is still running. "
+                f"Wait for it to finish before submitting a child."
+            )
+        if p_type == "executed" and p_status in ("crash", "oom", "timeout"):
+            click.echo(
+                f"Warning: --parent {parent} has status={p_status}; the "
+                f"child's keep/discard will compare against composite=0 "
+                f"for the parent."
+            )
+
     # Compute automil dir prefix relative to git root for exclusion filtering
     try:
         automil_rel = adir.resolve().relative_to(git_root.resolve()).as_posix() + "/"
@@ -405,6 +478,25 @@ def propose(parent: str, desc: str, techniques: tuple):
     adir = _find_automil_dir()
     from automil.graph import ExperimentGraph
     graph = ExperimentGraph(path=str(adir / "graph.json"))
+
+    # Duplicate guard: refuse exact-description sibling proposals under the
+    # same parent that are still pending or running. Prevents waste from
+    # accidental double-proposes (the 0063="dup of 0057" case). Exact-match
+    # only — fine-grained hyperparameter sweeps with different descriptions
+    # are unaffected.
+    desc_norm = desc.strip()
+    for n in graph.nodes.values():
+        if (n.get("parent_id") == parent
+                and n.get("type") == "proposed"
+                and n.get("status") in ("pending", "running")
+                and (n.get("description", "") or "").strip() == desc_norm):
+            raise click.ClickException(
+                f"Refusing to propose: {n['id']} already exists under "
+                f"--parent {parent} with the same description "
+                f"'{desc_norm[:60]}'. Use a different description, pick a "
+                f"different parent, or wait for {n['id']} to complete."
+            )
+
     node_id = graph.add_proposed(
         parent_id=parent,
         description=desc,
