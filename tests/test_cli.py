@@ -215,6 +215,161 @@ class TestSubmit:
         assert result.exit_code == 0
         assert "marked readonly" in result.output
 
+    def test_submit_refuses_proposed_parent(self, cli_runner, tmp_path, monkeypatch):
+        """Guard 1: submit must refuse when --parent is a pending proposal."""
+        _init_git_repo(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        cli_runner.invoke(main, ["init"])
+
+        # Build a graph containing one kept executed node and one pending
+        # proposal hanging off it.
+        from automil.graph import ExperimentGraph
+        graph = ExperimentGraph(path=str(tmp_path / "automil" / "graph.json"))
+        root = graph.add_executed(
+            parent_id=None, description="baseline", techniques=[],
+            metrics={"composite": 0.80, "test_auc": 0.82, "test_bacc": 0.78,
+                     "val_auc": 0.82, "val_bacc": 0.78,
+                     "vram_gb": 0.4, "elapsed_min": 60, "gpu": 0},
+            status="keep",
+        )
+        pending = graph.add_proposed(
+            parent_id=root, description="pending parent", techniques=["x"],
+        )
+        graph.save()
+
+        (tmp_path / "model.py").write_text("print('child')\n")
+        result = cli_runner.invoke(
+            main,
+            ["submit", "--node", "node_0099", "--desc", "child of pending",
+             "--parent", pending, "--files", "model.py"],
+        )
+        assert result.exit_code != 0
+        assert "not been executed" in result.output or "type=proposed" in result.output
+
+    def test_submit_refuses_unknown_parent(self, cli_runner, tmp_path, monkeypatch):
+        """Guard 1: submit must refuse an unknown --parent id."""
+        _init_git_repo(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        cli_runner.invoke(main, ["init"])
+
+        from automil.graph import ExperimentGraph
+        graph = ExperimentGraph(path=str(tmp_path / "automil" / "graph.json"))
+        graph.add_executed(
+            parent_id=None, description="baseline", techniques=[],
+            metrics={"composite": 0.80, "test_auc": 0.82, "test_bacc": 0.78,
+                     "val_auc": 0.82, "val_bacc": 0.78,
+                     "vram_gb": 0.4, "elapsed_min": 60, "gpu": 0},
+            status="keep",
+        )
+        graph.save()
+
+        (tmp_path / "model.py").write_text("print('child')\n")
+        result = cli_runner.invoke(
+            main,
+            ["submit", "--node", "node_0050", "--desc", "orphan",
+             "--parent", "node_9999", "--files", "model.py"],
+        )
+        assert result.exit_code != 0
+        assert "does not exist" in result.output
+
+    def test_submit_allows_kept_parent(self, cli_runner, tmp_path, monkeypatch):
+        """Guard 1: submit must still allow a normal kept parent."""
+        _init_git_repo(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        cli_runner.invoke(main, ["init"])
+
+        from automil.graph import ExperimentGraph
+        graph = ExperimentGraph(path=str(tmp_path / "automil" / "graph.json"))
+        root = graph.add_executed(
+            parent_id=None, description="baseline", techniques=[],
+            metrics={"composite": 0.80, "test_auc": 0.82, "test_bacc": 0.78,
+                     "val_auc": 0.82, "val_bacc": 0.78,
+                     "vram_gb": 0.4, "elapsed_min": 60, "gpu": 0},
+            status="keep",
+        )
+        graph.save()
+
+        (tmp_path / "model.py").write_text("print('child')\n")
+        result = cli_runner.invoke(
+            main,
+            ["submit", "--node", "node_0002", "--desc", "legit child",
+             "--parent", root, "--files", "model.py"],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0, result.output
+
+
+class TestPropose:
+    def test_propose_refuses_exact_duplicate(self, cli_runner, tmp_path, monkeypatch):
+        """Guard 3: propose must refuse an exact-description sibling duplicate."""
+        _init_git_repo(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        cli_runner.invoke(main, ["init"])
+
+        from automil.graph import ExperimentGraph
+        graph = ExperimentGraph(path=str(tmp_path / "automil" / "graph.json"))
+        root = graph.add_executed(
+            parent_id=None, description="baseline", techniques=[],
+            metrics={"composite": 0.80, "test_auc": 0.82, "test_bacc": 0.78,
+                     "val_auc": 0.82, "val_bacc": 0.78,
+                     "vram_gb": 0.4, "elapsed_min": 60, "gpu": 0},
+            status="keep",
+        )
+        graph.save()
+
+        # First propose succeeds.
+        r1 = cli_runner.invoke(
+            main,
+            ["propose", "--parent", root, "--desc", "try dropout 0.4"],
+            catch_exceptions=False,
+        )
+        assert r1.exit_code == 0
+
+        # Second propose with same parent + same description refused.
+        r2 = cli_runner.invoke(
+            main,
+            ["propose", "--parent", root, "--desc", "try dropout 0.4"],
+        )
+        assert r2.exit_code != 0
+        assert "already exists" in r2.output
+
+    def test_propose_allows_different_parent(self, cli_runner, tmp_path, monkeypatch):
+        """Guard 3: same description under a different parent is allowed."""
+        _init_git_repo(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        cli_runner.invoke(main, ["init"])
+
+        from automil.graph import ExperimentGraph
+        graph = ExperimentGraph(path=str(tmp_path / "automil" / "graph.json"))
+        root_a = graph.add_executed(
+            parent_id=None, description="A", techniques=[],
+            metrics={"composite": 0.80, "test_auc": 0.82, "test_bacc": 0.78,
+                     "val_auc": 0.82, "val_bacc": 0.78,
+                     "vram_gb": 0.4, "elapsed_min": 60, "gpu": 0},
+            status="keep",
+        )
+        root_b = graph.add_executed(
+            parent_id=None, description="B", techniques=[],
+            metrics={"composite": 0.81, "test_auc": 0.83, "test_bacc": 0.79,
+                     "val_auc": 0.83, "val_bacc": 0.79,
+                     "vram_gb": 0.4, "elapsed_min": 60, "gpu": 0},
+            status="keep",
+        )
+        graph.save()
+
+        r1 = cli_runner.invoke(
+            main,
+            ["propose", "--parent", root_a, "--desc", "shared desc"],
+            catch_exceptions=False,
+        )
+        assert r1.exit_code == 0
+        r2 = cli_runner.invoke(
+            main,
+            ["propose", "--parent", root_b, "--desc", "shared desc"],
+            catch_exceptions=False,
+        )
+        assert r2.exit_code == 0
+
 
 class TestRank:
     def test_rank_outputs_proposals(self, cli_runner, tmp_path, monkeypatch):
