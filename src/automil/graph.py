@@ -347,6 +347,45 @@ class ExperimentGraph:
                     6,
                 )
 
+    def recompute_best(self) -> tuple[str | None, float, str | None, float]:
+        """Walk executed/keep nodes; pick max-composite node as best (CLI-07 / D-10..D-12).
+
+        Returns ``(old_node_id, old_composite, new_node_id, new_composite)``.
+        Mutates ``self._data["meta"]`` in place. The caller decides whether to
+        call ``self.save()`` — recompute_best does NOT persist (so the CLI
+        ``--dry-run`` flag can skip save).
+
+        Walk semantics (D-10): only nodes where ``type == "executed"`` AND
+        ``status == "keep"``. Discarded / crashed / cancelled / budget-killed /
+        proposed nodes are excluded.
+
+        Composite formula (D-11): uses the existing per-node ``composite`` field
+        as already populated by train.py → result.json → orchestrator pipeline.
+        Phase 0 does NOT redefine the formula — that's Phase 8 / DEC-04.
+
+        Tie-break (D-12): equal composites resolve to lexicographic min on
+        ``node_id``. Stable and deterministic.
+        """
+        old_id = self.meta.get("best_node_id")
+        old_c = float(self.meta.get("best_composite", 0.0))
+
+        keep_nodes: list[tuple[str, float]] = []
+        for node_id, node in self.nodes.items():
+            if node.get("type") == "executed" and node.get("status") == "keep":
+                keep_nodes.append((node_id, float(node.get("composite", 0.0))))
+
+        if not keep_nodes:
+            new_id: str | None = None
+            new_c = 0.0
+        else:
+            # Sort: composite DESC, node_id ASC (lex tie-break — D-12).
+            keep_nodes.sort(key=lambda x: (-x[1], x[0]))
+            new_id, new_c = keep_nodes[0]
+
+        self.meta["best_node_id"] = new_id
+        self.meta["best_composite"] = new_c
+        return old_id, old_c, new_id, new_c
+
     def rank_proposals(self, n: int = 6, max_per_branch: int = 2) -> list[dict]:
         proposals = [
             nd for nd in self.nodes.values()
