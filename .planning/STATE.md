@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-01T13:44:09.164Z"
+last_updated: "2026-05-01T13:48:39.120Z"
 progress:
   total_phases: 9
   completed_phases: 0
@@ -30,13 +30,16 @@ progress:
 - `CLAUDE.md` — project instructions and Leo's standing directives
 - `~/.claude/projects/-home-jma-Documents-yinshuol-autoMIL/memory/MEMORY.md` — Leo's standing memory (saturate GPUs, research before submit, never blind-checkout, architectural-not-hyperparam, never ask continue autonomously)
 
-**Current focus:** Phase 0 context gathered (2026-05-01 via `/gsd-discuss-phase 0`). 4 gray areas resolved: CLI split shape (per-command-group fine), env whitelist policy (system-minimal + `config.yaml: env.passthrough`), compat.py shape (empty Active + populated `_PLANNED_MIGRATIONS` doc table), reconcile `--recompute-best` contract (executed/keep walk, lex tie-break, `--dry-run` flag). Ready for `/gsd-plan-phase 0`.
+**Current focus:** Phase 00 — tier-2-cleanup-cli-split-compat-shim
 
 ## Current Position
 
+Phase: 00 (tier-2-cleanup-cli-split-compat-shim) — EXECUTING
+Plan: 1 of 7
+
 - **Phase:** 0 — Tier 2 cleanup + CLI split + compat shim
 - **Plan:** none yet (run `/gsd-plan-phase 0` to decompose)
-- **Status:** Ready to execute
+- **Status:** Executing Phase 00
 - **Progress:** ░░░░░░░░░░ 0% (0/9 phases)
 
 ## Performance Metrics
