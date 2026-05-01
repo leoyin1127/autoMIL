@@ -15,13 +15,13 @@
 - `CLAUDE.md` — project instructions and Leo's standing directives
 - `~/.claude/projects/-home-jma-Documents-yinshuol-autoMIL/memory/MEMORY.md` — Leo's standing memory (saturate GPUs, research before submit, never blind-checkout, architectural-not-hyperparam, never ask continue autonomously)
 
-**Current focus:** Phase 0 has not started. The roadmap is approved (yolo mode, auto-approved gates within roadmap; Leo reviews artifact line-by-line).
+**Current focus:** Phase 0 context gathered (2026-05-01 via `/gsd-discuss-phase 0`). 4 gray areas resolved: CLI split shape (per-command-group fine), env whitelist policy (system-minimal + `config.yaml: env.passthrough`), compat.py shape (empty Active + populated `_PLANNED_MIGRATIONS` doc table), reconcile `--recompute-best` contract (executed/keep walk, lex tie-break, `--dry-run` flag). Ready for `/gsd-plan-phase 0`.
 
 ## Current Position
 
 - **Phase:** 0 — Tier 2 cleanup + CLI split + compat shim
 - **Plan:** none yet (run `/gsd-plan-phase 0` to decompose)
-- **Status:** Roadmap created, plans pending
+- **Status:** CONTEXT.md written; plans pending
 - **Progress:** ░░░░░░░░░░ 0% (0/9 phases)
 
 ## Performance Metrics
@@ -74,12 +74,15 @@ None at roadmap-creation time. All inputs in place; Leo can review the roadmap a
 
 ## Session Continuity
 
-**Last action:** Roadmap and STATE created (2026-05-01 by gsd-roadmapper). REQUIREMENTS.md traceability table populated with all 69 REQ-ID → phase mappings.
+**Last action:** Phase 0 context gathered (2026-05-01 via `/gsd-discuss-phase 0`). CONTEXT.md + DISCUSSION-LOG.md written and committed (`b696e24`). 20 implementation decisions captured (D-01..D-20) across CLI split, env whitelist, compat.py shape, `reconcile --recompute-best` contract, plus mechanical CLN items.
 
-**Next action:** Leo reviews `.planning/ROADMAP.md` line-by-line. On approval, run `/gsd-plan-phase 0` to decompose Phase 0 into executable plans.
+**Next action:** Run `/gsd-plan-phase 0` to decompose Phase 0 into executable plans. Per-CLN/CLI-item commits (target 8) at `fine` granularity.
 
-**To resume in a fresh session:** Read this file first, then `.planning/ROADMAP.md`, then the phase's plan files under `.planning/phases/<phase>/plans/` (created by `/gsd-plan-phase`).
+**Resume file:** `.planning/phases/00-tier-2-cleanup-cli-split-compat-shim/00-CONTEXT.md`
+
+**To resume in a fresh session:** Read this file first, then `.planning/ROADMAP.md`, then the phase's `00-CONTEXT.md`, then plan files under `.planning/phases/00-tier-2-cleanup-cli-split-compat-shim/plans/` (created by `/gsd-plan-phase`).
 
 ---
 *State initialised: 2026-05-01 after roadmap creation*
+*Phase 0 context gathered: 2026-05-01*
 *Mode: yolo, granularity: fine, parallelization: true*
