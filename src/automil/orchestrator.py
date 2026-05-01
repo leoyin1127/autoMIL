@@ -443,6 +443,7 @@ class ExperimentOrchestrator:
                 stdout=log_fh,
                 stderr=subprocess.STDOUT,
                 env=env,
+                start_new_session=True,
             )
         except Exception as e:
             log_fh.close()
@@ -576,13 +577,26 @@ class ExperimentOrchestrator:
         )
 
     def _handle_timeout(self, exp_id: str):
-        """Terminate a timed-out experiment."""
+        """Terminate a timed-out experiment and its full process group.
+
+        Children launched via start_new_session=True live in their own
+        process group, so killing the parent alone leaks DataLoader
+        workers and CUDA contexts (they reparent to PID 1 and keep VRAM).
+        Signal the whole group instead.
+        """
         exp = self.running[exp_id]
-        logger.warning(f"Timeout for {exp_id}, killing PID {exp.process.pid}")
-        exp.process.terminate()
+        pid = exp.process.pid
+        logger.warning(f"Timeout for {exp_id}, killing PID {pid} and process group")
+        try:
+            os.killpg(os.getpgid(pid), signal.SIGTERM)
+        except ProcessLookupError:
+            pass
         time.sleep(5)
         if exp.process.poll() is None:
-            exp.process.kill()
+            try:
+                os.killpg(os.getpgid(pid), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
         self._timed_out[exp_id] = True
         self._handle_completion(exp_id, returncode=-9)
 
