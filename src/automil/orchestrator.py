@@ -42,6 +42,29 @@ DEFAULT_TIMEOUT_MIN = 150
 MAX_CONCURRENT_PER_GPU = 8
 DEFAULT_VRAM_ESTIMATE_GB = 1.0
 
+# ---------------------------------------------------------------------------
+# Subprocess env whitelist (CLN-02 / D-04)
+# ---------------------------------------------------------------------------
+# Hardcoded system-minimal whitelist applied to os.environ when building the
+# experiment subprocess env. Operator secrets (OPENAI_API_KEY, WANDB_API_KEY,
+# GITHUB_TOKEN, AWS_SECRET_ACCESS_KEY, ...) are NOT inherited — closing the
+# HIGH-severity exfiltration vector documented in
+# CONCERNS.md §"Subprocess `env` inherits the full operator environment".
+#
+# Consumer-specific vars (e.g. AUTOBENCH_*_ROOT) are opted in per project via
+# `automil/config.yaml: env.passthrough` — see _build_subprocess_env.
+_SYSTEM_ENV_WHITELIST_LITERAL: frozenset[str] = frozenset({
+    "PATH", "HOME", "USER", "SHELL", "LANG", "TZ", "TMPDIR",
+    "LD_LIBRARY_PATH", "PYTHONPATH",
+})
+# Prefix-glob: matched via str.startswith on a tuple (Python idiom).
+_SYSTEM_ENV_WHITELIST_PREFIX: tuple[str, ...] = (
+    "LC_", "CUDA_", "NVIDIA_", "AUTOMIL_",
+)
+# Keys the orchestrator owns; per-spec env CANNOT override them
+# (T-00-09 mitigation — prevents GPU-mask spoofing via spec.env).
+_SPEC_ENV_BLOCKED: frozenset[str] = frozenset({"AUTOMIL_GPU", "CUDA_VISIBLE_DEVICES"})
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -194,6 +217,29 @@ class ExperimentOrchestrator:
         self.default_timeout = orch_cfg.get("default_timeout_min", DEFAULT_TIMEOUT_MIN)
         self.max_per_gpu = orch_cfg.get("max_concurrent_per_gpu", MAX_CONCURRENT_PER_GPU)
         self.default_vram = orch_cfg.get("default_vram_estimate_gb", DEFAULT_VRAM_ESTIMATE_GB)
+
+        # CLN-02 / D-04: env.passthrough — literal var names the operator
+        # explicitly opts in to forward into experiment subprocesses. The
+        # config layer accepts only a list of strings (no globs — globs live
+        # in the hardcoded system whitelist so the operator cannot widen the
+        # surface from config). Missing vars WARN once at startup and never
+        # block scheduling.
+        env_cfg = self.config.get("env", {}) if self.config else {}
+        raw_passthrough = env_cfg.get("passthrough", []) or []
+        if not isinstance(raw_passthrough, list):
+            logger.warning(
+                "env.passthrough must be a list of var names; got %r — ignoring.",
+                type(raw_passthrough).__name__,
+            )
+            raw_passthrough = []
+        self._env_passthrough: list[str] = [str(k) for k in raw_passthrough]
+        for key in self._env_passthrough:
+            if key not in os.environ:
+                logger.warning(
+                    "env.passthrough declares %s but it is not set in the orchestrator's "
+                    "environment — the var will be unavailable to experiment subprocesses.",
+                    key,
+                )
 
         # Runtime state
         self.running: dict[str, RunningExperiment] = {}
@@ -396,6 +442,58 @@ class ExperimentOrchestrator:
 
     # --- Experiment lifecycle ---
 
+    def _build_subprocess_env(
+        self,
+        *,
+        gpu_id: int,
+        node_id: str,
+        archive: Path,
+        spec: dict,
+        pythonpath: str,
+        worktree_benchmarks: Path,
+    ) -> dict[str, str]:
+        """Build the subprocess environment from a hardcoded whitelist + config passthrough.
+
+        Replaces the previous ``env = {**os.environ, ...}`` leak (CLN-02 / D-04;
+        see CONCERNS.md §"Subprocess `env` inherits the full operator environment").
+
+        Layering — highest precedence wins:
+          1. System whitelist (literal + prefix-glob match against ``os.environ``).
+          2. Config passthrough (literal names from ``automil/config.yaml: env.passthrough``).
+          3. Orchestrator-injected fixed keys (always overrides 1 + 2).
+          4. Per-spec ``spec.env`` (last-write-wins, except ``_SPEC_ENV_BLOCKED``).
+        """
+        env: dict[str, str] = {}
+
+        # 1. System whitelist (literal + prefix-glob).
+        for key, value in os.environ.items():
+            if key in _SYSTEM_ENV_WHITELIST_LITERAL or key.startswith(_SYSTEM_ENV_WHITELIST_PREFIX):
+                env[key] = value
+
+        # 2. Config-driven passthrough (literal names only).
+        for key in self._env_passthrough:
+            if key in os.environ:
+                env[key] = os.environ[key]
+
+        # 3. Orchestrator-injected (always overrides 1 + 2).
+        env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+        env["AUTOMIL_GPU"] = "0"
+        env["AUTOMIL_DESC"] = spec.get("description", "")
+        env["AUTOMIL_NODE_ID"] = node_id
+        env["AUTOMIL_RESULTS_DIR"] = str(archive.resolve())
+        # D-05: AUTOBENCH_ROOT injection stays in Phase 0; Phase 8/DEC-01
+        # owns its removal. Consumer configs declare it under env.passthrough
+        # to be wired correctly through the transition.
+        env["AUTOBENCH_ROOT"] = str(worktree_benchmarks.resolve())
+        env["PYTHONPATH"] = pythonpath
+
+        # 4. Per-spec env (last-write-wins, except blocked keys).
+        for k, v in spec.get("env", {}).items():
+            if k not in _SPEC_ENV_BLOCKED:
+                env[k] = str(v)
+
+        return env
+
     def _launch(self, spec: dict, gpu_id: int):
         """Launch an experiment in an isolated git worktree."""
         node_id = spec["id"]
@@ -441,19 +539,17 @@ class ExperimentOrchestrator:
         pythonpath = (
             f"{worktree_src}{os.pathsep}{existing_pp}" if existing_pp else str(worktree_src)
         )
-        env = {
-            **os.environ,
-            "CUDA_VISIBLE_DEVICES": str(gpu_id),
-            "AUTOMIL_GPU": "0",
-            "AUTOMIL_DESC": spec.get("description", ""),
-            "AUTOMIL_NODE_ID": node_id,
-            "AUTOMIL_RESULTS_DIR": str(archive.resolve()),
-            "AUTOBENCH_ROOT": str(worktree_benchmarks.resolve()),
-            "PYTHONPATH": pythonpath,
-        }
-        for k, v in spec.get("env", {}).items():
-            if k not in ("AUTOMIL_GPU", "CUDA_VISIBLE_DEVICES"):
-                env[k] = str(v)
+        # CLN-02 / D-04: build env from explicit whitelist + config passthrough.
+        # The previous `{**os.environ, ...}` leaked operator secrets into every
+        # experiment subprocess.
+        env = self._build_subprocess_env(
+            gpu_id=gpu_id,
+            node_id=node_id,
+            archive=archive,
+            spec=spec,
+            pythonpath=pythonpath,
+            worktree_benchmarks=worktree_benchmarks,
+        )
 
         log_path = archive / "run.log"
         log_fh = open(log_path, "w")
