@@ -256,7 +256,7 @@ requires-dist = [
     { name = "torch-geometric", specifier = ">=2.7.0" },
     { name = "tqdm", specifier = ">=4.60" },
     { name = "transformers", specifier = ">=4.35,<5" },
-    { name = "trident", directory = "benchmarks/lib/TRIDENT" },
+    { name = "trident", directory = "/home/jma/Documents/yinshuol/autoMIL/benchmarks/lib/TRIDENT" },
     { name = "wandb", specifier = ">=0.25.0" },
 ]
 
@@ -271,6 +271,7 @@ dependencies = [
     { name = "aiohttp" },
     { name = "click" },
     { name = "jinja2" },
+    { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "torch" },
     { name = "watchdog" },
@@ -297,6 +298,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.1" },
     { name = "h5py", marker = "extra == 'ml'", specifier = ">=3.9" },
     { name = "jinja2", specifier = ">=3.1" },
+    { name = "python-dotenv", specifier = ">=1.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "scikit-learn", marker = "extra == 'ml'", specifier = ">=1.3" },
     { name = "scipy", marker = "extra == 'ml'", specifier = ">=1.11" },
@@ -4154,7 +4156,7 @@ wheels = [
 [[package]]
 name = "trident"
 version = "0.2.3"
-source = { directory = "benchmarks/lib/TRIDENT" }
+source = { directory = "/home/jma/Documents/yinshuol/autoMIL/benchmarks/lib/TRIDENT" }
 dependencies = [
     { name = "einops-exts" },
     { name = "geopandas" },

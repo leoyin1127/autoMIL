@@ -25,6 +25,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from dotenv import dotenv_values
+
 from automil.runner import Runner
 
 # ---------------------------------------------------------------------------
@@ -223,10 +225,15 @@ class ExperimentOrchestrator:
         """Load .env files from the project root into os.environ.
 
         Worktrees are detached git checkouts and don't contain .env
-        (which is typically gitignored).  Loading here ensures the
+        (which is typically gitignored). Loading here ensures the
         orchestrator's child processes inherit the variables.
+
+        Uses python-dotenv so quoted values, the ``export`` prefix, and
+        inline ``# comments`` after unquoted values are handled
+        correctly (CLN-03; see CONCERNS.md §"Naive .env parser").
+        Pre-existing entries in ``os.environ`` are preserved
+        (``setdefault`` semantic) — the shell wins over the file.
         """
-        # Search common .env locations relative to the project root
         candidates = [
             self.project_root / ".env",
             self.project_root / "benchmarks" / ".env",
@@ -234,17 +241,11 @@ class ExperimentOrchestrator:
         for env_file in candidates:
             if not env_file.is_file():
                 continue
-            for line in env_file.read_text().splitlines():
-                line = line.strip()
-                if not line or line.startswith("#"):
+            parsed = dotenv_values(env_file)
+            for key, value in parsed.items():
+                if value is None:
                     continue
-                if "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key, value = key.strip(), value.strip()
-                if not key:
-                    continue
-                # Don't override existing env vars
+                # Don't override existing env vars (preserves prior semantic).
                 if key not in os.environ:
                     os.environ[key] = value
                     logger.debug("Loaded env var %s from %s", key, env_file)
