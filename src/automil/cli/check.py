@@ -1,6 +1,7 @@
 """check command: validate project setup before running experiments."""
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -21,10 +22,11 @@ def check():
 
     # Check config.yaml
     config_path = adir / "config.yaml"
+    config: dict = {}
     if not config_path.exists():
         issues.append("automil/config.yaml not found. Run 'automil init' first.")
     else:
-        config = yaml.safe_load(config_path.read_text())
+        config = yaml.safe_load(config_path.read_text()) or {}
 
         # Check run script (skip if run.command is set — script may not exist)
         run_command = config.get("run", {}).get("command")
@@ -87,6 +89,38 @@ def check():
         click.echo(f"nvidia-smi: {NVIDIA_SMI_PATH}")
     else:
         click.echo("nvidia-smi: bare PATH lookup (path detection failed)")
+
+    # CLN-02 / D-04 / D-06: surface the subprocess env whitelist so the operator
+    # knows exactly what experiment processes will receive. Hardcoded system
+    # whitelist comes from the orchestrator module; per-project passthrough is
+    # read fresh from the config we already loaded above.
+    from automil.orchestrator import (
+        _SYSTEM_ENV_WHITELIST_LITERAL,
+        _SYSTEM_ENV_WHITELIST_PREFIX,
+    )
+
+    literal_list = ", ".join(sorted(_SYSTEM_ENV_WHITELIST_LITERAL))
+    prefix_list = ", ".join(f"{p}*" for p in _SYSTEM_ENV_WHITELIST_PREFIX)
+    click.echo(f"env whitelist (system, literal): {literal_list}")
+    click.echo(f"env whitelist (system, prefix-glob): {prefix_list}")
+
+    passthrough: list[str] = []
+    env_section = (config or {}).get("env") or {}
+    raw_pt = env_section.get("passthrough", []) or []
+    if isinstance(raw_pt, list):
+        passthrough = [str(k) for k in raw_pt]
+    else:
+        warnings.append(
+            f"config.yaml: env.passthrough must be a list of var names; "
+            f"got {type(raw_pt).__name__} — ignoring."
+        )
+    if passthrough:
+        click.echo("env.passthrough:")
+        for key in passthrough:
+            present = "OK" if key in os.environ else "MISSING"
+            click.echo(f"  {key}: passthrough {present}")
+    else:
+        click.echo("env.passthrough: (none declared)")
 
     # Report
     if issues:
