@@ -7,12 +7,15 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import logging
 import math
 import os
 import tempfile
 import tokenize
 from datetime import datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class ExperimentGraph:
@@ -181,11 +184,16 @@ class ExperimentGraph:
         self.meta["total_proposed"] += 1
         return nid
 
-    def mark_running(self, node_id: str):
+    def mark_running(self, node_id: str) -> bool:
         node = self.nodes[node_id]
-        assert node["type"] == "proposed" and node["status"] == "pending", \
-            f"Cannot mark {node_id} running: type={node['type']}, status={node['status']}"
+        if node["type"] != "proposed" or node["status"] != "pending":
+            logger.warning(
+                "mark_running skipped for %s: type=%s status=%s",
+                node_id, node["type"], node["status"],
+            )
+            return False
         node["status"] = "running"
+        return True
 
     def promote(self, node_id: str, metrics: dict):
         node = self.nodes[node_id]
@@ -227,6 +235,39 @@ class ExperimentGraph:
 
         self._update_technique_stats(node.get("techniques", []),
                                      composite - parent_composite)
+
+        self._reevaluate_descendants(node_id)
+
+    def _reevaluate_descendants(self, root_id: str) -> None:
+        """Recompute keep/discard for executed descendants of root_id.
+
+        Children can be promoted before their parent completes, in which case
+        parent metrics default to 0 and the Pareto check spuriously yields
+        'keep'. Re-run the check now that root_id has real metrics.
+        """
+        stack = [root_id]
+        while stack:
+            pid = stack.pop()
+            parent = self.nodes.get(pid)
+            if not parent or parent.get("type") != "executed":
+                continue
+            p_auc = parent.get("test_auc", 0)
+            p_bacc = parent.get("test_bacc", 0)
+            p_comp = parent.get("composite", 0)
+            for child in self.nodes.values():
+                if child.get("parent_id") != pid:
+                    continue
+                if child.get("type") != "executed":
+                    continue
+                if child.get("status") not in ("keep", "discard"):
+                    continue
+                c_auc = child.get("test_auc", 0)
+                c_bacc = child.get("test_bacc", 0)
+                c_comp = child.get("composite", 0)
+                keep = (c_auc >= p_auc and c_bacc >= p_bacc and c_comp > p_comp)
+                child["status"] = "keep" if keep else "discard"
+                child["parent_delta"] = c_comp - p_comp
+                stack.append(child["id"])
 
     def mark_failed(self, node_id: str, status: str, error: str = "",
                     config_hash: str | None = None):
