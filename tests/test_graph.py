@@ -108,11 +108,11 @@ class TestNodeLifecycle:
         self.g.cancel(pid)
         assert self.g.get_node(pid)["status"] == "cancelled"
 
-    def test_mark_running_wrong_state_raises(self):
+    def test_mark_running_wrong_state_returns_false(self):
         pid = self.g.add_proposed(self.root, "test", ["x"], rationale="test")
-        self.g.mark_running(pid)
-        with pytest.raises(AssertionError):
-            self.g.mark_running(pid)
+        assert self.g.mark_running(pid) is True
+        assert self.g.mark_running(pid) is False
+        assert self.g.get_node(pid)["status"] == "running"
 
     def test_best_node_updates_on_promote(self):
         pid = self.g.add_proposed(self.root, "better", ["x"], rationale="test")
