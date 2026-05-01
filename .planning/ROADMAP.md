@@ -34,7 +34,14 @@ An agent can autonomously discover model improvements for any user's training co
   3. `from automil.X import Y` import paths from before the split still resolve via `compat.py` re-export shim; deprecation table is documented at the top of that file.
   4. `automil reconcile --recompute-best` rebuilds `meta.best_node_id` from the honest non-leaky composite by walking only `executed/keep` nodes (closes the T2 backlog from earlier this session).
   5. All 48 existing tests pass green; no new behaviour is introduced beyond the cleanup + restructure + reconcile flag.
-**Plans**: TBD
+**Plans**: 7 plans
+  - [ ] 00-01-PLAN.md — split src/automil/cli.py into per-command-group cli/ package (CLN-01, CLN-06)
+  - [ ] 00-02-PLAN.md — replace inline dotenv parser with python-dotenv (CLN-01, CLN-03)
+  - [ ] 00-03-PLAN.md — pin nvidia-smi path with shutil.which + automil check report (CLN-01, CLN-05)
+  - [ ] 00-04-PLAN.md — add compat.py with empty Active section + populated _PLANNED_MIGRATIONS dict (CLN-01, CLN-07)
+  - [ ] 00-05-PLAN.md — replace os.environ leak with explicit env whitelist + env.passthrough (CLN-01, CLN-02)
+  - [ ] 00-06-PLAN.md — PID-file JSON shape with starttime_ticks cross-check via /proc/<pid>/stat (CLN-01, CLN-04)
+  - [ ] 00-07-PLAN.md — automil reconcile --recompute-best with --dry-run flag (CLI-07)
 **Estimated**: 2–3 days
 
 ### Phase 1: Variant registry + config-driven train.py + CCRCC reproduction sanity
@@ -179,7 +186,7 @@ Phase 5 (generalization gate)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 0. Cleanup + CLI split + compat | 0/0 | Not started | - |
+| 0. Cleanup + CLI split + compat | 0/7 | Not started | - |
 | 1. Registry + config-driven train + CCRCC reproduction | 0/0 | Not started | - |
 | 2. Backend ABC + LocalBackend + MockSLURM | 0/0 | Not started | - |
 | 3. Trajectory + multi-runtime reorg | 0/0 | Not started | - |
