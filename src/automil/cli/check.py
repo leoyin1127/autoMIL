@@ -78,6 +78,16 @@ def check():
         if not (adir / "orchestrator" / d).exists():
             issues.append(f"automil/orchestrator/{d}/ missing. Run 'automil init'.")
 
+    # CLN-05: report the resolved nvidia-smi path so operators can see whether
+    # path pinning is in effect (D-18). The constant is set at orchestrator.py
+    # module import via shutil.which('nvidia-smi') — see Plan 03.
+    from automil.orchestrator import NVIDIA_SMI_PATH
+
+    if NVIDIA_SMI_PATH != "nvidia-smi":
+        click.echo(f"nvidia-smi: {NVIDIA_SMI_PATH}")
+    else:
+        click.echo("nvidia-smi: bare PATH lookup (path detection failed)")
+
     # Report
     if issues:
         click.echo("\nISSUES (must fix):")

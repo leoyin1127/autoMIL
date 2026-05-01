@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -42,6 +43,25 @@ MAX_CONCURRENT_PER_GPU = 8
 DEFAULT_VRAM_ESTIMATE_GB = 1.0
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# nvidia-smi path pinning (CLN-05)
+# ---------------------------------------------------------------------------
+# Resolve nvidia-smi's absolute path once at module import. On a shared host a
+# PATH-shim could otherwise return spoofed VRAM numbers and trick the
+# bin-packer (CONCERNS.md §"nvidia-smi invocation has no path pinning"). If
+# detection fails we fall back to bare PATH lookup with a WARN — never silent
+# (D-18). Resolution happens here (module-level), not on every query_gpus
+# call, so the cost is paid once and tests can re-resolve via importlib.reload.
+_resolved_nvidia_smi = shutil.which("nvidia-smi")
+NVIDIA_SMI_PATH = _resolved_nvidia_smi or "nvidia-smi"
+if _resolved_nvidia_smi:
+    logger.info("nvidia-smi resolved to %s", NVIDIA_SMI_PATH)
+else:
+    logger.warning(
+        "nvidia-smi not found via shutil.which; falling back to bare PATH lookup. "
+        "GPU state may be unreliable on hosts with shimmed PATH."
+    )
 
 
 def _find_automil_dir() -> Path:
@@ -98,11 +118,15 @@ class RunningExperiment:
 # GPU monitoring
 # ---------------------------------------------------------------------------
 def query_gpus() -> list[GPUInfo]:
-    """Query nvidia-smi for GPU state."""
+    """Query nvidia-smi for GPU state.
+
+    Uses the path resolved at module import (NVIDIA_SMI_PATH) to defend
+    against PATH-shim spoofing on shared hosts (CLN-05).
+    """
     try:
         result = subprocess.run(
             [
-                "nvidia-smi",
+                NVIDIA_SMI_PATH,
                 "--query-gpu=index,memory.total,memory.free,utilization.gpu",
                 "--format=csv,noheader,nounits",
             ],
