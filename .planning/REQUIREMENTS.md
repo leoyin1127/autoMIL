@@ -169,17 +169,102 @@ Explicitly excluded from v1 *and* v2 unless reopened with discussion.
 
 ## Traceability
 
-(Empty pending roadmap creation in Step 8.)
+Mapped 2026-05-01 by `gsd-roadmapper` against `.planning/ROADMAP.md` (9 phases).
 
 | Requirement | Phase | Status |
 |---|---|---|
-| (TBD by gsd-roadmapper) | | |
+| CLN-01 | Phase 0 | Pending |
+| CLN-02 | Phase 0 | Pending |
+| CLN-03 | Phase 0 | Pending |
+| CLN-04 | Phase 0 | Pending |
+| CLN-05 | Phase 0 | Pending |
+| CLN-06 | Phase 0 | Pending |
+| CLN-07 | Phase 0 | Pending |
+| REG-01 | Phase 1 | Pending |
+| REG-02 | Phase 1 | Pending |
+| REG-03 | Phase 1 | Pending |
+| REG-04 | Phase 1 | Pending |
+| REG-05 | Phase 1 | Pending |
+| REG-06 | Phase 1 | Pending |
+| REG-07 | Phase 1 | Pending |
+| REG-08 | Phase 1 | Pending |
+| REG-09 | Phase 1 | Pending |
+| BCK-01 | Phase 2 | Pending |
+| BCK-02 | Phase 2 | Pending |
+| BCK-03 | Phase 2 | Pending |
+| BCK-04 | Phase 2 | Pending |
+| BCK-05 | Phase 6 | Pending |
+| BCK-06 | Phase 6 | Pending |
+| TRJ-01 | Phase 3 | Pending |
+| TRJ-02 | Phase 3 | Pending |
+| TRJ-03 | Phase 3 | Pending |
+| TRJ-04 | Phase 3 | Pending |
+| TRJ-05 | Phase 3 | Pending |
+| TRJ-06 | Phase 3 | Pending |
+| MRT-01 | Phase 3 | Pending |
+| MRT-02 | Phase 3 | Pending |
+| MRT-03 | Phase 3 | Pending |
+| MRT-04 | Phase 3 | Pending |
+| MRT-05 | Phase 3 | Pending |
+| MRT-06 | Phase 3 | Pending |
+| CAP-01 | Phase 4 | Pending |
+| CAP-02 | Phase 4 | Pending |
+| CAP-03 | Phase 4 | Pending |
+| CAP-04 | Phase 4 | Pending |
+| CAP-05 | Phase 4 | Pending |
+| CAP-06 | Phase 4 | Pending |
+| GTE-01 | Phase 5 | Pending |
+| GTE-02 | Phase 5 | Pending |
+| GTE-03 | Phase 5 | Pending |
+| GTE-04 | Phase 5 | Pending |
+| GTE-05 | Phase 5 | Pending |
+| GTE-06 | Phase 5 | Pending |
+| CLI-01 | Phase 1 | Pending |
+| CLI-02 | Phase 1 | Pending |
+| CLI-03 | Phase 2 | Pending |
+| CLI-04 | Phase 2 | Pending |
+| CLI-05 | Phase 1 | Pending |
+| CLI-06 | Phase 1 | Pending |
+| CLI-07 | Phase 0 | Pending |
+| CLI-08 | Phase 1 | Pending |
+| CLI-09 | Phase 1 | Pending |
+| STP-01 | Phase 7 | Pending |
+| STP-02 | Phase 7 | Pending |
+| STP-03 | Phase 7 | Pending |
+| STP-04 | Phase 7 | Pending |
+| STP-05 | Phase 7 | Pending |
+| STP-06 | Phase 7 | Pending |
+| STP-07 | Phase 7 | Pending |
+| DEC-01 | Phase 8 | Pending |
+| DEC-02 | Phase 8 | Pending |
+| DEC-03 | Phase 8 | Pending |
+| DEC-04 | Phase 8 | Pending |
+| DEC-05 | Phase 8 | Pending |
+| DEC-06 | Phase 8 | Pending |
+| DEC-07 | Phase 8 | Pending |
 
 **Coverage:**
-- v1 requirements: 60 total
-- Mapped to phases: 0
-- Unmapped: 60 ⚠️ (resolved in Step 8)
+- v1 requirements: 69 total (10 categories: CLN×7 + REG×9 + BCK×6 + TRJ×6 + MRT×6 + CAP×6 + GTE×6 + CLI×9 + STP×7 + DEC×7)
+- Mapped to phases: 69 ✓
+- Unmapped: 0 ✓
+
+**Phase fan-out:**
+
+| Phase | Requirement count | Categories |
+|---|---|---|
+| Phase 0 | 8 | CLN×7 + CLI-07 |
+| Phase 1 | 15 | REG×9 + CLI-01, 02, 05, 06, 08, 09 |
+| Phase 2 | 6 | BCK-01..04 + CLI-03, 04 |
+| Phase 3 | 12 | TRJ×6 + MRT×6 |
+| Phase 4 | 6 | CAP×6 |
+| Phase 5 | 6 | GTE×6 |
+| Phase 6 | 2 | BCK-05, 06 |
+| Phase 7 | 7 | STP×7 |
+| Phase 8 | 7 | DEC×7 |
+| **Total** | **69** | |
+
+**Note on count discrepancy:** The orchestrator-supplied prompt referenced "60 v1 REQ-IDs". Direct count of this file yields **69**. All 69 are mapped above; if the count was meant to be 60 the orchestrator may have deduplicated CLI commands across phases (e.g., counting CLI as a single deliverable rather than 9 commands) — but per REQUIREMENTS.md the canonical count is 69 and that is what is mapped.
 
 ---
 *Requirements defined: 2026-05-01*
-*Last updated: 2026-05-01 after initial definition*
+*Last updated: 2026-05-01 — traceability table populated by gsd-roadmapper after roadmap creation*
