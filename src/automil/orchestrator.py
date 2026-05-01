@@ -665,7 +665,12 @@ class ExperimentOrchestrator:
         try:
             import yaml
             cfg = yaml.safe_load(config_path.read_text()) or {}
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                f"Config reload skipped: {config_path.name} parse failed ({e}); "
+                f"keeping previous values (max_per_gpu={self.max_per_gpu}, "
+                f"default_vram={self.default_vram}, safety_margin={self.safety_margin_gb})"
+            )
             return
         orch_cfg = (cfg.get("orchestrator") or {}) if isinstance(cfg, dict) else {}
         new_max = orch_cfg.get("max_concurrent_per_gpu", self.max_per_gpu)
