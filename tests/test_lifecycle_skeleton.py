@@ -103,16 +103,19 @@ def test_stub_error_format(cli_runner, cmd, plan):
 # ---------------------------------------------------------------------------
 
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
 def test_lifecycle_py_file_deleted():
     """lifecycle.py (Phase 0 stub) must be gone; the package replaces it."""
-    assert not Path("src/automil/cli/lifecycle.py").is_file(), (
+    assert not (_REPO_ROOT / "src/automil/cli/lifecycle.py").is_file(), (
         "lifecycle.py still exists — should have been replaced by lifecycle/ package"
     )
 
 
 def test_lifecycle_package_exists():
     """All expected sub-modules exist under cli/lifecycle/."""
-    assert Path("src/automil/cli/lifecycle/__init__.py").is_file(), (
+    assert (_REPO_ROOT / "src/automil/cli/lifecycle/__init__.py").is_file(), (
         "lifecycle/__init__.py missing"
     )
     for sub in (
@@ -124,7 +127,7 @@ def test_lifecycle_package_exists():
         "promote_variant",
         "verify_repro",
     ):
-        assert Path(f"src/automil/cli/lifecycle/{sub}.py").is_file(), (
+        assert (_REPO_ROOT / f"src/automil/cli/lifecycle/{sub}.py").is_file(), (
             f"missing sub-module: lifecycle/{sub}.py"
         )
 

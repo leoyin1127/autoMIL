@@ -50,7 +50,7 @@ def test_constraints_empty_ok():
 
 def test_no_top_level_torch_in_identity_module():
     """Plan 01-01 invariant: the registry must remain importable without torch."""
-    path = Path("src/automil/registry/validators/identity.py")
+    path = Path(__file__).resolve().parent.parent / "src/automil/registry/validators/identity.py"
     content = path.read_text()
     offending = []
     in_type_checking = False
