@@ -101,7 +101,8 @@ def test_no_top_level_torch_import_in_model_py():
     """D-24 + TYPE_CHECKING guard: framework must not require torch at import time
     (the synthetic-consumer round-trip in Plan 01-12 is torch-free)."""
     from pathlib import Path
-    path = Path("src/automil/registry/variants/model.py")
+    # Use __file__-relative path to be robust against monkeypatch.chdir() in other tests.
+    path = Path(__file__).parent.parent / "src" / "automil" / "registry" / "variants" / "model.py"
     content = path.read_text()
     # Grep gate: filter comments + TYPE_CHECKING block guards. Lines that begin
     # with 'import torch' or 'from torch ' at module scope (not inside a TYPE_CHECKING
