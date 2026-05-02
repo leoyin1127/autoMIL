@@ -1,0 +1,19 @@
+project:
+  name: "synthetic_consumer"
+  description: "Phase 1 acceptance fixture (REG-09 / D-50)"
+
+run:
+  script: "program.py"
+
+registry:
+  protected: []
+  mode: "free"
+  repro_tolerance: 0.005
+
+model:
+  variant: null
+  parent: null
+loss:
+  variant: null
+policy:
+  variant: null
