@@ -1,9 +1,10 @@
 ---
-status: escalate
-iteration: 3
+status: pass
+iteration: 4
 checked_at: 2026-05-02
 plan_count: 12
-blockers: 1
+wave_count: 7
+blockers: 0
 warnings: 6
 ---
 
