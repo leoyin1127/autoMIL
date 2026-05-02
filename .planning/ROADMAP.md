@@ -82,7 +82,7 @@ An agent can autonomously discover model improvements for any user's training co
   5. `automil cancel <node_id>` and `automil resubmit <node_id>` are wired through `Backend.cancel` and `Backend.submit`; cancelled nodes archive with `status: cancelled` and resubmits get a fresh worktree.
 **Plans**: 8 plans across 5 waves
   - [x] 02-01-PLAN.md — Backend ABC + JobHandle/JobSpec/JobState dataclasses + errors.py + test package skeleton (BCK-01) — wave 1
-  - [ ] 02-02-PLAN.md — BACKENDS registry singleton + @register decorator (extends 02-01's __init__.py) (BCK-01) — wave 2
+  - [x] 02-02-PLAN.md — BACKENDS registry singleton + @register decorator (extends 02-01's __init__.py) (BCK-01) — wave 2
   - [x] 02-03-PLAN.md — Extend cli/submit.py to write metadata.backend to queue spec (BCK-01, CLI-03/04 prereq) — wave 1
   - [ ] 02-04-PLAN.md — git mv orchestrator.py → _orchestrator_daemon.py + 5-line re-export shim + compat.py update (BCK-02) — wave 2
   - [ ] 02-05-PLAN.md — LocalBackend thin adapter over _orchestrator_daemon + auto-register (BCK-02) — wave 3
@@ -208,7 +208,7 @@ Phase 5 (generalization gate)
 |-------|----------------|--------|-----------|
 | 0. Cleanup + CLI split + compat | 0/7 | Not started | - |
 | 1. Registry + config-driven train + CCRCC reproduction | 0/12 | Not started | - |
-| 2. Backend ABC + LocalBackend + MockSLURM | 0/8 | Not started | - |
+| 2. Backend ABC + LocalBackend + MockSLURM | 3/8 | In Progress|  |
 | 3. Trajectory + multi-runtime reorg | 0/0 | Not started | - |
 | 4. 6h per-cell cap + cell formalisation | 0/0 | Not started | - |
 | 5. Generalization gate | 0/0 | Not started | - |
