@@ -110,6 +110,92 @@ def _find_git_root(start: Path | None = None) -> Path:
 
 
 # ---------------------------------------------------------------------------
+# PID-file starttime cross-check (CLN-04 / D-17)
+# ---------------------------------------------------------------------------
+# PID reuse on Linux can cause a stale PID file to claim ownership of an
+# unrelated process. Compare both pid AND /proc/<pid>/stat starttime_ticks
+# before signalling. Linux-only is acceptable per PROJECT.md Constraints.
+
+def _parse_starttime_from_stat_line(line: str) -> int:
+    """Parse field 22 (1-indexed) — process starttime in clock ticks — from a /proc/<pid>/stat line.
+
+    The `comm` field (#2) is wrapped in parentheses and CAN contain spaces.
+    Find the LAST ')' to skip past comm, then split the suffix on whitespace.
+    """
+    end_comm = line.rfind(")")
+    if end_comm == -1:
+        raise ValueError(f"Malformed /proc/<pid>/stat line: {line!r}")
+    # After the ')' there's a space, then field 3 (state) onwards.
+    suffix = line[end_comm + 1:].strip()
+    fields = suffix.split()
+    # suffix starts at field 3; starttime is field 22 (1-indexed) -> suffix index 22 - 3 = 19.
+    if len(fields) < 20:
+        raise ValueError(f"/proc/<pid>/stat has fewer fields than expected: {len(fields)}")
+    return int(fields[19])
+
+
+def _read_proc_starttime(pid: int) -> int | None:
+    """Read /proc/<pid>/stat field 22 (starttime_ticks). Returns None if pid not found or /proc unavailable."""
+    try:
+        line = Path(f"/proc/{pid}/stat").read_text()
+    except (FileNotFoundError, PermissionError, OSError):
+        return None
+    try:
+        return _parse_starttime_from_stat_line(line)
+    except ValueError as e:
+        logger.warning("Could not parse /proc/%d/stat: %s", pid, e)
+        return None
+
+
+def _is_pid_alive_with_starttime(pid: int, expected_starttime_ticks: int) -> bool:
+    """True iff the process at *pid* is running AND its starttime matches the recorded value.
+
+    The starttime check defends against PID reuse: a previous daemon's PID
+    could be reassigned to an unrelated process; signalling that PID would
+    be wrong. See CONCERNS.md §"PID-file stale-detection uses os.kill(pid, 0)".
+    """
+    actual = _read_proc_starttime(pid)
+    if actual is None:
+        return False
+    return actual == expected_starttime_ticks
+
+
+def _write_pid_file(pid_file: Path) -> None:
+    """Write PID file as JSON with pid + starttime_ticks + starttime_iso (D-17 shape)."""
+    my_pid = os.getpid()
+    starttime = _read_proc_starttime(my_pid)
+    if starttime is None:
+        # /proc unavailable (non-Linux test env); record what we can.
+        starttime = 0
+    payload = {
+        "pid": my_pid,
+        "starttime_ticks": starttime,
+        "starttime_iso": datetime.now().isoformat(),
+    }
+    pid_file.write_text(json.dumps(payload) + "\n")
+
+
+def _load_pid_file(pid_file: Path) -> dict | None:
+    """Load pid_file as JSON. Returns None on legacy plain-int, invalid JSON, or missing keys.
+
+    None means "treat as stale" — the caller should unlink and proceed as
+    if no daemon were running. Documented for plain-int compat: an in-flight
+    daemon started before this change uses the legacy format; on first
+    post-upgrade cmd_start, the legacy file is treated as stale and
+    unlinked, the operator restarts and gets the new format.
+    """
+    try:
+        data = json.loads(pid_file.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    if not {"pid", "starttime_ticks", "starttime_iso"}.issubset(data.keys()):
+        return None
+    return data
+
+
+# ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
 @dataclass
@@ -858,7 +944,7 @@ class ExperimentOrchestrator:
         signal.signal(signal.SIGINT, handle_signal)
 
         # Write PID file
-        self.pid_file.write_text(str(os.getpid()) + "\n")
+        _write_pid_file(self.pid_file)
 
         try:
             while not self._shutdown:
@@ -887,13 +973,13 @@ class ExperimentOrchestrator:
     def cmd_start(self):
         """Start the orchestrator daemon."""
         if self.pid_file.exists():
-            pid = int(self.pid_file.read_text().strip())
-            try:
-                os.kill(pid, 0)
-                print(f"Orchestrator already running (PID {pid})")
+            loaded = _load_pid_file(self.pid_file)
+            if loaded and _is_pid_alive_with_starttime(loaded["pid"], loaded["starttime_ticks"]):
+                print(f"Orchestrator already running (PID {loaded['pid']})")
                 return
-            except OSError:
-                self.pid_file.unlink()
+            # Legacy plain-int OR stale (PID reused / daemon dead). Unlink and proceed.
+            logger.info("Removing stale PID file at %s", self.pid_file)
+            self.pid_file.unlink()
 
         # Set up logging
         logging.basicConfig(
@@ -909,13 +995,11 @@ class ExperimentOrchestrator:
 
     def cmd_status(self):
         """Print orchestrator status."""
-        if self.pid_file.exists():
-            pid = int(self.pid_file.read_text().strip())
-            try:
-                os.kill(pid, 0)
-                print(f"Orchestrator: RUNNING (PID {pid})")
-            except OSError:
-                print("Orchestrator: DEAD (stale PID file)")
+        loaded = _load_pid_file(self.pid_file) if self.pid_file.exists() else None
+        if loaded and _is_pid_alive_with_starttime(loaded["pid"], loaded["starttime_ticks"]):
+            print(f"Status: running (PID {loaded['pid']})")
+        elif self.pid_file.exists():
+            print("Status: stale or no PID file")
         else:
             print("Orchestrator: NOT RUNNING")
 
@@ -955,10 +1039,18 @@ class ExperimentOrchestrator:
         if not self.pid_file.exists():
             print("Orchestrator not running")
             return
-        pid = int(self.pid_file.read_text().strip())
+        loaded = _load_pid_file(self.pid_file)
+        if not loaded:
+            print("Orchestrator PID file is stale or malformed; removing.")
+            self.pid_file.unlink()
+            return
+        if not _is_pid_alive_with_starttime(loaded["pid"], loaded["starttime_ticks"]):
+            print(f"Recorded PID {loaded['pid']} is not our daemon (PID reused or dead). Removing stale file.")
+            self.pid_file.unlink()
+            return
         try:
-            os.kill(pid, signal.SIGTERM)
-            print(f"Sent SIGTERM to PID {pid}")
+            os.kill(loaded["pid"], signal.SIGTERM)
+            print(f"Sent SIGTERM to PID {loaded['pid']}")
         except OSError as e:
             print(f"Failed to stop: {e}")
             self.pid_file.unlink()
