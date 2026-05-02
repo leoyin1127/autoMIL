@@ -24,7 +24,9 @@ def test_proc_starttime_parses_comm_with_spaces():
     # Then 18 more fields before starttime which is field 22 (1-indexed).
     # Layout: "<pid> (<comm>) <fields 3..52>"
     # Fields 3..21 = 19 fields, then field 22 = starttime.
-    suffix_fields = ["R"] + [str(i) for i in range(2, 21)]  # state + 19 placeholders -> fields 3..21
+    # fields 3..21 = 19 fields; field 22 = starttime.
+    # "R" covers field 3; range(2,20) covers fields 4..21 (18 items) → 19 items total.
+    suffix_fields = ["R"] + [str(i) for i in range(2, 20)]  # state + 18 placeholders -> fields 3..21
     line = "123 (my (weird) name) " + " ".join(suffix_fields) + " 78901234 " + " ".join(["0"] * 30)
     ticks = _parse_starttime_from_stat_line(line)
     assert ticks == 78901234
