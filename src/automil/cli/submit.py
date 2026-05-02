@@ -266,6 +266,12 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
         (base_commit + "\n" + "\n".join(parts)).encode()
     ).hexdigest()[:16]
 
+    # D-76: read backend name from automil/config.yaml (default "local" if absent).
+    # Written here so cancel.py / resubmit.py know which BACKENDS[name] to use.
+    # opaque_id is NOT written at submit time — the daemon writes it on launch.
+    _automil_cfg = yaml.safe_load((adir / "config.yaml").read_text()) if (adir / "config.yaml").exists() else {}
+    _backend_name: str = _automil_cfg.get("backend", {}).get("name", "local")
+
     # Write spec to queue
     spec = {
         "id": node,
@@ -284,6 +290,7 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
         },
         "submitted_at": datetime.now().isoformat(),
     }
+    spec.setdefault("metadata", {})["backend"] = _backend_name
 
     queue_file = adir / "orchestrator" / "queue" / f"{node}.json"
     queue_file.write_text(json.dumps(spec, indent=2))
