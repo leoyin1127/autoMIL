@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-02T07:28:20.577Z"
+last_updated: "2026-05-02T23:41:55.312Z"
 progress:
   total_phases: 9
-  completed_phases: 1
-  total_plans: 19
-  completed_plans: 7
-  percent: 37
+  completed_phases: 2
+  total_plans: 27
+  completed_plans: 21
+  percent: 74
 ---
 
 # State: autoMIL — F2-readiness framework refactor
@@ -92,11 +92,11 @@ None at roadmap-creation time. All inputs in place; Leo can review the roadmap a
 
 ## Session Continuity
 
-**Last action:** Phase 0 context gathered (2026-05-01 via `/gsd-discuss-phase 0`). CONTEXT.md + DISCUSSION-LOG.md written and committed (`b696e24`). 20 implementation decisions captured (D-01..D-20) across CLI split, env whitelist, compat.py shape, `reconcile --recompute-best` contract, plus mechanical CLN items.
+**Last action:** Phase 02 Plan 02-03 executed (`a3ba1a4`). Extended `cli/submit.py` to write `metadata.backend` to queue spec at submit time per D-76. 390 tests green.
 
-**Next action:** Run `/gsd-plan-phase 0` to decompose Phase 0 into executable plans. Per-CLN/CLI-item commits (target 8) at `fine` granularity.
+**Next action:** Continue Phase 02 execution (Plans 02-01, 02-02, etc. in parallel waves).
 
-**Resume file:** `.planning/phases/00-tier-2-cleanup-cli-split-compat-shim/00-CONTEXT.md`
+**Resume file:** `.planning/phases/02-backend-abc-localbackend-re-export-shim-mockslurm-fixture/02-03-SUMMARY.md`
 
 **To resume in a fresh session:** Read this file first, then `.planning/ROADMAP.md`, then the phase's `00-CONTEXT.md`, then plan files under `.planning/phases/00-tier-2-cleanup-cli-split-compat-shim/plans/` (created by `/gsd-plan-phase`).
 
