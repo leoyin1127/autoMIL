@@ -398,3 +398,120 @@ class TestRank:
         result = cli_runner.invoke(main, ["rank"], catch_exceptions=False)
         assert result.exit_code == 0
         assert "focal" in result.output
+
+
+class TestSubmitPathValidation:
+    """T-00-01: submit rejects absolute paths, .. traversal, and resolve-escapes."""
+
+    def test_submit_rejects_absolute_path(self, cli_runner, tmp_path, monkeypatch):
+        """submit must reject --files with an absolute path (T-00-01)."""
+        _init_git_repo(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        cli_runner.invoke(main, ["init"])
+
+        result = cli_runner.invoke(
+            main,
+            ["submit", "--node", "node_abs", "--desc", "absolute path attack",
+             "--files", "/etc/passwd"],
+        )
+        assert result.exit_code != 0
+        assert "Invalid path" in result.output or "absolute" in result.output.lower()
+
+    def test_submit_rejects_dotdot_traversal(self, cli_runner, tmp_path, monkeypatch):
+        """submit must reject --files containing .. path components (T-00-01)."""
+        _init_git_repo(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        cli_runner.invoke(main, ["init"])
+
+        result = cli_runner.invoke(
+            main,
+            ["submit", "--node", "node_dotdot", "--desc", "dotdot traversal attack",
+             "--files", "../secret.txt"],
+        )
+        assert result.exit_code != 0
+        assert "Invalid path" in result.output or ".." in result.output
+
+    def test_submit_rejects_escape_via_resolve(self, cli_runner, tmp_path, monkeypatch):
+        """submit must reject a symlink that resolves outside the git root (T-00-01)."""
+        _init_git_repo(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        cli_runner.invoke(main, ["init"])
+
+        # Create a symlink inside the repo that points outside the repo root
+        outside_target = tmp_path.parent / "outside_secret.txt"
+        outside_target.write_text("secret content\n")
+        symlink = tmp_path / "escape_link.txt"
+        symlink.symlink_to(outside_target)
+
+        result = cli_runner.invoke(
+            main,
+            ["submit", "--node", "node_escape", "--desc", "symlink escape attack",
+             "--files", "escape_link.txt"],
+        )
+        assert result.exit_code != 0
+        assert "escapes" in result.output or "Path escapes" in result.output
+
+    def test_submit_auto_detect_excludes_automil_dir(self, cli_runner, tmp_path, monkeypatch):
+        """Auto-detect must not include automil/ or .claude/ files in the snapshot (T-00-03)."""
+        _init_git_repo(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        cli_runner.invoke(main, ["init"])
+
+        # Create a real model file that should be captured
+        (tmp_path / "model.py").write_text("print('model changed')\n")
+
+        # Create automil/ and .claude/ files that must NOT be captured
+        (tmp_path / "automil" / "graph.json").write_text('{"nodes": {}}\n')
+        (tmp_path / ".claude").mkdir(exist_ok=True)
+        (tmp_path / ".claude" / "foo.md").write_text("agent notes\n")
+
+        result = cli_runner.invoke(
+            main,
+            ["submit", "--node", "node_autodetect", "--desc", "auto-detect exclusion test"],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0, result.output
+
+        # Queue file must list model.py but NOT automil/graph.json or .claude/foo.md
+        queue_files = list((tmp_path / "automil" / "orchestrator" / "queue").glob("*.json"))
+        assert len(queue_files) == 1
+        spec = json.loads(queue_files[0].read_text())
+        manifest_keys = set(spec.get("overlay_manifest", {}).keys())
+
+        assert "model.py" in manifest_keys, "model.py should be in the manifest"
+        assert not any(k.startswith("automil/") for k in manifest_keys), (
+            f"automil/ files leaked into manifest: {manifest_keys}"
+        )
+        assert not any(k.startswith(".claude/") for k in manifest_keys), (
+            f".claude/ files leaked into manifest: {manifest_keys}"
+        )
+
+
+class TestCliHelp:
+    """CLN-06: automil --help must list all 11 subcommands (regression sentinel for CLI split)."""
+
+    def test_main_help_lists_all_11_subcommands(self, cli_runner):
+        """automil --help output contains all 11 expected subcommands (CLN-06)."""
+        expected_commands = {
+            "check",
+            "init",
+            "orchestrator",
+            "propose",
+            "rank",
+            "reconcile",
+            "start-loop",
+            "status",
+            "stop-loop",
+            "submit",
+            "viz",
+        }
+
+        result = cli_runner.invoke(main, ["--help"])
+        assert result.exit_code == 0, result.output
+
+        output = result.output
+        missing = [cmd for cmd in expected_commands if cmd not in output]
+        assert not missing, (
+            f"automil --help is missing subcommands: {missing}\n"
+            f"Full output:\n{output}"
+        )
