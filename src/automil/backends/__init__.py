@@ -69,8 +69,9 @@ def _clear_backends() -> None:
     BACKENDS.clear()
 
 
-# TODO(Plan-02-05): from automil.backends import local as _local_backend  # noqa: F401
-# Auto-register LocalBackend (D-68); mock_slurm NOT auto-registered (D-69)
+from automil.backends import local as _local_backend  # noqa: F401  # D-68: auto-register LocalBackend
+from automil.backends.local import LocalBackend  # noqa: F401  # re-export for public surface
+# mock_slurm NOT auto-imported here — tests import it explicitly (D-69)
 
 __all__ = [
     # Plan 02-01 surface
@@ -83,4 +84,6 @@ __all__ = [
     "BACKENDS",
     "register",
     "_clear_backends",
+    # Plan 02-05: LocalBackend (auto-registered as "local" via D-68)
+    "LocalBackend",
 ]
