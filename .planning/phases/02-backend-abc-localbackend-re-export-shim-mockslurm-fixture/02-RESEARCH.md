@@ -918,17 +918,13 @@ No missing dependencies block Phase 2 execution.
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED 2026-05-02 — see CONTEXT.md D-76 + D-77)
 
-1. **submit.py backward compat for cancel**
-   - What we know: `cli/submit.py` does not write `opaque_id` or `backend` to graph metadata.
-   - What's unclear: Should Phase 2 extend `submit.py` to go through `backend.submit()`, or should `cancel.py` only work on nodes submitted via explicit `backend.submit()` calls?
-   - Recommendation: Phase 2 target is MockSLURM + synthetic graph fixture for cancel/resubmit tests (D-70 step 5). Extend `submit.py` to write `backend: "local"` and `opaque_id: <pid-as-string>` to graph metadata in the same commit as `LocalBackend.submit()`.
+1. **submit.py backward compat for cancel** — RESOLVED via D-76.
+   - Resolution: `cli/submit.py` is extended in Plan 02-03 (Wave 1) to write `metadata.backend = "<config>"` (default `"local"`) into `queue/<id>.json` at submit time. `metadata.opaque_id` is NOT written at submit time (PID unknown until launch); it is written by the daemon into `running/<id>.json` when `_launch` returns. `cancel.py` reads `running/<id>.json` to reconstruct the `JobHandle`. Legacy nodes without `metadata.backend` default to `"local"`.
 
-2. **LocalBackend.submit() uses queue-file path or direct `_launch` path?**
-   - What we know: `_launch` bypasses the file-based queue and directly spawns the process. The queue-file path requires the daemon to be running.
-   - What's unclear: For the contract test, we don't want a running daemon.
-   - Recommendation: `LocalBackend.submit()` calls `_daemon._launch(spec_dict, gpu_id=0)` directly for the contract test path, with a test fixture that mocks `query_gpus()` to return a single GPU. This avoids needing a running daemon.
+2. **LocalBackend.submit() uses queue-file path or direct `_launch` path?** — RESOLVED via D-77.
+   - Resolution: `LocalBackend.submit(spec)` writes to `queue/<id>.json` (preserves existing daemon-pickup model). Returns `JobHandle(opaque_id="pending")`; daemon updates to real PID on launch. `LocalBackend.poll(handle)` reads `running/<id>.json` (running) or `archive/<id>/result.json` (terminal). LocalBackend is a **thin protocol adapter** over the daemon's on-disk state machine, NOT a re-implementation. No daemon mocking needed for tests; LocalBackend.submit works against a real (synthetic-fixture-scoped) daemon directory.
 
 ---
 
