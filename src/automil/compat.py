@@ -58,7 +58,7 @@ the move). Future plan authors set this when promoting an entry.
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
-# Active aliases (D-07) — EMPTY in Phase 0
+# Active aliases (D-07)
 # ---------------------------------------------------------------------------
 # Future phases promote entries from `_PLANNED_MIGRATIONS` below into this
 # section by adding a live re-export that emits DeprecationWarning on USE.
@@ -67,6 +67,12 @@ from __future__ import annotations
 # Phase 0 ships zero entries: cli.py was renamed to a cli/ package and
 # cli/__init__.py re-exports `main`, so `from automil.cli import main` keeps
 # resolving without a compat shim.
+#
+# Phase 2 (D-60): automil.orchestrator.ExperimentOrchestrator ->
+#   automil.backends._orchestrator_daemon.ExperimentOrchestrator
+# The full re-export shim lives at src/automil/orchestrator.py (the old path);
+# existing `from automil.orchestrator import ExperimentOrchestrator` call sites
+# continue to resolve via that shim. See also Plan 02-04.
 
 # ---------------------------------------------------------------------------
 # Deprecation-message format (D-09)
@@ -83,15 +89,8 @@ _DEPRECATION_MESSAGE_FORMAT = (
 # the Active section above; this dict shrinks by one entry per promotion.
 # NEVER imported. NEVER executed. Pure documentation.
 _PLANNED_MIGRATIONS: dict[str, dict[str, object]] = {
-    "automil.orchestrator.ExperimentOrchestrator": {
-        "new_path": "automil.backends.local.LocalBackend",
-        "owning_phase": 2,
-        "rationale": (
-            "BCK-02: Phase 2 ships LocalBackend as a re-export shim over the "
-            "existing 750-line orchestrator code so the Backend ABC has a real "
-            "implementation locked against the MockSLURM fixture."
-        ),
-    },
+    # NOTE: "automil.orchestrator.ExperimentOrchestrator" was promoted to Active
+    # in Phase 2 (Plan 02-04 / D-60). Removed from this dict per the D-08 rule.
     "automil.claude_assets": {
         "new_path": "automil.agent_assets._shared + automil.agent_assets.claude",
         "owning_phase": 3,
