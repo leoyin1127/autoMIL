@@ -75,3 +75,32 @@ If any downstream investigation surfaces a question that genuinely needs Leo's v
 ---
 
 *Discussion-log written: 2026-05-02 by orchestrator (no interactive Q&A; engineering self-locked per directive).*
+
+---
+
+## 2026-05-02 scope refinement (Leo)
+
+After CONTEXT.md was committed (`4b5a094`) and the plan-phase researcher had been spawned, Leo issued a scope clarification:
+
+> "the exps we done in the /benchmarks/experiments directory are one specific exp case. it is a usecase of our automil framework. what you should develop is the framework itself. if the things you are about to change in the benchmark directory is to fix the previous issues, then is was okay or could be just ignored since the experiment design has been changed. so ensure your focus is the framework itself."
+
+**Effect on Phase 1:**
+
+- `benchmarks/experiments/ccrcc/` is treated as ONE consumer's data, not a framework validation target. The existing dirty edits across `benchmarks/lib/CLAM/{models/model_clam.py, utils/core_utils.py}` and `benchmarks/src/autobench/pipeline/clam/train.py` may be obsolete (the experiment design has drifted).
+- REG-08 (CCRCC port) is **deferred** to consumer-side follow-up. Phase 1 ships the framework `port-variant` command + layout + manifest format that ANY consumer (including CCRCC) can use; populating actual CCRCC variant modules is not Phase 1 work.
+- REG-09 (CCRCC `node_0176` ±0.005 reproduction) is **reinterpreted**. Phase 1 acceptance is "framework `verify-repro` works correctly on a synthetic mini-consumer in `tests/fixtures/`." CCRCC reproduction demonstration is consumer-side follow-up.
+- D-37, D-38, D-39, D-40 amended to reflect the framework-only scope. D-49 and D-50 added to document the refinement explicitly.
+- Wave structure collapses from 4–5 to ~4 waves (the CCRCC port + train.py refactor + verify-repro serial chain in old W4–W5 is replaced by a single synthetic-consumer round-trip plan in the new W4).
+- Memory updated: `feedback_decide_engineering_ask_features.md` and `project_automil_is_generic.md` (the latter expanded with the 2026-05-02 refinement section).
+
+**Why this didn't surface in the original gray-area sweep:**
+
+I had the "autoMIL is generic, autobench is one consumer" memory but interpreted it as "don't bake autobench-specific names into `src/automil/`," not as "treat existing benchmarks/ artifacts as obsolete unless explicitly load-bearing." Leo's clarification distinguishes those two — the framework code stays clean (which I had right) AND the framework dev target excludes consumer-side cleanup work (which I missed).
+
+**Researcher disposition:**
+
+The in-flight researcher (opus, spawned before this clarification) stalled at 600s with a stream watchdog timeout. RESEARCH.md was never written. Given the scope refinement makes Question 7 (CCRCC port mapping) deprioritized, the researcher is **not** being respawned. The planner proceeds with CONTEXT.md (28 + 2 = 30 decisions) + PATTERNS.md (29KB of codebase analogs).
+
+---
+
+*Scope refinement logged: 2026-05-02. CONTEXT.md updated; planner brief tightened to framework-only.*

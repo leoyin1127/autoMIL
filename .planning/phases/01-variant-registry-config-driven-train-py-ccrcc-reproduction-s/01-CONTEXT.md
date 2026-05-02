@@ -7,22 +7,27 @@
 <domain>
 ## Phase Boundary
 
-Establish the registry — the single piece of structural infrastructure that everything else in the milestone depends on. After Phase 1:
+> **2026-05-02 scope refinement (Leo):** `benchmarks/experiments/` is one specific use-case demo of the framework, not a framework component. The dev target is `src/automil/`. The CCRCC `node_0176` reproduction (originally REG-08, REG-09) was specified when CCRCC was an active validation target — but the experiment design has since changed and the existing dirty edits in `benchmarks/lib/CLAM/` and `benchmarks/src/autobench/pipeline/clam/` may be obsolete. **Phase 1 is framework-only**: ship the registry contract, validators, CLI commands, and reproduction-sanity command in `src/automil/`. Use a synthetic mini-consumer (in `tests/fixtures/`) for end-to-end validation. CCRCC port + node_0176 repro are deferred to consumer-side work (see D-49). REG-08 and REG-09 are reinterpreted accordingly (D-50).
 
-1. Architectural / loss / training-policy mutations live as **committed code modules** in `benchmarks/experiments/<dataset>/automil/variants/`, never as dirty edits to shared library files.
-2. Shared library files (`benchmarks/lib/CLAM/`, baseline `benchmarks/src/autobench/pipeline/clam/train.py`) become read-only at the agent layer; `automil submit` hard-fails on overlays touching them.
-3. The benchmark's `train.py` reads model class, loss class, and training policy from `automil/config.yaml` via the registry — variant selection by short name, no `args.X = literal` overrides remain in the architectural surface.
-4. CCRCC's current dirty edits are ported to three registered variant modules with a manifest pinning `(parent_commit, composite, node_id)`.
-5. The reproduction sanity gate is a CLI command (`automil verify-repro`) + committed manifest — clean checkout + registry path produces `node_0176`'s composite within ±0.005.
-6. CLI lifecycle commands `apply`, `revert-baseline`, `port-variant`, `promote-variant`, `refresh-registry`, `check` (extended) are wired and tested.
+Establish the **framework registry** — the structural infrastructure every Phase 2-8 capability builds on. After Phase 1:
 
-**Hard floors:**
-- Phase 0 baseline (108 tests + 5 Nyquist additions = 113 tests) stays green.
-- Reproduction sanity is the acceptance gate — Phase 1 does not ship until `verify-repro` produces a committed manifest with composite within ±0.005 of `node_0176`'s recorded value (0.8074 from `benchmarks/experiments/ccrcc/automil/graph.json`).
-- `grep -r "args\.\(model\|loss\|policy\)\s*=" benchmarks/src/autobench/pipeline/` returns zero matches for the architectural surface (training/inference hyperparameter overrides like `args.lr` are pragmatic-pass; see D-36).
-- `src/automil/` remains autobench-free: registry, validators, and CLI commands take consumer-side paths via config, never hardcode `benchmarks/`.
+1. **Framework Variant ABC family** lives in `src/automil/registry/variants/` (`ModelVariant`, `LossVariant`, `PolicyVariant`) — three sibling ABCs with shared `VariantSpec` frozen dataclass.
+2. **Framework Registry singleton** in `src/automil/registry/__init__.py` — `@register` decorator + three keyed dicts; `automil refresh-registry` regenerates per-consumer `variants/__init__.py` import-only manifests.
+3. **Framework validator chain** in `src/automil/registry/validators/` — `interface` + `purity` (static, submit-time) + `identity` (runtime, instantiate-time). Hard-fail with no soft-warn substitutes.
+4. **Framework protected-files enforcement** — `src/automil/cli/submit.py` reads consumer's `automil/config.yaml: registry.protected` and hard-fails on overlays touching protected paths. NO framework-defined defaults.
+5. **Framework train.py contract** — the framework provides the registry-resolve API (`registry.resolve_model("clam_mb", "clam_mb_v0176")`) that ANY consumer's training script can call. The framework does NOT refactor any consumer's training script (autobench's CCRCC `train.py` stays in its current dirty state — that's consumer cleanup, not framework work).
+6. **Framework reproduction-sanity command** — `automil verify-repro <node_id>` works against any consumer's `graph.json` + recorded composite. Framework acceptance: command works correctly on a **synthetic mini-consumer** in `tests/fixtures/` (a stub training script that produces a deterministic composite; framework verifies round-trip). The CCRCC `node_0176` ±0.005 demonstration is consumer follow-up, not Phase 1 acceptance.
+7. **Framework CLI lifecycle commands** wired and tested in `src/automil/cli/lifecycle.py`: `apply`, `revert-baseline`, `port-variant`, `promote-variant`, `refresh-registry`, plus extended `automil check`.
+8. **Framework `automil init` scaffolding** — `init` creates the `variants/` skeleton + registry config keys in the user's `automil/config.yaml`. Any consumer (autobench's CCRCC, sklearn-iris in Phase 8, future TissueLab/PathBench-MIL users) gets a working registry skeleton from a single `automil init`.
 
-**Wave-cadence target:** ~12 plans across 4–5 waves. Granularity stays `fine`. The big serial dependency is Wave 5 (CCRCC port → train.py refactor → reproduction sanity); everything before it parallelises across `files_modified` boundaries.
+**Hard floors (framework-only):**
+- Phase 0 baseline (113 tests) stays green.
+- Reproduction-sanity acceptance: `automil verify-repro` runs against the synthetic mini-consumer in `tests/fixtures/` and produces a manifest within tolerance. The CCRCC `node_0176` repro is **demonstration, not gate** — if Leo or an autobench follow-up runs it after Phase 1 ships, great; if the experiment design has moved on, also fine.
+- `grep -r "autobench\|AUTOBENCH_\|benchmarks/" src/automil/registry/ src/automil/cli/lifecycle.py` returns zero matches — framework code is consumer-agnostic by construction.
+- `grep -r "ccrcc\|node_0176" src/automil/` returns zero matches — no consumer-specific names in framework code.
+- `src/automil/` Phase 1 net-new test count ≥30 (registry singleton roundtrip, three-ABC subclass detection, validator chain interface+purity, identity stub-forward, protected-files submit reject, refresh-registry idempotence, port-variant naming + kind detection, apply config edit, revert-baseline stash safety, manifest schema validation, plus per-CLI-command happy-path + reject-path tests, plus synthetic-consumer verify-repro round-trip).
+
+**Wave-cadence target:** ~10–12 plans across 4 waves (down from 5). Granularity `fine`. With the CCRCC port out of the critical path, the dependency graph collapses: foundation → validators+check → CLI lifecycle → synthetic-consumer verify-repro. Final wave is the framework's own end-to-end test, not a consumer-side training run.
 
 </domain>
 
@@ -54,22 +59,20 @@ Establish the registry — the single piece of structural infrastructure that ev
 - **D-23:** `kind` taxonomy is **Phase 1 exhaustive** (`model | loss | policy`). The roadmap's broader 4-tuple (`architectural | recipe | training-policy | inference`) is REG-01 *forecasting* — `recipe` is a composition of (loss, policy, hyperparameters), and `inference` is a Phase 5+ concept (gate-time inference variants). Phase 1 ships with `Literal["model", "loss", "policy"]`; widening to a `Literal[...]` with `recipe` / `inference` is a Phase 5 / Phase 8 concern when those become real surfaces. **No `recipe` ABC in Phase 1.**
 - **D-24:** `AggregatorOutput` is **not** introduced in Phase 1. CLAM's existing return shape (`logits, Y_prob, Y_hat, instance_dict`) is too parent-specific to lock as a framework type today, and dragging an `AggregatorOutput` dataclass through Phase 1 forces a benchmark-side rewrite that would be undone in Phase 8 when the second consumer (sklearn-iris) lands. Phase 1's `ModelVariant.forward` returns whatever the parent returns; the parent's wrapper (in `train.py`) is responsible for the conversion. Phase 8 (`DEC-03` `result.json` JSON-Schema) is the right place to formalise the framework-level output contract.
 
-### Variant module layout (REG-02, REG-08)
+### Variant module layout — framework-defined, consumer-populated (REG-02, REG-08)
 
-- **D-25:** All variant modules live under `<consumer>/<dataset>/automil/variants/` with kind-specific subdirectories:
+- **D-25:** The framework defines the **layout contract**; consumers populate it. `automil init` scaffolds the empty skeleton in any consumer's `<consumer>/<dataset>/automil/variants/` with kind-specific subdirectories:
   ```
-  benchmarks/experiments/ccrcc/automil/variants/
-    clam_mb/                     # ModelVariant — per-parent subdirectory
+  <consumer>/<dataset>/automil/variants/
+    <parent>/                    # ModelVariant — per-parent subdirectory (created by automil init or first port-variant call)
       __init__.py                # auto-generated by `automil refresh-registry`
-      clam_mb_v0176.py
-    _losses/                     # LossVariant — parent-agnostic, leading underscore signals "shared"
+    _losses/                     # LossVariant — parent-agnostic, leading underscore signals "shared infrastructure"
       __init__.py                # auto-generated
-      ce_smooth008.py
     _policies/                   # PolicyVariant — parent-agnostic
       __init__.py                # auto-generated
-      sam_lookahead.py
+    _candidates/                 # gate-passing candidates promoted via Phase 5 GTE; Phase 1 ships .gitkeep
   ```
-  This **deviates from REG-08's literal text** which named `losses/variants/ce_smooth008.py` and `training/policies/sam_lookahead.py` as siblings of `variants/`. The flat-with-kind-subdirs structure is cleaner for three reasons: (1) one root for `automil refresh-registry` to scan instead of three; (2) underscore-prefixed `_losses` / `_policies` follows Python convention for "shared infrastructure" subpackages; (3) symmetry with `variants/<parent>/` keeps the layout learnable. **Deviation documented in DISCUSSION-LOG.md; planner honours this layout, not REG-08's text.**
+  This **deviates from REG-08's literal text** which named `losses/variants/ce_smooth008.py` and `training/policies/sam_lookahead.py` as siblings of `variants/`. The flat-with-kind-subdirs structure is cleaner for three reasons: (1) one root for `automil refresh-registry` to scan instead of three; (2) underscore-prefixed `_losses` / `_policies` follows Python convention for "shared infrastructure" subpackages; (3) symmetry with `variants/<parent>/` keeps the layout learnable. **Phase 1 ships the layout contract + `automil init` scaffolding; populating actual variant modules is consumer work** (CCRCC's `clam_mb_v0176`, `ce_smooth008`, `sam_lookahead` ports are deferred per D-49). The framework's own end-to-end test uses a synthetic mini-consumer in `tests/fixtures/` to exercise the layout.
 - **D-26:** Each variant module is a **single `.py` file**, NOT a package. Multiple files per variant is a refactor smell — if the variant is large enough to split, it's two variants. Header docstring is mandatory and follows the schema:
   ```python
   """<one-line description>.
@@ -138,25 +141,19 @@ Establish the registry — the single piece of structural infrastructure that ev
   - **Allowed (tunable hyperparameters):** `args.lr = 1e-4`, `args.batch_size = 1`, `args.dropout = 0.25`, etc. — these are numeric values that variants override via VariantSpec or per-experiment overlay, not architectural choices.
   - **Verification:** `grep -E "args\.(model|loss|optimizer|policy|aggregator)\s*=" benchmarks/src/autobench/pipeline/clam/train.py` returns zero matches at Phase 1 acceptance. Numeric hyperparam grep is NOT a gate (Phase 5 GTE may tighten if needed).
 
-### CCRCC port (REG-08)
+### CCRCC port — DEFERRED (REG-08)
 
-- **D-37:** Port preserves **variant body byte-identical** with adapted **wrapper-layer**:
-  - The 263-insertion / 46-deletion dirty diff across (`model_clam.py`, `core_utils.py`, `run_experiment.py`, `train.py`) is split by mutation kind. Each chunk's *behavioural code* is copied verbatim into the variant module. Only the *function signature* changes (free-function-edit → ABC subclass override).
-  - Specifically:
-    - Architectural diff in `model_clam.py` (CLAM_MB attention head changes) → `clam_mb_v0176.py` `ModelVariant.forward` body byte-identical, wrapped in subclass.
-    - Loss diff in `core_utils.py` (label smoothing 0.08) → `ce_smooth008.py` `LossVariant.__call__` body byte-identical.
-    - Optimizer diff in `core_utils.py` + `train.py` (SAM + Lookahead) → `sam_lookahead.py` `PolicyVariant.wrap_optimizer` byte-identical.
-    - `run_experiment.py` diff (config plumbing) → revert to baseline; the new config-driven path replaces the dirty plumbing.
-- **D-38:** Reproduction safety: the port is **not "done" until `automil verify-repro` produces a manifest within ±0.005**. If the port produces a composite outside tolerance, the port is wrong (the byte-identical-body rule is the lever to pull — find the dirty hunk that didn't make it across). Plan ordering: port-CCRCC → train.py-refactor → verify-repro is Wave 4–5 serial.
+- **D-37:** REG-08's CCRCC dirty-edits port is **deferred from Phase 1**. Per D-49 (scope refinement), the framework dev target is `src/automil/`; the existing dirty edits in `benchmarks/lib/CLAM/` and `benchmarks/src/autobench/pipeline/` may be obsolete given the experiment design has changed. Phase 1 does **not** plan a CCRCC port. If a future autobench follow-up wants to port CCRCC under the new registry, the framework provides everything needed (`port-variant` CLI, ABC family, manifest format) — but that's consumer-side work, not framework Phase 1 acceptance.
+- **D-38:** No Wave 4–5 serial port→refactor→verify-repro dependency. Phase 1's serial dependency collapses: foundation (W1) → validators+check (W2) → CLI lifecycle (W3) → synthetic-consumer verify-repro (W4). The framework's `automil verify-repro` command is exercised against a deterministic stub training script in `tests/fixtures/`, not against CCRCC's `node_0176`.
 
-### Reproduction sanity (REG-09)
+### Reproduction sanity — framework-only (REG-09 reinterpreted)
 
-- **D-39:** Gate is a **CLI command + committed manifest**, NOT a CI test. Concretely:
-  - `automil verify-repro <node_id>` (new command) reads the node from `graph.json`, fetches the recorded composite, runs a fresh experiment via the registry path on a clean worktree (the orchestrator's standard worktree mechanism), and writes `<consumer>/<dataset>/automil/repro_manifest.yaml` with `{node_id, expected_composite, actual_composite, tolerance, git_sha, runtime_seconds, generated_at, status}`. Tolerance default ±0.005 from `automil/config.yaml: registry.repro_tolerance`.
-  - Phase 1 acceptance: `repro_manifest.yaml` for CCRCC `node_0176` exists with `status: "pass"`. Manifest is committed to git.
-  - **Why not CI:** A 4h training is untenable as a per-PR test; running it once on a clean checkout, committing the manifest, and re-verifying only on demand is the production pattern for expensive integration tests.
-  - **Why not pure recorded-result:** Skipping the rerun entirely defeats the gate — REG-09 demands proof the registry path actually produces the composite, not just a claim.
-- **D-40:** `automil check` (extended) reads `repro_manifest.yaml` if present and reports `status` + `actual_composite` vs `expected_composite`. If the manifest is missing or stale (older than the latest variant module's mtime), check warns but does not fail (failing on missing manifest blocks normal development; the gate only fires when explicitly run via `verify-repro`).
+- **D-39:** Gate is a **framework CLI command + committed manifest**, NOT a CI test. Concretely:
+  - `automil verify-repro <node_id>` reads the node from `graph.json`, fetches the recorded composite, runs a fresh experiment via the registry path on a clean worktree (orchestrator's standard worktree mechanism), and writes `<consumer>/<dataset>/automil/repro_manifest.yaml` with `{node_id, expected_composite, actual_composite, tolerance, git_sha, runtime_seconds, generated_at, status}`. Tolerance default ±0.005 from `automil/config.yaml: registry.repro_tolerance`.
+  - **Phase 1 framework acceptance:** the `automil verify-repro` command works correctly on a **synthetic mini-consumer** in `tests/fixtures/` — a deterministic stub training script that produces a composite on a tiny seed (e.g., `lambda x: 0.5 + 0.001*sum(x)` over fixed input). Round-trip: register a stub variant → submit → verify-repro produces a `pass` manifest within tolerance. This proves the framework's reproduction-sanity machinery works without a 4h GPU run.
+  - **CCRCC `node_0176` ±0.005 demonstration:** consumer-side follow-up after Phase 1 ships. Not a Phase 1 gate. Per D-49 scope refinement.
+  - **Why not CI for any consumer:** A 4h training is untenable per-PR; the production pattern for expensive integration tests is operator-triggered + committed manifest.
+- **D-40:** `automil check` (extended) reads `repro_manifest.yaml` if present and reports `status` + `actual_composite` vs `expected_composite`. If the manifest is missing or stale (older than the latest variant module's mtime), check warns but does not fail (failing on missing manifest blocks normal development; the gate fires only when explicitly run via `verify-repro`).
 
 ### CLI lifecycle commands (CLI-01, CLI-02, CLI-05, CLI-06, CLI-08, CLI-09)
 
@@ -195,6 +192,23 @@ Establish the registry — the single piece of structural infrastructure that ev
   - Phase 1 net-new tests target ≥30 (registry singleton roundtrip, three-ABC subclass detection, validator chain (interface+purity static, identity stub-forward), protected-files submit reject, refresh-registry idempotence, port-variant naming + kind-detection, apply config edit, revert-baseline stash safety, manifest schema validation, plus per-CLI-command happy-path + reject-path tests).
   - **Reproduction-sanity test is NOT in the Python test suite.** It runs as `automil verify-repro` against a real GPU and lands in the committed manifest; CI cost is too high.
 - **D-48:** Commit cadence: target ~12 commits across the wave (one per plan, matching `fine` granularity). Each plan's tests must pass before the merge. Wave-level post-merge `pytest tests/` gate (matching Phase 0 pattern) catches cross-plan integration. CCRCC port + verify-repro is one logical commit with a long message documenting the dirty-diff-to-variant-module mapping.
+
+### Scope refinement — framework-only (Leo, 2026-05-02)
+
+- **D-49:** Phase 1 is **framework-only**. `src/automil/` is the dev target; `benchmarks/experiments/` is one specific use-case demo of the framework, not a framework component. The CCRCC `node_0176` reproduction (REG-08, REG-09 as originally written) was specified when CCRCC was an active validation target — but the experiment design has since changed and the existing dirty edits in `benchmarks/lib/CLAM/{models/model_clam.py, utils/core_utils.py}` and `benchmarks/src/autobench/pipeline/clam/train.py` may be obsolete. Phase 1 does NOT:
+  - port CCRCC's dirty edits to variant modules (that's consumer cleanup work; D-37 deferred)
+  - refactor `benchmarks/src/autobench/pipeline/clam/train.py` (that's consumer cleanup work)
+  - run a 4h GPU training to verify CCRCC's `node_0176` reproduces (that's consumer follow-up demonstration)
+  - touch any `benchmarks/lib/` file
+  Phase 1 DOES:
+  - ship the registry contract in `src/automil/registry/` so any consumer's training script can call `registry.resolve_model(...)` etc.
+  - ship `automil init` scaffolding so `<consumer>/<dataset>/automil/variants/<parent|_losses|_policies|_candidates>/` is created with `.gitkeep` files and registry config keys (`registry.protected`, `registry.mode`, `registry.repro_tolerance`) added to the user's `automil/config.yaml`.
+  - ship all 6 framework CLI commands (`apply`, `revert-baseline`, `port-variant`, `promote-variant`, `refresh-registry`, `verify-repro`) and the extended `automil check`
+  - ship the synthetic mini-consumer in `tests/fixtures/` and prove the round-trip works there
+- **D-50:** REG-08 and REG-09 are **reinterpreted** for Phase 1 acceptance:
+  - REG-08 (originally "CCRCC dirty edits ported to registered variant modules at..."): Phase 1 acceptance is "the framework provides `port-variant`, layout contract, manifest format, and `automil init` scaffolding sufficient for ANY consumer to port their dirty edits with one command — including CCRCC, when/if a consumer-side follow-up runs it." Demonstrated in `tests/fixtures/` round-trip.
+  - REG-09 (originally "CCRCC `node_0176` reproduces within ±0.005 from clean checkout"): Phase 1 acceptance is "the framework provides `verify-repro` that produces a `repro_manifest.yaml` within tolerance — demonstrated against the synthetic mini-consumer." CCRCC `node_0176` ±0.005 demonstration is consumer-side follow-up.
+  - Phase 8 / DEC-07 already requires the second consumer (sklearn-iris) to do an end-to-end round-trip; that's the natural milestone for "framework actually works on a real consumer that isn't autobench."
 
 ### Claude's Discretion (engineering details — planner picks)
 
