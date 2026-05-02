@@ -1,0 +1,309 @@
+"""Static purity validator: rejects top-level I/O, network, mutable globals (REG-03 / D-30).
+
+Pure AST walk — never imports the module. Safe to run on untrusted code because
+no user code is executed. The submit hook (Plan 01-07) runs this BEFORE
+InterfaceValidator (which does import) to prevent privilege escalation via
+malicious modules (T-01-14).
+"""
+from __future__ import annotations
+
+import ast
+import logging
+from pathlib import Path
+
+from automil.registry.errors import ValidationError
+
+logger = logging.getLogger(__name__)
+
+# Banned top-level call names: open(), print(), exec(), eval(), etc.
+_BANNED_BUILTINS: frozenset[str] = frozenset({
+    "open", "print", "input", "exec", "eval", "compile",
+})
+
+# Banned top-level module prefixes — any `<mod>.<attr>(...)` at module scope is rejected.
+_BANNED_MODULES: frozenset[str] = frozenset({
+    "requests", "urllib", "socket", "http", "ftplib", "smtplib",
+    "subprocess",
+})
+
+# Specific os.* attributes that imply filesystem/process side effects.
+_BANNED_OS_ATTRS: frozenset[str] = frozenset({
+    "system", "popen", "remove", "unlink", "mkdir", "rmdir", "rename",
+    "makedirs", "removedirs", "chmod", "chown",
+})
+
+
+def _is_immutable_literal(node: ast.AST) -> bool:
+    """Return whether an AST expression is an immutable constant.
+
+    Allowed: Constant (str/int/float/bool/None), Tuple of immutables,
+    BinOp/UnaryOp on Constants (e.g., -1, 3.14 * 2), well-known names
+    (None, True, False), frozenset/tuple calls.
+
+    Disallowed: List, Dict, Set, comprehensions, arbitrary Calls.
+    """
+    if isinstance(node, ast.Constant):
+        return True
+    if isinstance(node, ast.UnaryOp):
+        return _is_immutable_literal(node.operand)
+    if isinstance(node, ast.Tuple):
+        return all(_is_immutable_literal(elt) for elt in node.elts)
+    if isinstance(node, ast.BinOp):
+        return _is_immutable_literal(node.left) and _is_immutable_literal(node.right)
+    if isinstance(node, ast.Name):
+        # Only accept well-known immutable built-in names.
+        return node.id in {"None", "True", "False"}
+    if isinstance(node, ast.Call):
+        func = node.func
+        # Allow tuple(...) and frozenset(...) — both produce immutable results.
+        if isinstance(func, ast.Name) and func.id in {"tuple", "frozenset"}:
+            return True
+        return False
+    return False
+
+
+class PurityValidator:
+    """Static AST walk; never imports the module under inspection.
+
+    D-30 purity rules:
+      - No top-level I/O (open, print, exec, eval, compile, input).
+      - No top-level network/process calls (requests.*, urllib.*, socket.*,
+        subprocess.*, http.*, os.system, os.popen).
+      - No top-level filesystem mutations (Path.write_*, .read_*, .append_*).
+      - No top-level mutable module-level globals (list, dict, set,
+        comprehensions).
+      - No `if __name__ == "__main__":` blocks — variants are libraries.
+      - Top-level subscript-target assignment rejected
+        (e.g., os.environ["X"] = "y").
+      - Constants, class/function definitions, imports, and the docstring
+        are all allowed.
+    """
+
+    def check(self, module_path: Path) -> None:
+        """Validate a variant module for purity. Raises ValidationError on failure."""
+        if not module_path.exists():
+            raise ValidationError(
+                validator_name="purity",
+                path=module_path,
+                reason="module not found",
+                fix_suggestion="Verify the path exists and is readable.",
+            )
+
+        try:
+            source = module_path.read_text()
+            tree = ast.parse(source, filename=str(module_path))
+        except SyntaxError as e:
+            raise ValidationError(
+                validator_name="purity",
+                path=module_path,
+                line=e.lineno,
+                column=e.offset,
+                reason=f"syntax error: {e.msg}",
+                fix_suggestion="Fix the Python syntax error in the module.",
+            ) from e
+
+        for node in tree.body:
+            self._check_top_level_node(module_path, node)
+
+    def _check_top_level_node(self, module_path: Path, node: ast.AST) -> None:
+        """Inspect one top-level statement for purity violations."""
+
+        # --- always safe ---
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            return
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            return
+
+        # --- module-level expressions ---
+        if isinstance(node, ast.Expr):
+            # Module docstring (str constant) is OK.
+            if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+                return
+            # Top-level Call: only the @register decorator is sanctioned, but
+            # @register appears on ClassDef nodes (not as a bare Expr).  Any
+            # bare top-level call expression is a side-effect smell.
+            if isinstance(node.value, ast.Call):
+                self._reject_call(module_path, node.value)
+            else:
+                raise ValidationError(
+                    validator_name="purity",
+                    path=module_path,
+                    line=node.lineno,
+                    column=node.col_offset,
+                    reason=f"unexpected top-level expression: {ast.dump(node.value)[:60]}",
+                    fix_suggestion="Move the expression into a function body or remove it.",
+                )
+            return
+
+        # --- module-level assignments ---
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            # Subscript-target assignments are banned:
+            # e.g., os.environ["X"] = "y"   (Assign with Subscript target)
+            targets = getattr(node, "targets", None) or [getattr(node, "target", None)]
+            for tgt in (t for t in targets if t is not None):
+                if isinstance(tgt, ast.Subscript):
+                    raise ValidationError(
+                        validator_name="purity",
+                        path=module_path,
+                        line=node.lineno,
+                        column=node.col_offset,
+                        reason=(
+                            "banned top-level subscript assignment "
+                            "(e.g., os.environ[...] = ...) — mutable module-level state (D-30)"
+                        ),
+                        fix_suggestion=(
+                            "Move the assignment into a function/method body."
+                        ),
+                    )
+
+            value = getattr(node, "value", None)
+            if value is None:
+                return  # bare AnnAssign (`x: int`) is metadata, OK
+
+            # Reject mutable literal containers.
+            if isinstance(value, (ast.List, ast.Dict, ast.Set,
+                                   ast.ListComp, ast.DictComp, ast.SetComp,
+                                   ast.GeneratorExp)):
+                kind_name = type(value).__name__.replace("Comp", "comprehension").lower()
+                raise ValidationError(
+                    validator_name="purity",
+                    path=module_path,
+                    line=node.lineno,
+                    column=node.col_offset,
+                    reason=(
+                        f"mutable module-level global ({kind_name}); "
+                        "module-level state must be immutable (D-30)"
+                    ),
+                    fix_suggestion=(
+                        "Use a tuple/frozenset for an immutable constant, or move "
+                        "the mutable structure into a function/method body."
+                    ),
+                )
+
+            # Reject calls that produce mutable side effects.
+            # Walk the entire value expression to catch chained calls like
+            # open("/etc/passwd").read() where open() is nested inside a
+            # method-chain call.
+            for sub_node in ast.walk(value):
+                if isinstance(sub_node, ast.Call):
+                    self._reject_call(module_path, sub_node)
+
+            # Otherwise: constant/tuple/name/etc — OK.
+            return
+
+        # --- if blocks ---
+        if isinstance(node, ast.If):
+            test = node.test
+            # Reject `if __name__ == "__main__":` — variants are libraries, not scripts.
+            is_main_block = (
+                isinstance(test, ast.Compare)
+                and isinstance(test.left, ast.Name)
+                and test.left.id == "__name__"
+                and len(test.ops) == 1
+                and isinstance(test.ops[0], ast.Eq)
+                and len(test.comparators) == 1
+                and isinstance(test.comparators[0], ast.Constant)
+                and test.comparators[0].value == "__main__"
+            )
+            if is_main_block:
+                raise ValidationError(
+                    validator_name="purity",
+                    path=module_path,
+                    line=node.lineno,
+                    column=node.col_offset,
+                    reason=(
+                        '`if __name__ == "__main__":` block detected; '
+                        "variant modules are libraries, not scripts (D-30)"
+                    ),
+                    fix_suggestion=(
+                        'Remove the `__main__` block — variants are imported, not run '
+                        "directly.  If you need a runnable demo, put it in a sibling "
+                        "tests/ file."
+                    ),
+                )
+            # Other if-blocks at module level are unusual but not banned.
+            return
+
+        # --- anything else (Try, With, While, For, ...) is suspect ---
+        raise ValidationError(
+            validator_name="purity",
+            path=module_path,
+            line=getattr(node, "lineno", None),
+            column=getattr(node, "col_offset", None),
+            reason=f"unsupported top-level construct: {type(node).__name__}",
+            fix_suggestion=(
+                "Move this construct into a function/method body, or restructure "
+                "the module so all top-level code is class/function definitions, "
+                "imports, and immutable constants."
+            ),
+        )
+
+    def _reject_call(self, module_path: Path, call: ast.Call) -> None:
+        """Raise ValidationError for banned call patterns."""
+        func = call.func
+
+        # Bare-name calls: open(), print(), exec(), eval(), compile(), input()
+        if isinstance(func, ast.Name) and func.id in _BANNED_BUILTINS:
+            raise ValidationError(
+                validator_name="purity",
+                path=module_path,
+                line=call.lineno,
+                column=call.col_offset,
+                reason=f"banned top-level builtin call: {func.id}()",
+                fix_suggestion=(
+                    f"Move {func.id}() into a method body, or remove it. "
+                    "Top-level I/O on import time leaks side effects to every "
+                    "consumer that imports the module."
+                ),
+            )
+
+        # Attribute calls: requests.get(), urllib.request.urlopen(),
+        # socket.socket(), os.system(), subprocess.run(), etc.
+        if isinstance(func, ast.Attribute):
+            # Walk to the leftmost Name to find the root module.
+            attr_chain: list[str] = []
+            cur: ast.AST = func
+            while isinstance(cur, ast.Attribute):
+                attr_chain.append(cur.attr)
+                cur = cur.value
+
+            if isinstance(cur, ast.Name):
+                root = cur.id
+                full = ".".join(reversed([root] + attr_chain))
+
+                if root in _BANNED_MODULES:
+                    raise ValidationError(
+                        validator_name="purity",
+                        path=module_path,
+                        line=call.lineno,
+                        column=call.col_offset,
+                        reason=f"banned top-level network/process call: {full}(...)",
+                        fix_suggestion=(
+                            f"Move {full}(...) into a method body. "
+                            "Top-level network or process side effects on import "
+                            "violate D-30 module-level purity."
+                        ),
+                    )
+
+                if root == "os" and attr_chain and attr_chain[-1] in _BANNED_OS_ATTRS:
+                    raise ValidationError(
+                        validator_name="purity",
+                        path=module_path,
+                        line=call.lineno,
+                        column=call.col_offset,
+                        reason=f"banned top-level os.* call: {full}(...)",
+                        fix_suggestion=f"Move {full}(...) into a method body.",
+                    )
+
+            # Path("/x").write_text("y") — the attr is write_text/read_text etc.
+            # Detect: any top-level call whose method name starts with
+            # "write", "read", or "append" is a filesystem I/O smell.
+            if func.attr.startswith(("write_", "read_", "append_")):
+                raise ValidationError(
+                    validator_name="purity",
+                    path=module_path,
+                    line=call.lineno,
+                    column=call.col_offset,
+                    reason=f"banned top-level filesystem/I/O call: .{func.attr}(...)",
+                    fix_suggestion="Move the I/O into a method body.",
+                )

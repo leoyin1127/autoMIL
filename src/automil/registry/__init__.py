@@ -1,8 +1,8 @@
-"""Variant registry subpackage (REG-01 / REG-02 / REG-04 / REG-06 / REG-07).
+"""Variant registry subpackage (REG-01 / REG-02 / REG-03 / REG-04 / REG-06 / REG-07).
 
 Plan 01-01 ships ABCs + VariantSpec. Plan 01-03 adds RegistryConfig + loader.
-Plan 01-02 (this plan) adds @register + resolvers + RegistrationError.
-Plan 01-04 will add submit-time validators (interface, purity).
+Plan 01-02 adds @register + resolvers + RegistrationError.
+Plan 01-04 adds submit-time validators (interface, purity) + ValidationError.
 Plan 01-05 will add runtime identity validator.
 Plan 01-06 will add the directory scanner used by `automil refresh-registry`.
 """
@@ -24,6 +24,10 @@ from automil.registry.registrar import (
     resolve_policy,
 )
 
+# Plan 01-04 surface (additive):
+from automil.registry.errors import ValidationError
+from automil.registry.validators import InterfaceValidator, PurityValidator
+
 logger = logging.getLogger(__name__)
 
 __all__ = [
@@ -42,4 +46,8 @@ __all__ = [
     "resolve_model",
     "resolve_loss",
     "resolve_policy",
+    # Validators + errors (Plan 01-04)
+    "ValidationError",
+    "InterfaceValidator",
+    "PurityValidator",
 ]
