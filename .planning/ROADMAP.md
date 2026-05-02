@@ -55,7 +55,19 @@ An agent can autonomously discover model improvements for any user's training co
   4. CCRCC's current dirty edits are ported to registered variant modules at `experiments/ccrcc/automil/variants/clam_mb/clam_mb_v0176.py` + `losses/variants/ce_smooth008.py` + `training/policies/sam_lookahead.py` with a manifest committing parent commit, composite, and node id.
   5. **Reproduction sanity check passes**: from a clean checkout (no shared-file edits in working tree), CCRCC `node_0176` reproduces composite within ±0.005 via the registry-driven path.
   6. Variant lifecycle CLI is wired: `apply`, `revert-baseline`, `port-variant` (idempotent, rejects already-registered nodes), `promote-variant`, `refresh-registry`, `check` are all available and tested.
-**Plans**: TBD
+**Plans**: 12 plans across 6 waves (D-49 framework-only scope; CCRCC port deferred to consumer follow-up per D-50)
+  - [x] 01-01-PLAN.md — Variant ABC family + VariantSpec frozen dataclass (REG-01)
+  - [ ] 01-02-PLAN.md — Registry singleton + @register decorator + resolvers (REG-02)
+  - [x] 01-03-PLAN.md — Config schema + variants/ scaffolding to automil init (REG-04, REG-06, REG-07)
+  - [ ] 01-04-PLAN.md — Static validators: interface + purity (REG-03)
+  - [ ] 01-05-PLAN.md — Identity validator + mode-aware strictness (REG-03 identity, REG-06)
+  - [ ] 01-06-PLAN.md — Variant scanner + manifest schema (REG-02 scan, REG-08 manifest)
+  - [ ] 01-07-PLAN.md — Submit hook (protected-files reject + validator chain) + check extension (REG-03, REG-04, REG-05)
+  - [ ] 01-08-PLAN.md — Convert lifecycle.py stub to lifecycle/ package + register six command stubs (CLI-01/02/05/06/08/09)
+  - [ ] 01-09-PLAN.md — Implement apply (CLI-01) + refresh-registry (CLI-08)
+  - [ ] 01-10-PLAN.md — Implement revert-baseline with mandatory pre-stash (CLI-02)
+  - [ ] 01-11-PLAN.md — Implement port-variant (CLI-05) + promote-variant (CLI-06)
+  - [ ] 01-12-PLAN.md — Implement verify-repro + synthetic mini-consumer round-trip (REG-08, REG-09, CLI-09 — Phase 1 acceptance)
 **Estimated**: 5–7 days
 
 ### Phase 2: Backend ABC + LocalBackend re-export shim + MockSLURM fixture
@@ -187,7 +199,7 @@ Phase 5 (generalization gate)
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 0. Cleanup + CLI split + compat | 0/7 | Not started | - |
-| 1. Registry + config-driven train + CCRCC reproduction | 0/0 | Not started | - |
+| 1. Registry + config-driven train + CCRCC reproduction | 0/12 | Not started | - |
 | 2. Backend ABC + LocalBackend + MockSLURM | 0/0 | Not started | - |
 | 3. Trajectory + multi-runtime reorg | 0/0 | Not started | - |
 | 4. 6h per-cell cap + cell formalisation | 0/0 | Not started | - |
