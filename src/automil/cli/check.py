@@ -122,6 +122,97 @@ def check():
     else:
         click.echo("env.passthrough: (none declared)")
 
+    # --- Phase 1 registry checks (REG-04 / REG-05 / D-46) ---
+    from automil.registry.config import load_registry_config
+    from automil.registry.scanner import scan_variants
+    from automil.registry._state import _clear_registry
+    from automil.registry.manifest import Manifest
+
+    reg_cfg = load_registry_config(adir)
+
+    # Protected-files dirty check (REG-05 / D-34): both staged and unstaged dirty fail.
+    if reg_cfg.protected:
+        try:
+            git_status = subprocess.run(
+                ["git", "status", "--porcelain", "--"] + list(reg_cfg.protected),
+                cwd=git_root, capture_output=True, text=True, timeout=10,
+            )
+            dirty_lines = [ln for ln in git_status.stdout.splitlines() if ln.strip()]
+            if dirty_lines:
+                issues.append(
+                    "registry.protected paths dirty in working tree:\n      "
+                    + "\n      ".join(dirty_lines[:20])
+                    + (
+                        f"\n      ... ({len(dirty_lines) - 20} more)"
+                        if len(dirty_lines) > 20 else ""
+                    )
+                    + "\n      Run `automil revert-baseline` to reset, or "
+                    "commit the changes to a variant module via "
+                    "`automil port-variant <node_id>`."
+                )
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
+            warnings.append(
+                "Could not run `git status` for protected files — "
+                "git may not be on PATH."
+            )
+
+    # Registry consistency (D-46).
+    variants_root = adir / "variants"
+    if variants_root.exists():
+        _clear_registry()  # avoid pollution from prior CLI calls in same process
+        scan_result = scan_variants(variants_root)
+        for path, exc_str in scan_result.failed:
+            issues.append(f"Variant module {path} failed import: {exc_str}")
+        for var_path in scan_result.imported:
+            manifest_path = var_path.with_suffix(".json")
+            if not manifest_path.exists():
+                warnings.append(
+                    f"Variant module {var_path} has no sibling manifest "
+                    f"({manifest_path.name}). Run `automil port-variant <node_id>` "
+                    f"to regenerate, or remove the variant module."
+                )
+                continue
+            try:
+                manifest = Manifest.read(manifest_path)
+            except (ValueError, FileNotFoundError) as e:
+                issues.append(f"Manifest {manifest_path} invalid: {e}")
+                continue
+            ok, reason = manifest.cross_check_with_module(var_path)
+            if not ok:
+                issues.append(
+                    f"Manifest {manifest_path.name} mismatches docstring of "
+                    f"{var_path.name}: {reason}"
+                )
+
+    # Repro manifest (D-40 / D-46): warn-not-fail if missing or stale.
+    repro_path = adir / "repro_manifest.yaml"
+    if not repro_path.exists():
+        warnings.append(
+            "automil/repro_manifest.yaml not found. Run "
+            "`automil verify-repro <node_id>` after porting variants to "
+            "generate the reproduction-sanity report."
+        )
+    else:
+        if variants_root.exists():
+            max_var_mtime = 0.0
+            for p in variants_root.rglob("*.py"):
+                try:
+                    mt = p.stat().st_mtime
+                    if mt > max_var_mtime:
+                        max_var_mtime = mt
+                except OSError:
+                    continue
+            try:
+                repro_mtime = repro_path.stat().st_mtime
+                if max_var_mtime > repro_mtime:
+                    warnings.append(
+                        "automil/repro_manifest.yaml is older than the newest "
+                        "variant module. Run `automil verify-repro <node_id>` "
+                        "to refresh."
+                    )
+            except OSError:
+                pass
+
     # Report
     if issues:
         click.echo("\nISSUES (must fix):")
