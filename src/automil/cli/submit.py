@@ -26,7 +26,14 @@ from automil.cli._helpers import _find_automil_dir, _find_git_root, _matches_sco
 @click.option("--techniques", multiple=True, help="Technique tags")
 def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
            timeout: int, parent: str | None, techniques: tuple):
-    """Snapshot changed files and queue an experiment."""
+    """Snapshot changed files and queue an experiment.
+
+    Variant modules under ``automil/variants/<parent>/<name>.py`` are
+    validated at submit time: PurityValidator (no top-level I/O / network /
+    mutable globals) runs first, then InterfaceValidator (subclass of the
+    matching ABC, required-method signatures match). Files matching
+    ``registry.protected`` glob patterns are hard-rejected (D-34).
+    """
     import hashlib
 
     git_root = _find_git_root()
@@ -111,6 +118,23 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
     except ValueError:
         automil_rel = "automil/"
 
+    # --- Phase 1 registry: load registry config + helper for variant-module detection ---
+    from automil.registry.config import load_registry_config
+    reg_cfg = load_registry_config(adir)
+
+    def _is_variant_module_path(rel_path: str) -> bool:
+        """True if rel_path is a variant module under <consumer>/automil/variants/<*>/."""
+        parts = Path(rel_path).parts
+        if "variants" not in parts:
+            return False
+        idx = parts.index("variants")
+        return (
+            idx + 2 < len(parts)
+            and parts[idx + 2].endswith(".py")
+            and not parts[idx + 2].startswith("_")
+            and parts[idx + 2] != "__init__.py"
+        )
+
     # Determine files to snapshot
     if files:
         file_list = list(files)
@@ -175,6 +199,43 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
     overlay_manifest = {}
     deletions = []
     for f in file_list:
+        # Phase 1 protected-files reject (REG-04 / D-33 / D-34): hard-fail with
+        # named pattern + fix suggestion.  Runs BEFORE path-validation so the
+        # protected message wins when a path matches both a protected glob AND a
+        # path-validation rule (T-01-28 mitigation; no --force escape in Phase 1).
+        if reg_cfg.protected and _matches_scope(f, list(reg_cfg.protected)):
+            matched: list[str] = []
+            for pattern in reg_cfg.protected:
+                if _matches_scope(f, [pattern]):
+                    matched.append(pattern)
+            raise click.ClickException(
+                f"Refusing to submit: file {f!r} matches registry.protected "
+                f"pattern(s) {matched}. Protected files only change via committed "
+                f"variant modules. Use `automil revert-baseline` to reset working "
+                f"tree, or edit automil/config.yaml: registry.protected if this "
+                f"path should NOT be protected."
+            )
+
+        # Phase 1 variant-module validator chain (REG-03 / Plan 01-04 T-01-14:
+        # purity FIRST, then interface).
+        if _is_variant_module_path(f):
+            abs_path = git_root / f
+            if abs_path.exists():
+                from automil.registry.validators import (
+                    InterfaceValidator,
+                    PurityValidator,
+                )
+                from automil.registry.errors import ValidationError
+                try:
+                    PurityValidator().check(abs_path)       # 1. AST-only, no import
+                    InterfaceValidator().check(abs_path)    # 2. imports for reflection
+                except ValidationError as e:
+                    raise click.ClickException(
+                        f"Refusing to submit: variant module {f!r} failed "
+                        f"{e.validator_name} validation. {e.reason} "
+                        f"Fix: {e.fix_suggestion}"
+                    ) from e
+
         # Reject absolute paths and directory traversal
         if os.path.isabs(f) or ".." in Path(f).parts:
             raise click.ClickException(f"Invalid path (must be relative, no ..): {f}")
