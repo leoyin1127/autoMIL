@@ -1,10 +1,10 @@
 ---
 phase: 02
-status: block
+status: clean
 checked_at: 2026-05-02
 checker: gsd-plan-checker
-blockers: 5
-warnings: 4
+blockers: 0
+warnings: 2
 info: 3
 ---
 
@@ -213,3 +213,35 @@ Integration tests use MockSLURMBackend + synthetic graph fixture, satisfying D-7
 
 WARNINGs W-01 (Wave 1 file conflict) and W-03 (opaque_id→graph.json gap) should also be addressed before execution — W-01 to prevent parallel-executor corruption and W-03 to prevent a production bug after Phase 2 ships.
 
+
+---
+
+## Iteration 2 — 2026-05-02
+
+**Verdict:** pass
+
+### Blocker resolution
+
+- **B-01** (wave assignment + W-01 file conflict): RESOLVED. All 8 plan frontmatters updated. Final wave layout matches target: Wave 1 = 02-01, 02-03; Wave 2 = 02-02, 02-04; Wave 3 = 02-05, 02-06; Wave 4 = 02-07; Wave 5 = 02-08. Dependency math verified: 02-02 wave=2 (max(1)+1=2 ✓), 02-04 wave=2 (max(1)+1=2 ✓), 02-05 wave=3 (max(2,2)+1=3 ✓), 02-06 wave=3 (max(2)+1=3 ✓), 02-07 wave=4 (max(3,3)+1=4 ✓), 02-08 wave=5 (max(1,3,3,4)+1=5 ✓). File disjointness within waves confirmed: Wave 1 (submit.py vs backends/ package — no overlap); Wave 2 (02-02 writes `backends/__init__.py`, 02-04 writes `_orchestrator_daemon.py + orchestrator.py + compat.py` — no overlap); Wave 3 (02-05 writes `backends/local.py + backends/__init__.py`, 02-06 writes `backends/mock_slurm.py` only — no overlap; 02-06 explicitly verifies mock_slurm NOT in `__init__.py`). 02-02 `parallel_with: ["02-04"]` — stale "parallel with 02-01" note is absent.
+
+- **B-02** (02-08 missing 02-07 dep): RESOLVED. 02-08 frontmatter `depends_on: ["02-03", "02-05", "02-06", "02-07"]` — "02-07" present.
+
+- **B-03** (RESEARCH.md Open Questions unresolved): RESOLVED. Section header is `## Open Questions (RESOLVED 2026-05-02 — see CONTEXT.md D-76 + D-77)`. Question 1 annotated "RESOLVED via D-76"; Question 2 annotated "RESOLVED via D-77". Resolutions are specific and cite the correct decisions.
+
+- **B-04** (viz/server.py outside allowlist): RESOLVED. 02-07 T-02-07-03 ALLOWLIST_PATHS now includes `Path("viz/server.py")` with a rationale comment: "owns its OWN viz_server.pid lifecycle; its os.kill calls are a daemon-liveness probe (`os.kill(pid, 0)`) and SIGTERM stop, NOT job-control."
+
+- **B-05** (02-04 false-positive grep verification): RESOLVED. T-02-04-04 no longer contains a "must return zero lines" assertion. The step now reads "the verification is 'the shim works for them,' not 'no callers exist'" and adds a smoke import: `python -c "from automil.cli.orchestrator import *; from automil.cli.check import *; print('caller-shim smoke OK')"`. Acceptance criteria confirms this as the test.
+
+### Warning resolution
+
+- **W-01** (Wave 1 file conflict): RESOLVED as part of B-01. 02-02 moved to wave 2 with `depends_on: ["02-01"]`; sequential execution is now structurally enforced.
+
+- **W-03** (opaque_id from graph.json vs running/<id>.json): RESOLVED. 02-08 T-02-08-02 step 5 explicitly reads `running/<node_id>.json` to obtain `opaque_id` and `submitted_at`; step 8 constructs `JobHandle` from `running_spec["opaque_id"]`, not from `node.metadata.opaque_id`. The test setup helper in T-02-08-05 confirms it writes `opaque_id` to `running/<running_id>.json`, matching the production path.
+
+### New issues introduced (if any)
+
+None. The fixes are additive (allowlist expansion, wave renumbering, verification rewording, dep addition) with no contradictions to existing tasks or decisions. Pre-existing W-02 (resubmit test coverage — only 1 test vs D-67 multi-step) and W-04 (timing assertion in `test_cancel_returns_immediately`) carry over unchanged from iter 1 as open warnings; neither was in scope for iter 2 fixes and neither is a blocker.
+
+### Recommendation
+
+execute — all 5 blockers closed, no new blockers introduced. Run `/gsd-execute-phase 02`.

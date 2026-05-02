@@ -80,7 +80,15 @@ An agent can autonomously discover model improvements for any user's training co
   3. `MockSLURMBackend` test fixture simulates eventual-consistency status (5s poll lag), opaque `job_id`, fire-and-forget `cancel`, node-local filesystem; the ABC's contract is exercised against both backends via shared parameterised tests BEFORE the ABC is locked.
   4. A ruff/mypy custom rule lint-blocks `os.kill`, `Popen`, and `pid` references outside `backends/local.py` and `backends/_orchestrator_daemon.py`.
   5. `automil cancel <node_id>` and `automil resubmit <node_id>` are wired through `Backend.cancel` and `Backend.submit`; cancelled nodes archive with `status: cancelled` and resubmits get a fresh worktree.
-**Plans**: TBD
+**Plans**: 8 plans across 5 waves
+  - [ ] 02-01-PLAN.md — Backend ABC + JobHandle/JobSpec/JobState dataclasses + errors.py + test package skeleton (BCK-01) — wave 1
+  - [ ] 02-02-PLAN.md — BACKENDS registry singleton + @register decorator (extends 02-01's __init__.py) (BCK-01) — wave 2
+  - [ ] 02-03-PLAN.md — Extend cli/submit.py to write metadata.backend to queue spec (BCK-01, CLI-03/04 prereq) — wave 1
+  - [ ] 02-04-PLAN.md — git mv orchestrator.py → _orchestrator_daemon.py + 5-line re-export shim + compat.py update (BCK-02) — wave 2
+  - [ ] 02-05-PLAN.md — LocalBackend thin adapter over _orchestrator_daemon + auto-register (BCK-02) — wave 3
+  - [ ] 02-06-PLAN.md — MockSLURMBackend eventual-consistency fixture (BCK-03) — wave 3
+  - [ ] 02-07-PLAN.md — Parameterised contract test (≥12 scenarios × 2 backends) + BCK-04 AST lint script + lint pytest gate (BCK-01, BCK-03, BCK-04) — wave 4
+  - [ ] 02-08-PLAN.md — automil cancel + automil resubmit CLI commands + integration tests against MockSLURM (CLI-03, CLI-04) — wave 5
 **Estimated**: 3–4 days
 
 ### Phase 3: Trajectory recorder + multi-runtime asset reorganisation
@@ -200,7 +208,7 @@ Phase 5 (generalization gate)
 |-------|----------------|--------|-----------|
 | 0. Cleanup + CLI split + compat | 0/7 | Not started | - |
 | 1. Registry + config-driven train + CCRCC reproduction | 0/12 | Not started | - |
-| 2. Backend ABC + LocalBackend + MockSLURM | 0/0 | Not started | - |
+| 2. Backend ABC + LocalBackend + MockSLURM | 0/8 | Not started | - |
 | 3. Trajectory + multi-runtime reorg | 0/0 | Not started | - |
 | 4. 6h per-cell cap + cell formalisation | 0/0 | Not started | - |
 | 5. Generalization gate | 0/0 | Not started | - |
