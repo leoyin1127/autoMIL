@@ -807,6 +807,42 @@ class ExperimentOrchestrator:
         self._timed_out[exp_id] = True
         self._handle_completion(exp_id, returncode=-9)
 
+    def _kill_experiment(self, node_id: str, sig: int = signal.SIGTERM) -> bool:
+        """Send *sig* to the process group of *node_id* and return True if found.
+
+        Called by LocalBackend.cancel (BCK-02 / D-57).  Fire-and-forget —
+        state transition to ``cancelled`` is observed via subsequent poll()
+        calls against the on-disk state.  Uses the same starttime cross-check
+        as ``_handle_timeout`` (CLN-04 / D-17) to guard against PID reuse.
+
+        Returns:
+            True  — signal was delivered to the process group.
+            False — node not found in self.running (already finished, or this
+                    LocalBackend instance was freshly constructed and the daemon
+                    is the process that holds the live Popen handle).
+        """
+        exp = self.running.get(node_id)
+        if exp is None:
+            logger.warning(
+                "_kill_experiment: %s not in self.running (daemon may hold the "
+                "live handle — cancel via sentinel file is not implemented in "
+                "Phase 2; the daemon's _handle_timeout will handle timeouts).",
+                node_id,
+            )
+            return False
+        pid = exp.process.pid
+        logger.info(
+            "_kill_experiment: sending signal %d to PID %d (node %s)",
+            sig, pid, node_id,
+        )
+        try:
+            os.killpg(os.getpgid(pid), sig)
+        except ProcessLookupError:
+            logger.info("_kill_experiment: PID %d already gone", pid)
+        except OSError as e:
+            logger.warning("_kill_experiment: os.killpg failed: %s", e)
+        return True
+
     def _mark_crashed(self, node_id: str, spec: dict, error: str):
         """Mark an experiment as crashed without a running process."""
         archive = self.archive_dir / node_id
