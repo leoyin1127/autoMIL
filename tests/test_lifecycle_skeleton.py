@@ -70,29 +70,16 @@ def test_each_command_has_help(cli_runner, cmd):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "cmd,plan",
-    [
-        # apply (01-09), refresh-registry (01-09), revert-baseline (01-10),
-        # port-variant (01-11), and promote-variant (01-11) are fully implemented
-        # — removed from stub list.
-        ("verify-repro", "01-12"),
-    ],
-)
-def test_stub_error_format(cli_runner, cmd, plan):
-    from automil.cli import main
-    # Commands that take a node_id argument need a placeholder.
-    args = [cmd]
-    if cmd in ("apply", "port-variant", "promote-variant", "verify-repro"):
-        args.append("node_0001")
-    result = cli_runner.invoke(main, args)
-    assert result.exit_code != 0, f"{cmd} should exit non-zero (stub)"
-    combined = result.output + (result.exception.__str__() if result.exception else "")
-    assert "not yet implemented" in combined.lower(), (
-        f"{cmd} stub missing 'not yet implemented': {combined}"
-    )
-    assert plan in combined, (
-        f"{cmd} stub missing plan number {plan!r}: {combined}"
+def test_stub_error_format_none_remaining():
+    """All lifecycle commands are now fully implemented (Plan 01-12 closed
+    the last stub — verify-repro). This test confirms the stub list is empty."""
+    # apply (01-09), refresh-registry (01-09), revert-baseline (01-10),
+    # port-variant (01-11), promote-variant (01-11), verify-repro (01-12)
+    # are all implemented — no stubs remain.
+    remaining_stubs = []  # was: [("verify-repro", "01-12")]
+    assert remaining_stubs == [], (
+        "Unexpected stubs still in the lifecycle — update this test after "
+        "implementing them."
     )
 
 
