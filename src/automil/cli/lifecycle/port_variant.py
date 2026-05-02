@@ -126,9 +126,11 @@ def _write_variant_module(
 
     class_name = "".join(part.capitalize() for part in spec.name.split("_"))
     parent_field = f'parent="{spec.parent}"' if spec.parent else "parent=None"
-    mutations_field = (
-        ", ".join(f'"{m}"' for m in spec.mutations) if spec.mutations else ""
-    )
+    # Render as a valid tuple literal: () for empty, ("x", "y") for non-empty.
+    if spec.mutations:
+        mutations_field = "(" + ", ".join(f'"{m}"' for m in spec.mutations) + ",)"
+    else:
+        mutations_field = "()"
 
     body = f'''"""{spec.name} variant.
 
@@ -145,7 +147,7 @@ from automil.registry import register, VariantSpec, {abc_name}
     name="{spec.name}", kind="{spec.kind}", {parent_field},
     base_commit="{spec.base_commit}", composite={spec.composite},
     node_id="{spec.node_id}", created_at="{spec.created_at}",
-    mutations=({mutations_field},) if {bool(spec.mutations)} else (),
+    mutations={mutations_field},
 ))
 class {class_name}({abc_name}):
 {body_method}
