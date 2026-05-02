@@ -67,3 +67,38 @@ orchestrator:
 viz:
   port: 8420
   host: "0.0.0.0"
+
+# --- Registry (Phase 1, REG-04 / REG-06 / REG-07) ---
+registry:
+  # Glob patterns the agent's overlay MUST NOT touch. Empty = no protection.
+  # Add the shared library files / training-script entry points that should
+  # only change via committed variant modules. Examples:
+  #   - "benchmarks/lib/CLAM/**"
+  #   - "src/models/clam/base.py"
+  # NOTE: autoMIL ships no defaults here — only YOU know which files are
+  # load-bearing for your project (D-33).
+  protected: []
+
+  # Search-scope mode: "free" (default, F2-aligned) or "architecture-preserving"
+  # ("free" runs interface + purity validators; "architecture-preserving"
+  # additionally runs identity-strict validation per identity_constraints.)
+  mode: "free"
+
+  # Reproduction tolerance for `automil verify-repro <node_id>` (default ±0.005).
+  repro_tolerance: 0.005
+
+  # Per-project identity constraints (used in architecture-preserving mode).
+  # Examples: "param_count_pct: 5"  ("variant param count within 5% of parent")
+  # Empty list disables structural identity checks beyond default dtype/rank.
+  identity_constraints: []
+
+# --- Variant selection (D-35, REG-07) ---
+# The framework resolves these via registry.resolve_model(parent, variant) etc.
+# Set after porting your first variant via `automil port-variant <node_id>`.
+model:
+  variant: null    # e.g. "clam_mb_v0176"
+  parent: null     # e.g. "clam_mb"
+loss:
+  variant: null    # e.g. "ce_smooth008"
+policy:
+  variant: null    # e.g. "sam_lookahead"
