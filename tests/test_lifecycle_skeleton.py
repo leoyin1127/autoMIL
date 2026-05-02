@@ -73,10 +73,9 @@ def test_each_command_has_help(cli_runner, cmd):
 @pytest.mark.parametrize(
     "cmd,plan",
     [
-        # apply (01-09), refresh-registry (01-09), and revert-baseline (01-10) are
-        # fully implemented — removed from stub list.
-        ("port-variant", "01-11"),
-        ("promote-variant", "01-11"),
+        # apply (01-09), refresh-registry (01-09), revert-baseline (01-10),
+        # port-variant (01-11), and promote-variant (01-11) are fully implemented
+        # — removed from stub list.
         ("verify-repro", "01-12"),
     ],
 )
