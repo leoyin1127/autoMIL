@@ -11,6 +11,26 @@ from automil.cli import main
 from automil.cli._helpers import _find_git_root
 
 
+def _scaffold_variants_skeleton(automil_dir: Path) -> None:
+    """Create automil/variants/<_losses|_policies|_candidates>/ + .gitkeep files.
+
+    Per D-25 + REG-04 + REG-08 (deferred portion): each kind subdirectory
+    gets a .gitkeep so the empty directory commits cleanly. The per-parent
+    <parent>/ subdirectory is created by `port-variant` on first use
+    (Plan 01-11) — no parent name to assume at init time.
+
+    Idempotent: re-running on an existing skeleton is a no-op (mkdir
+    parents=True exist_ok=True; .gitkeep .touch is safe to repeat).
+    """
+    variants_root = automil_dir / "variants"
+    variants_root.mkdir(parents=True, exist_ok=True)
+    (variants_root / ".gitkeep").touch()
+    for sub in ("_losses", "_policies", "_candidates"):
+        sub_dir = variants_root / sub
+        sub_dir.mkdir(parents=True, exist_ok=True)
+        (sub_dir / ".gitkeep").touch()
+
+
 @main.command()
 @click.argument("path", default="automil")
 @click.option("--task", default="binary", help="Task type: binary or multiclass")
@@ -42,6 +62,9 @@ def init(path: str, task: str, encoder: str):
         "orchestrator/completed",
     ]:
         (automil_dir / subdir).mkdir(parents=True, exist_ok=True)
+
+    # Scaffold the registry variants/ skeleton (D-25, REG-04).
+    _scaffold_variants_skeleton(automil_dir)
 
     # Render templates. Templates live alongside the package (not the cli/
     # subpackage), so resolve relative to ``automil/`` rather than ``cli/``.
