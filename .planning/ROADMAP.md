@@ -67,7 +67,7 @@ An agent can autonomously discover model improvements for any user's training co
   - [x] 01-09-PLAN.md — Implement apply (CLI-01) + refresh-registry (CLI-08)
   - [x] 01-10-PLAN.md — Implement revert-baseline with mandatory pre-stash (CLI-02)
   - [x] 01-11-PLAN.md — Implement port-variant (CLI-05) + promote-variant (CLI-06)
-  - [ ] 01-12-PLAN.md — Implement verify-repro + synthetic mini-consumer round-trip (REG-08, REG-09, CLI-09 — Phase 1 acceptance)
+  - [x] 01-12-PLAN.md — Implement verify-repro + synthetic mini-consumer round-trip (REG-08, REG-09, CLI-09 — Phase 1 acceptance)
 **Estimated**: 5–7 days
 
 ### Phase 2: Backend ABC + LocalBackend re-export shim + MockSLURM fixture
