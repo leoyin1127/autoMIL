@@ -37,7 +37,7 @@ Scope of this milestone. Each maps to exactly one roadmap phase (filled in durin
 
 <!-- Pluggable orchestrator: same code on laptop, SLURM cluster, Ray cluster. -->
 
-- [ ] **BCK-01**: `Backend` ABC with `submit(spec) -> JobHandle`, `poll(handle) -> JobState`, `list_running() -> [JobHandle]`, `cancel(handle, signal) -> None`, `log_iter(handle) -> Iterator[str]`; state-not-control-flow `JobState` enum (`pending | running | completed | crashed | cancelled | budget_killed`)
+- [x] **BCK-01**: `Backend` ABC with `submit(spec) -> JobHandle`, `poll(handle) -> JobState`, `list_running() -> [JobHandle]`, `cancel(handle, signal) -> None`, `log_iter(handle) -> Iterator[str]`; state-not-control-flow `JobState` enum (`pending | running | completed | crashed | cancelled | budget_killed`)
 - [ ] **BCK-02**: `LocalBackend` ships as a re-export shim over the existing 750-line orchestrator; behavioural diff vs current orchestrator = empty (verified by existing 48-test suite passing)
 - [ ] **BCK-03**: `MockSLURMBackend` test fixture: simulates eventual-consistency status (5s poll lag), opaque `job_id`, fire-and-forget `cancel`, node-local filesystem; used to validate the ABC against ≥2 implementations BEFORE locking
 - [ ] **BCK-04**: Lint check (ruff/mypy custom rule) forbids `os.kill`, `Popen`, `pid` references outside `backends/local.py` and `backends/_orchestrator_daemon.py`
@@ -189,7 +189,7 @@ Mapped 2026-05-01 by `gsd-roadmapper` against `.planning/ROADMAP.md` (9 phases).
 | REG-07 | Phase 1 | Pending |
 | REG-08 | Phase 1 | Pending |
 | REG-09 | Phase 1 | Pending |
-| BCK-01 | Phase 2 | Pending |
+| BCK-01 | Phase 2 | Complete |
 | BCK-02 | Phase 2 | Pending |
 | BCK-03 | Phase 2 | Pending |
 | BCK-04 | Phase 2 | Pending |

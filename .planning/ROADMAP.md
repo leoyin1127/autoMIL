@@ -81,9 +81,9 @@ An agent can autonomously discover model improvements for any user's training co
   4. A ruff/mypy custom rule lint-blocks `os.kill`, `Popen`, and `pid` references outside `backends/local.py` and `backends/_orchestrator_daemon.py`.
   5. `automil cancel <node_id>` and `automil resubmit <node_id>` are wired through `Backend.cancel` and `Backend.submit`; cancelled nodes archive with `status: cancelled` and resubmits get a fresh worktree.
 **Plans**: 8 plans across 5 waves
-  - [ ] 02-01-PLAN.md — Backend ABC + JobHandle/JobSpec/JobState dataclasses + errors.py + test package skeleton (BCK-01) — wave 1
+  - [x] 02-01-PLAN.md — Backend ABC + JobHandle/JobSpec/JobState dataclasses + errors.py + test package skeleton (BCK-01) — wave 1
   - [ ] 02-02-PLAN.md — BACKENDS registry singleton + @register decorator (extends 02-01's __init__.py) (BCK-01) — wave 2
-  - [ ] 02-03-PLAN.md — Extend cli/submit.py to write metadata.backend to queue spec (BCK-01, CLI-03/04 prereq) — wave 1
+  - [x] 02-03-PLAN.md — Extend cli/submit.py to write metadata.backend to queue spec (BCK-01, CLI-03/04 prereq) — wave 1
   - [ ] 02-04-PLAN.md — git mv orchestrator.py → _orchestrator_daemon.py + 5-line re-export shim + compat.py update (BCK-02) — wave 2
   - [ ] 02-05-PLAN.md — LocalBackend thin adapter over _orchestrator_daemon + auto-register (BCK-02) — wave 3
   - [ ] 02-06-PLAN.md — MockSLURMBackend eventual-consistency fixture (BCK-03) — wave 3

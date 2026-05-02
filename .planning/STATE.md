@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-02T23:41:55.312Z"
+last_updated: "2026-05-02T23:42:47.586Z"
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 27
   completed_plans: 21
-  percent: 74
+  percent: 78
 ---
 
 # State: autoMIL — F2-readiness framework refactor
@@ -40,7 +40,7 @@ Plan: 1 of 12
 - **Phase:** 0 — Tier 2 cleanup + CLI split + compat shim
 - **Plan:** none yet (run `/gsd-plan-phase 0` to decompose)
 - **Status:** Executing Phase 01
-- **Progress:** [██████████] 100%
+- **Progress:** [████████░░] 78%
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Plan: 1 of 12
 | Granularity | fine | Per `.planning/config.json` |
 | Parallelization | enabled | Phase 6 ↔ Phase 7 are the strongest parallel pair |
 | Mode | yolo | Auto-approve gates within roadmap; Leo reviews artifacts |
+| Phase 02 P02-01 | 6m | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -96,7 +97,7 @@ None at roadmap-creation time. All inputs in place; Leo can review the roadmap a
 
 **Next action:** Continue Phase 02 execution (Plans 02-01, 02-02, etc. in parallel waves).
 
-**Resume file:** `.planning/phases/02-backend-abc-localbackend-re-export-shim-mockslurm-fixture/02-03-SUMMARY.md`
+**Resume file:** None
 
 **To resume in a fresh session:** Read this file first, then `.planning/ROADMAP.md`, then the phase's `00-CONTEXT.md`, then plan files under `.planning/phases/00-tier-2-cleanup-cli-split-compat-shim/plans/` (created by `/gsd-plan-phase`).
 
