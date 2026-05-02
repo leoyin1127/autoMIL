@@ -17,25 +17,30 @@ def test_compat_imports_cleanly():
 
 
 def test_planned_migrations_has_expected_entries():
-    """_PLANNED_MIGRATIONS lists the three forecasted Phase 1/2/3 relocations."""
+    """_PLANNED_MIGRATIONS lists the remaining forecasted relocations.
+
+    Phase 2 (Plan 02-04 / D-60): the orchestrator.ExperimentOrchestrator entry
+    was PROMOTED to Active (see compat.py Active aliases section) — it is no
+    longer in _PLANNED_MIGRATIONS per the D-08 promotion rule.
+    """
     from automil import compat
     assert isinstance(compat._PLANNED_MIGRATIONS, dict)
-    assert len(compat._PLANNED_MIGRATIONS) >= 3, (
-        "Expected at least three forecasted entries (Phase 1 placeholder, "
-        "Phase 2 backend, Phase 3 agent assets)."
+    # Phase 2 entry promoted — must NOT appear in _PLANNED_MIGRATIONS any more
+    assert "automil.orchestrator.ExperimentOrchestrator" not in compat._PLANNED_MIGRATIONS, (
+        "Phase 2 migration was promoted to Active aliases; should be removed from "
+        "_PLANNED_MIGRATIONS per D-08 rule."
     )
-    # Phase 2 entry — concrete
-    assert "automil.orchestrator.ExperimentOrchestrator" in compat._PLANNED_MIGRATIONS
-    phase2 = compat._PLANNED_MIGRATIONS["automil.orchestrator.ExperimentOrchestrator"]
-    assert phase2["owning_phase"] == 2
-    assert "LocalBackend" in phase2["new_path"]
-    # Phase 3 entry — concrete
+    # Phase 3 entry — still planned
     assert "automil.claude_assets" in compat._PLANNED_MIGRATIONS
     phase3 = compat._PLANNED_MIGRATIONS["automil.claude_assets"]
     assert phase3["owning_phase"] == 3
-    # Phase 1 entry — placeholder
+    # Phase 1 placeholder entry — still planned
     assert any(v["owning_phase"] == 1 for v in compat._PLANNED_MIGRATIONS.values()), (
         "Expected at least one Phase 1 placeholder entry."
+    )
+    # At least 2 remaining planned entries (Phase 1 placeholder + Phase 3)
+    assert len(compat._PLANNED_MIGRATIONS) >= 2, (
+        "Expected at least two remaining forecasted entries (Phase 1 placeholder, Phase 3 agent assets)."
     )
 
 
