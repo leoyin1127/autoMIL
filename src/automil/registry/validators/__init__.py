@@ -11,7 +11,8 @@ before interface ever imports the module).
 """
 from __future__ import annotations
 
+from automil.registry.validators.identity import IdentityValidator
 from automil.registry.validators.interface import InterfaceValidator
 from automil.registry.validators.purity import PurityValidator
 
-__all__ = ["InterfaceValidator", "PurityValidator"]
+__all__ = ["InterfaceValidator", "PurityValidator", "IdentityValidator"]
