@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-02T23:49:40.765Z"
+last_updated: "2026-05-02T23:50:39.640Z"
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 27
-  completed_plans: 22
-  percent: 81
+  completed_plans: 23
+  percent: 85
 ---
 
 # State: autoMIL — F2-readiness framework refactor
@@ -93,9 +93,9 @@ None at roadmap-creation time. All inputs in place; Leo can review the roadmap a
 
 ## Session Continuity
 
-**Last action:** Phase 02 Plan 02-03 executed (`a3ba1a4`). Extended `cli/submit.py` to write `metadata.backend` to queue spec at submit time per D-76. 390 tests green.
+**Last action:** Phase 02 Plan 02-04 executed (`9bc73aa`). PEP 562 re-export shim at `automil.orchestrator` + D-08 compat.py promotion. 394 tests green. Rename landed via Plan 02-02 commit (`4f667c9`); blame preserved (5 prior commits).
 
-**Next action:** Continue Phase 02 execution (Plans 02-01, 02-02, etc. in parallel waves).
+**Next action:** Continue Phase 02 execution (Wave 3+: Plans 02-05 LocalBackend, 02-06 MockSLURM, etc.).
 
 **Resume file:** None
 
