@@ -57,7 +57,7 @@ An agent can autonomously discover model improvements for any user's training co
   6. Variant lifecycle CLI is wired: `apply`, `revert-baseline`, `port-variant` (idempotent, rejects already-registered nodes), `promote-variant`, `refresh-registry`, `check` are all available and tested.
 **Plans**: 12 plans across 6 waves (D-49 framework-only scope; CCRCC port deferred to consumer follow-up per D-50)
   - [x] 01-01-PLAN.md — Variant ABC family + VariantSpec frozen dataclass (REG-01)
-  - [ ] 01-02-PLAN.md — Registry singleton + @register decorator + resolvers (REG-02)
+  - [x] 01-02-PLAN.md — Registry singleton + @register decorator + resolvers (REG-02)
   - [x] 01-03-PLAN.md — Config schema + variants/ scaffolding to automil init (REG-04, REG-06, REG-07)
   - [ ] 01-04-PLAN.md — Static validators: interface + purity (REG-03)
   - [ ] 01-05-PLAN.md — Identity validator + mode-aware strictness (REG-03 identity, REG-06)
