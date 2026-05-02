@@ -22,7 +22,11 @@ def _init_git_repo(path: Path):
 
 
 def _setup_with_protected(tmp_path: Path, protected: list[str]) -> tuple[Path, str]:
-    """Init project, add a `src/lib.py`, commit; return (automil_dir, base_commit_sha)."""
+    """Init project, add a `src/lib.py`, commit; return (automil_dir, base_commit_sha).
+
+    The automil/ directory is committed to the repo so `git stash
+    --include-untracked` does NOT sweep it up during revert-baseline tests.
+    """
     _init_git_repo(tmp_path)
     from automil.cli import main
     import os
@@ -30,7 +34,17 @@ def _setup_with_protected(tmp_path: Path, protected: list[str]) -> tuple[Path, s
     CliRunner().invoke(main, ["init"])
     adir = tmp_path / "automil"
 
-    # Add src/lib.py and commit.
+    # Patch config.yaml with the desired protected list.
+    cfg = yaml.safe_load((adir / "config.yaml").read_text()) or {}
+    cfg.setdefault("registry", {})["protected"] = protected
+    (adir / "config.yaml").write_text(yaml.safe_dump(cfg))
+
+    # Commit the automil/ directory so --include-untracked stashes don't sweep it up.
+    subprocess.run(["git", "add", "automil/"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "add automil overlay"], cwd=tmp_path,
+                   check=True, capture_output=True)
+
+    # Add src/lib.py and commit (this is the base commit revert-baseline will target).
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "lib.py").write_text("# v1\n")
     subprocess.run(["git", "add", "src/lib.py"], cwd=tmp_path, check=True)
@@ -39,12 +53,8 @@ def _setup_with_protected(tmp_path: Path, protected: list[str]) -> tuple[Path, s
         ["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True, check=True,
     ).stdout.strip()
 
-    # Patch config.yaml.
-    cfg = yaml.safe_load((adir / "config.yaml").read_text()) or {}
-    cfg.setdefault("registry", {})["protected"] = protected
-    (adir / "config.yaml").write_text(yaml.safe_dump(cfg))
-
     # Write a graph.json with one executed node referencing the base commit.
+    # Write directly (the file is already tracked after committing automil/).
     graph = {
         "schema_version": 1,
         "meta": {"best_node_id": "node_0001", "best_composite": 0.5,

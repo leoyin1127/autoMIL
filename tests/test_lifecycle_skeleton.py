@@ -74,7 +74,7 @@ def test_each_command_has_help(cli_runner, cmd):
     "cmd,plan",
     [
         ("apply", "01-09"),
-        ("revert-baseline", "01-10"),
+        # revert-baseline is fully implemented by Plan 01-10 — no longer a stub.
         ("refresh-registry", "01-09"),
         ("port-variant", "01-11"),
         ("promote-variant", "01-11"),
