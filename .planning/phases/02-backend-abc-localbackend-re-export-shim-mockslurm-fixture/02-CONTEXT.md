@@ -168,6 +168,20 @@ After Phase 2:
   5. `automil cancel` + `automil resubmit` integration test (`tests/test_cli_cancel_resubmit.py`) drives end-to-end against MockSLURM + a synthetic graph.json — covers happy path + state-machine edge cases.
   6. `grep -r "autobench\|AUTOBENCH_\|benchmarks/" src/automil/backends/` returns zero matches.
 
+### Submit-path integration (closes researcher's open questions)
+
+- **D-76:** `cli/submit.py` is **extended** in Phase 2 to write `metadata.backend = "<name>"` (read from `automil/config.yaml: backend.name`, default `"local"`) into the `queue/<id>.json` spec at submit time. This is a 3-line addition to `cli/submit.py`. The framework needs `metadata.backend` on every node so `cancel.py` and `resubmit.py` know which backend's `BACKENDS[name]` to dispatch to.
+
+  `metadata.opaque_id` is NOT written at submit time (the daemon doesn't know the PID until it launches the process). It is written by the daemon into `running/<id>.json` when `_launch_experiment` returns. `cancel.py` reads `running/<id>.json` to reconstruct the `JobHandle`.
+
+  **Backward compat:** legacy nodes without `metadata.backend` are treated as `"local"` (the only backend that existed before Phase 2). `cancel.py` and `resubmit.py` apply this default with a one-line fallback, no migration script needed.
+
+- **D-77:** `LocalBackend.submit(spec)` **writes to `queue/<id>.json`** — preserves the existing daemon-pickup model. Returns a `JobHandle(opaque_id="pending")` that the daemon updates to the real PID on launch. `LocalBackend.poll(handle)` reads `running/<id>.json` (running) or `archive/<id>/result.json` (terminal) to surface state — these are the daemon's source of truth.
+
+  This makes `LocalBackend` a **thin protocol adapter** over the daemon's existing on-disk state machine, NOT a re-implementation of the lifecycle. No daemon-mocking infrastructure needed for tests; `LocalBackend.submit` works against a real (but synthetic-fixture-scoped) daemon directory.
+
+  MockSLURM owns its own state machine (in-memory + optional `state_file`). The two backends share NO on-disk state.
+
 ### Out of scope (Phase 2)
 
 - **D-71:** Real SLURM/Ray backends — Phase 6.
