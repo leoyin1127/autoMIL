@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-02T23:50:39.640Z"
+last_updated: "2026-05-02T23:58:55.713Z"
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 27
-  completed_plans: 23
-  percent: 85
+  completed_plans: 24
+  percent: 89
 ---
 
 # State: autoMIL — F2-readiness framework refactor
@@ -53,11 +53,13 @@ Plan: 1 of 12
 | Parallelization | enabled | Phase 6 ↔ Phase 7 are the strongest parallel pair |
 | Mode | yolo | Auto-approve gates within roadmap; Leo reviews artifacts |
 | Phase 02 P02-01 | 6m | 3 tasks | 5 files |
+| Phase 02 P02-06 | 8m | 3 tasks | 1 file |
 
 ## Accumulated Context
 
 ### Decisions logged (from PROJECT.md → ROADMAP.md)
 
+- MockSLURMBackend: PENDING/RUNNING→CRASHED on restart (timer threads cannot resume) — ✓ Done (02-06, 2026-05-02)
 - Registry-first, not config-first, for cross-dataset isolation — Pending (Phase 1)
 - Skills only for autonomous setup; CLI for everything else — Pending (Phase 7)
 - Pluggable orchestrator backends with `local` as default — Pending (Phase 2 ABC, Phase 6 SLURM/Ray)
@@ -93,9 +95,9 @@ None at roadmap-creation time. All inputs in place; Leo can review the roadmap a
 
 ## Session Continuity
 
-**Last action:** Phase 02 Plan 02-04 executed (`9bc73aa`). PEP 562 re-export shim at `automil.orchestrator` + D-08 compat.py promotion. 394 tests green. Rename landed via Plan 02-02 commit (`4f667c9`); blame preserved (5 prior commits).
+**Last action:** Phase 02 Plan 02-06 executed (`4b08912`). MockSLURMBackend eventual-consistency fixture at `src/automil/backends/mock_slurm.py`. threading.Timer chain, threading.Event cancel, atomic state_file persistence, PENDING/RUNNING→CRASHED restart semantics. 394 tests green.
 
-**Next action:** Continue Phase 02 execution (Wave 3+: Plans 02-05 LocalBackend, 02-06 MockSLURM, etc.).
+**Next action:** Continue Phase 02 execution (Wave 3: Plan 02-07 contract test, Plan 02-08 lint script, etc.).
 
 **Resume file:** None
 
