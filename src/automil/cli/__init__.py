@@ -17,6 +17,7 @@ def main():
 # Command modules register themselves on `main` at import time.
 # Order is alphabetic for readability — Click registration is idempotent on
 # repeated import so cycles are not a concern.
+from automil.cli import cancel  # noqa: E402,F401
 from automil.cli import check  # noqa: E402,F401
 from automil.cli import control  # noqa: E402,F401
 from automil.cli import init  # noqa: E402,F401
@@ -24,6 +25,7 @@ from automil.cli import lifecycle  # noqa: E402,F401
 from automil.cli import orchestrator  # noqa: E402,F401
 from automil.cli import propose  # noqa: E402,F401
 from automil.cli import reconcile  # noqa: E402,F401
+from automil.cli import resubmit  # noqa: E402,F401
 from automil.cli import status  # noqa: E402,F401
 from automil.cli import submit  # noqa: E402,F401
 from automil.cli import viz  # noqa: E402,F401

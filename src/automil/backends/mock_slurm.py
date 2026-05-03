@@ -129,6 +129,7 @@ class MockSLURMBackend(Backend):
         self,
         poll_lag_seconds: float = 5.0,
         state_file: Optional[Path] = None,
+        **_kwargs: object,  # accept + ignore project_root/automil_dir from CLI dispatch
     ) -> None:
         self._poll_lag = poll_lag_seconds
         self._jobs: dict[str, _MockJob] = {}   # opaque_id → _MockJob
