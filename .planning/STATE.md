@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-03T00:33:54.638Z"
+last_updated: "2026-05-03T15:20:00.000Z"
 progress:
   total_phases: 9
   completed_phases: 3
-  total_plans: 27
+  total_plans: 38
   completed_plans: 27
-  percent: 100
+  percent: 71
 ---
 
 # State: autoMIL — F2-readiness framework refactor
@@ -30,17 +30,17 @@ progress:
 - `CLAUDE.md` — project instructions and Leo's standing directives
 - `~/.claude/projects/-home-jma-Documents-yinshuol-autoMIL/memory/MEMORY.md` — Leo's standing memory (saturate GPUs, research before submit, never blind-checkout, architectural-not-hyperparam, never ask continue autonomously)
 
-**Current focus:** Phase 01 — variant-registry-config-driven-train-py-ccrcc-reproduction-s
+**Current focus:** Phase 03 — trajectory-recorder-multi-runtime-asset-reorganisation (PLANNED — ready for `/gsd-execute-phase 3`)
 
 ## Current Position
 
-Phase: 01 (variant-registry-config-driven-train-py-ccrcc-reproduction-s) — EXECUTING
-Plan: 1 of 12
+Phase: 03 (trajectory-recorder-multi-runtime-asset-reorganisation) — PLANNED
+Plan: 0 of 11 (planning complete; execution pending)
 
-- **Phase:** 0 — Tier 2 cleanup + CLI split + compat shim
-- **Plan:** none yet (run `/gsd-plan-phase 0` to decompose)
-- **Status:** Executing Phase 01
-- **Progress:** [██████████] 100%
+- **Phase:** 03 — Trajectory recorder + multi-runtime asset reorganisation
+- **Plans:** 11 across 5 waves (sequencing forced by 03-09 depends_on 03-08 fix in iter-1)
+- **Status:** Ready for `/gsd-execute-phase 3` (plan-check PASS verdict iter-2 at commit `44044f2`)
+- **Progress (milestone):** [███████░░░] 71% (3/9 phases shipped, 27/38 known plans complete)
 
 ## Performance Metrics
 
@@ -98,9 +98,9 @@ None at roadmap-creation time. All inputs in place; Leo can review the roadmap a
 
 ## Session Continuity
 
-**Last action:** Phase 02 Plan 02-07 executed (`5b88e76`). Contract test (14 scenarios, S-01..S-12 parameterised over LocalBackend + MockSLURMBackend), BCK-04 AST lint script (`scripts/check_backend_isolation.py`), always-on pytest gate (`tests/test_backend_isolation_lint.py`). Fixed MockSLURMBackend deadlock in `_transition()`. 414 tests green (394 → 414 +20 passed, 9 skipped).
+**Last action:** Phase 03 planning complete. CONTEXT.md bootstrapped autonomously (D-78..D-106), gsd-phase-researcher caught three CONTEXT corrections (gen_ai.system → gen_ai.provider.name, Claude Code stdin hook payload, opencode TypeScript-only plugins, flock fd-cache lifetime). Pattern mapper produced 03-PATTERNS.md with 29/31 file analogs mapped. Planner emitted 11 plans across 5 waves. Plan-checker iter-1 BLOCK (cli/__init__.py race + 03-11 hook bypass); fixed inline; iter-2 PASS at `44044f2`. Ready for `/gsd-execute-phase 3`.
 
-**Next action:** Continue Phase 02 execution (Wave 5: remaining plans — cancel/resubmit CLI, acceptance gate).
+**Next action:** `/gsd-execute-phase 3` — execute 11 plans across 5 waves. Wave 5 (03-11) is the Pitfall-3 anti-acceptance gate (real bash on_stop.sh invocation + opencode plugin static-content check).
 
 **Resume file:** None
 
