@@ -380,3 +380,179 @@ Warnings (3) can be fixed in the same revision pass:
 - WARN-03: Fix 03-11 must_haves truth to match actual test code; add result.json assertion or remove the claim
 
 **Revision count: 1 of 3 allowed.**
+
+---
+
+# Iteration 2 Re-Verification
+
+**Checked:** 2026-05-03
+**Commit inspected:** f3243ce (post-blocker-fix revision)
+**Plans re-inspected:** 03-06, 03-08, 03-09, 03-11 (targeted) + spot-checks on 03-01..03-05, 03-07, 03-10
+**Iteration:** 2 of 3
+
+---
+
+## Focused Checks: Iter-1 Fix Confirmation
+
+### BLOCK-01 Fix: cli/__init__.py parallel write conflict
+
+**Check 1 — 03-08 `parallel_with` no longer lists `"03-09"`:**
+03-08 frontmatter: `parallel_with: ["03-07"]`
+Result: CONFIRMED RESOLVED. 03-09 is absent.
+
+**Check 2 — 03-09 `depends_on` includes `"03-08"`, `parallel_with` is empty:**
+03-09 frontmatter: `depends_on: ["03-01", "03-04", "03-08"]`, `parallel_with: []`
+Result: CONFIRMED RESOLVED. The serialization constraint is correctly captured. 03-09 will wait for 03-08 before executing, eliminating the concurrent `cli/__init__.py` write conflict.
+
+**BLOCK-01 status: RESOLVED**
+
+---
+
+### BLOCK-02 Fix: 03-11 smoke test must invoke real hook scripts
+
+**Check 3 — `test_smoke_claude_hook_script` invokes `["bash", str(hook_script)]` with `input=event_json` (stdin):**
+Line 162-169 of revised 03-11:
+```python
+result = subprocess.run(
+    ["bash", str(hook_script)],
+    input=event_json,
+    env=env,
+    capture_output=True,
+    text=True,
+    cwd=str(tmp_path_proj),
+)
+```
+Confirmed: `input=event_json` pipes the synthetic event JSON to `on_stop.sh` via stdin, exactly matching Claude Code's production delivery mechanism (D-95/D-96).
+Result: CONFIRMED.
+
+**Check 4 — `test_smoke_opencode_plugin_static_content` asserts all four required elements:**
+- `"tool.execute.after" in content` — line 227. CONFIRMED.
+- `"automil trajectory record" in content` — line 234. CONFIRMED.
+- Bun `$` shell API — `("$`" in content) or ("Bun.$" in content) or ("await $" in content)` — line 237. CONFIRMED.
+- `"AUTOMIL_RUNTIME" in content` — line 243. CONFIRMED.
+
+**Check 5 — 03-11 must_haves truths no longer claim "produces valid result.json":**
+New truths[0]: "Claude Code arm exercises the REAL hook script: `bash agent_assets/claude/hooks/on_stop.sh` is invoked with the synthetic event piped on stdin..."
+No truth claims result.json is written or validated.
+Result: CONFIRMED. The documentation mismatch from WARN-03 (iter-1) is corrected.
+
+**Check 6 — T-03-11-S01 disposition flipped from "Accept" to "Mitigate":**
+New disposition: "Mitigate: Claude arm now invokes the REAL `bash on_stop.sh` with stdin event payload (proves D-95/D-96 stdin contract end-to-end); opencode arm does a static-content check on `automil-trajectory.ts`..."
+Result: CONFIRMED. The acceptance rationale no longer misreads D-99; it correctly documents the test's coverage and acknowledged limitations.
+
+**BLOCK-02 status: RESOLVED**
+
+---
+
+### WARN-01 Fix: 03-06 wave inconsistency
+
+**Check 7 — 03-06 `wave: 1`, `parallel_with: ["03-01", "03-02"]`:**
+03-06 frontmatter: `wave: 1`, `depends_on: []`, `parallel_with: ["03-01", "03-02"]`
+Result: CONFIRMED RESOLVED. 03-06 is now correctly wave 1 and listed as parallel with the other two wave-1 plans.
+
+**WARN-01 status: RESOLVED**
+
+---
+
+## New Issue Introduced by BLOCK-01 Fix
+
+The serialization fix added `"03-08"` to 03-09's `depends_on`. This correctly prevents concurrent execution. However, the `wave` label on 03-09 was not updated.
+
+**WARN-05 (new, wave label inconsistency on 03-09):**
+03-09 declares `wave: 3` but depends on 03-08 (which is `wave: 3`). By the rule `wave = max(deps_waves) + 1`, 03-09's wave should be `4` (max(wave_01=1, wave_04=2, wave_08=3) + 1 = 4).
+
+Additionally, 03-07 declares `parallel_with: ["03-08", "03-09"]`. Since 03-09 now runs after 03-08 completes, 03-07 and 03-09 are not truly parallel (03-07 runs while 03-08 is running; 03-09 runs only after 03-08 completes). The `parallel_with` reference to `"03-09"` in 03-07 is misleading.
+
+Downstream consequence: 03-10 declares `depends_on: ["03-07", "03-09"]` and `wave: 4`. With 03-09 effectively in wave 4, 03-10's correct wave is 5. It is labeled wave 4.
+
+**Severity: WARNING.** The `depends_on` fields correctly encode execution ordering; executors schedule by `depends_on`, not by `wave` labels. No execution correctness issue exists. The misleading wave labels affect only human readability of the plan.
+
+**Fix hint:** Update 03-09 to `wave: 4`; update 03-07's `parallel_with` to `["03-08"]` only; update 03-10 to `wave: 5`; update 03-11 to `wave: 6`. Alternatively, accept the cosmetic inconsistency since the dependency graph is correct.
+
+---
+
+## Remaining Open Warnings (from iter-1, not fixed in iter-2)
+
+### WARN-02 (carried): 03-10 task count
+
+03-10 still has 6 tasks (T-03-10-01 through T-03-10-06), confirmed by `grep -c "^- T-03-10-"`. This exceeds the 5-task scope threshold. The tasks are individually small but the count remains above the warning threshold. Not addressed in this revision.
+
+**Severity: WARNING (unchanged from iter-1)**
+
+### WARN-03 (partially resolved): result.json gap
+
+The WARN-03 documentation mismatch is **fixed**: the must_haves truths no longer claim result.json is tested when it is not. This closes the misleading documentation issue.
+
+However, a functional gap remains:
+
+- ROADMAP Phase 3 SC-5 states: "writes a valid `result.json` under Claude Code AND under one of {opencode, codex}"
+- CONTEXT.md `<specifics>` states: "The test asserts: (a) result.json valid"
+- 03-11's `test_smoke_claude_hook_script` and `test_smoke_record_cli_for_runtime` do NOT produce or assert result.json
+
+The gap is between the ROADMAP/specifics description of a "full submit→run→complete→archive cycle" and the actual test architecture (hook script invocation + CLI trajectory record, no LocalBackend.submit cycle).
+
+**Severity: WARNING (reduced from iter-1's WARN-03 documentation blocker; the documentation mismatch is now fixed, leaving only the functional gap).**
+
+The locked D-99 conjunct 3 text does not explicitly mandate result.json — it says "stub training script that exits 0" and "non-empty trajectory.jsonl with correct runtime metadata." The `<specifics>` assertion "(a) result.json valid" is outside the `<decisions>` block. This ambiguity is a pre-existing design gap and not introduced by the revision. Execution can proceed with acknowledgment that result.json coverage is deferred.
+
+---
+
+## Dependency Graph (Revised — Post BLOCK-01 Fix)
+
+```
+Wave 1: 03-01 (no deps), 03-02 (no deps), 03-06 (no deps)
+Wave 2: 03-03 (→03-01), 03-04 (→03-01), 03-05 (→03-02)
+Wave 3: 03-07 (→03-05), 03-08 (→03-05)
+Wave 4*: 03-09 (→03-01, 03-04, 03-08) [labeled wave 3 — WARN-05]
+Wave 4/5*: 03-10 (→03-07, 03-09) [labeled wave 4 — WARN-05]
+Wave 5/6*: 03-11 (→03-10) [labeled wave 5 — WARN-05]
+```
+
+Actual execution ordering is CORRECT. The wave labels in the revised plans are cosmetically inconsistent but do not affect correctness.
+
+---
+
+## Blocker Resolution Summary
+
+| Issue | Iter-1 Status | Iter-2 Status |
+|-------|--------------|--------------|
+| BLOCK-01: cli/__init__.py parallel write | BLOCKER | RESOLVED |
+| BLOCK-02: 03-11 bypasses real hook scripts | BLOCKER | RESOLVED |
+| WARN-01: 03-06 wave inconsistency | WARNING | RESOLVED |
+| WARN-02: 03-10 task count (6 tasks) | WARNING | OPEN (not addressed) |
+| WARN-03: result.json documentation mismatch | WARNING | PARTIALLY RESOLVED (doc fixed; functional gap remains) |
+| WARN-05 (new): 03-09/03-10/03-11 wave label inconsistency | — | NEW WARNING |
+
+**Blockers remaining: 0**
+**Warnings remaining: 3 (WARN-02, WARN-03 residual, WARN-05)**
+
+All three warnings are acceptable for execution: they do not prevent the plan from achieving the phase goal.
+
+---
+
+## Anti-Acceptance Gate Viability (Re-evaluated)
+
+The Pitfall-3 gate is: "an experiment loop runs end-to-end on ≥2 runtimes — not 'scaffolding written for ≥2 runtimes.'"
+
+**Post-fix state:**
+- `test_smoke_claude_hook_script` invokes the REAL `bash on_stop.sh` with stdin event, asserts trajectory.jsonl is written. This proves the Claude Code hook delivery chain (`HOOK_EVENT="$(cat)"` → `automil trajectory record`) works end-to-end.
+- `test_smoke_opencode_plugin_static_content` verifies the plugin file's structural wiring. Bun execution is documented as a manual smoke step.
+- `test_smoke_record_cli_for_runtime` parametrizes CLI execution for both runtimes, proving the CLI path works.
+
+This meets the "operational definition of Pitfall-3 compliance" as stated in 03-11's objective: the hook delivery mechanism is exercised (real shell script for Claude; static-content + CLI path for opencode). The remaining gap (no result.json) is acknowledged but does not invalidate the Pitfall-3 defence as described in D-99.
+
+**Anti-acceptance gate: PASS (with acknowledgment of result.json gap as documented warning)**
+
+---
+
+## VERDICT: PASS
+
+**Blockers resolved: 2 of 2**
+**New blockers introduced: 0**
+**Warnings: 3 (all acceptable for execution)**
+
+The two blockers (BLOCK-01: cli/__init__.py concurrent write, BLOCK-02: hook script bypass) are confirmed resolved by the iter-2 revision. The wave label inconsistency introduced by the serialization fix (WARN-05) is cosmetic and does not affect execution correctness. The plan set is approved for execution.
+
+Run `/gsd-execute-phase 03` to proceed.
+
+**Revision count: 2 of 3 allowed.**
