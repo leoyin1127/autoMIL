@@ -183,15 +183,20 @@ class MockSLURMBackend(Backend):
 
         def _transition() -> None:
             """First tick: PENDING → RUNNING; schedule second tick."""
+            cancelled = False
             with self._lock:
                 if job.cancel_requested.is_set():
                     job.state = JobState.CANCELLED
                     job.log_buffer.append("mock: job cancelled before start")
-                    self._persist_state()
-                    return
-                job.state = JobState.RUNNING
-                job.log_buffer.append("mock: job started")
+                    cancelled = True
+                else:
+                    job.state = JobState.RUNNING
+                    job.log_buffer.append("mock: job started")
+            # _persist_state() acquires _lock — call OUTSIDE the with-block
+            # to avoid deadlock (threading.Lock is not reentrant).
             self._persist_state()
+            if cancelled:
+                return
             # Second timer: RUNNING → terminal
             t2 = threading.Timer(self._poll_lag, _finish)
             t2.daemon = True
