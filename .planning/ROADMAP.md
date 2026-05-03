@@ -84,9 +84,9 @@ An agent can autonomously discover model improvements for any user's training co
   - [x] 02-01-PLAN.md — Backend ABC + JobHandle/JobSpec/JobState dataclasses + errors.py + test package skeleton (BCK-01) — wave 1
   - [x] 02-02-PLAN.md — BACKENDS registry singleton + @register decorator (extends 02-01's __init__.py) (BCK-01) — wave 2
   - [x] 02-03-PLAN.md — Extend cli/submit.py to write metadata.backend to queue spec (BCK-01, CLI-03/04 prereq) — wave 1
-  - [ ] 02-04-PLAN.md — git mv orchestrator.py → _orchestrator_daemon.py + 5-line re-export shim + compat.py update (BCK-02) — wave 2
-  - [ ] 02-05-PLAN.md — LocalBackend thin adapter over _orchestrator_daemon + auto-register (BCK-02) — wave 3
-  - [ ] 02-06-PLAN.md — MockSLURMBackend eventual-consistency fixture (BCK-03) — wave 3
+  - [x] 02-04-PLAN.md — git mv orchestrator.py → _orchestrator_daemon.py + 5-line re-export shim + compat.py update (BCK-02) — wave 2
+  - [x] 02-05-PLAN.md — LocalBackend thin adapter over _orchestrator_daemon + auto-register (BCK-02) — wave 3
+  - [x] 02-06-PLAN.md — MockSLURMBackend eventual-consistency fixture (BCK-03) — wave 3
   - [ ] 02-07-PLAN.md — Parameterised contract test (≥12 scenarios × 2 backends) + BCK-04 AST lint script + lint pytest gate (BCK-01, BCK-03, BCK-04) — wave 4
   - [ ] 02-08-PLAN.md — automil cancel + automil resubmit CLI commands + integration tests against MockSLURM (CLI-03, CLI-04) — wave 5
 **Estimated**: 3–4 days
@@ -208,7 +208,7 @@ Phase 5 (generalization gate)
 |-------|----------------|--------|-----------|
 | 0. Cleanup + CLI split + compat | 0/7 | Not started | - |
 | 1. Registry + config-driven train + CCRCC reproduction | 0/12 | Not started | - |
-| 2. Backend ABC + LocalBackend + MockSLURM | 3/8 | In Progress|  |
+| 2. Backend ABC + LocalBackend + MockSLURM | 6/8 | In Progress|  |
 | 3. Trajectory + multi-runtime reorg | 0/0 | Not started | - |
 | 4. 6h per-cell cap + cell formalisation | 0/0 | Not started | - |
 | 5. Generalization gate | 0/0 | Not started | - |
