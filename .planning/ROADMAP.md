@@ -87,7 +87,7 @@ An agent can autonomously discover model improvements for any user's training co
   - [x] 02-04-PLAN.md — git mv orchestrator.py → _orchestrator_daemon.py + 5-line re-export shim + compat.py update (BCK-02) — wave 2
   - [x] 02-05-PLAN.md — LocalBackend thin adapter over _orchestrator_daemon + auto-register (BCK-02) — wave 3
   - [x] 02-06-PLAN.md — MockSLURMBackend eventual-consistency fixture (BCK-03) — wave 3
-  - [ ] 02-07-PLAN.md — Parameterised contract test (≥12 scenarios × 2 backends) + BCK-04 AST lint script + lint pytest gate (BCK-01, BCK-03, BCK-04) — wave 4
+  - [x] 02-07-PLAN.md — Parameterised contract test (≥12 scenarios × 2 backends) + BCK-04 AST lint script + lint pytest gate (BCK-01, BCK-03, BCK-04) — wave 4 ✓ commit 5b88e76
   - [ ] 02-08-PLAN.md — automil cancel + automil resubmit CLI commands + integration tests against MockSLURM (CLI-03, CLI-04) — wave 5
 **Estimated**: 3–4 days
 

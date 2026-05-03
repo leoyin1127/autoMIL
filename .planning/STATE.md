@@ -54,12 +54,14 @@ Plan: 1 of 12
 | Mode | yolo | Auto-approve gates within roadmap; Leo reviews artifacts |
 | Phase 02 P02-01 | 6m | 3 tasks | 5 files |
 | Phase 02 P02-06 | 8m | 3 tasks | 1 file |
+| Phase 02 P02-07 | 8m | 5 tasks | 5 files |
 
 ## Accumulated Context
 
 ### Decisions logged (from PROJECT.md → ROADMAP.md)
 
 - MockSLURMBackend: PENDING/RUNNING→CRASHED on restart (timer threads cannot resume) — ✓ Done (02-06, 2026-05-02)
+- BCK-04 lint allowlist includes viz/server.py (viz daemon PID lifecycle, not job-control) — ✓ Done (02-07, 2026-05-02)
 - Registry-first, not config-first, for cross-dataset isolation — Pending (Phase 1)
 - Skills only for autonomous setup; CLI for everything else — Pending (Phase 7)
 - Pluggable orchestrator backends with `local` as default — Pending (Phase 2 ABC, Phase 6 SLURM/Ray)
@@ -95,9 +97,9 @@ None at roadmap-creation time. All inputs in place; Leo can review the roadmap a
 
 ## Session Continuity
 
-**Last action:** Phase 02 Plan 02-06 executed (`4b08912`). MockSLURMBackend eventual-consistency fixture at `src/automil/backends/mock_slurm.py`. threading.Timer chain, threading.Event cancel, atomic state_file persistence, PENDING/RUNNING→CRASHED restart semantics. 394 tests green.
+**Last action:** Phase 02 Plan 02-07 executed (`5b88e76`). Contract test (14 scenarios, S-01..S-12 parameterised over LocalBackend + MockSLURMBackend), BCK-04 AST lint script (`scripts/check_backend_isolation.py`), always-on pytest gate (`tests/test_backend_isolation_lint.py`). Fixed MockSLURMBackend deadlock in `_transition()`. 414 tests green (394 → 414 +20 passed, 9 skipped).
 
-**Next action:** Continue Phase 02 execution (Wave 3: Plan 02-07 contract test, Plan 02-08 lint script, etc.).
+**Next action:** Continue Phase 02 execution (Wave 5: remaining plans — cancel/resubmit CLI, acceptance gate).
 
 **Resume file:** None
 
