@@ -65,9 +65,9 @@ After Phase 3:
   ```
   `schema_version` follows semver-style: `trajectory-v1.<minor>` for backwards-compatible additions, `trajectory-v2` for breaking changes. Phase 3 ships `trajectory-v1`. Readers MUST tolerate unknown fields in v1.* (forward-compat) and MUST refuse to interpret v2 (defends Pitfall 5c — fossilisation).
 
-- **D-81:** **OTel `gen_ai.*` field set** (subset of [GenAI semantic-conventions v1.30](https://opentelemetry.io/docs/specs/semconv/gen-ai/) — we use field-name strings only, no SDK):
+- **D-81:** **OTel `gen_ai.*` field set** (subset of [GenAI semantic-conventions late-2025](https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/) — we use field-name strings only, no SDK):
   ```
-  gen_ai.system                  # "claude-code" | "opencode" | "codex"
+  gen_ai.provider.name           # "claude-code" | "opencode" | "codex"  (gen_ai.system is DEPRECATED, replaced by provider.name in late-2025 OTel registry — research finding)
   gen_ai.request.model           # e.g. "claude-opus-4-7"
   gen_ai.event.name              # "prompt" | "tool_call" | "tool_result" | "response"
   gen_ai.event.timestamp         # ISO 8601, microsecond precision
@@ -77,7 +77,7 @@ After Phase 3:
   gen_ai.usage.input_tokens      # int (when known; absent OK)
   gen_ai.usage.output_tokens     # int (when known; absent OK)
   ```
-  `schema.py` defines these as module-level string constants and a `REQUIRED_FIELDS = {"gen_ai.system", "gen_ai.event.name", "gen_ai.event.timestamp"}` set. `validate_event(d: dict) -> None` raises `TrajectorySchemaError` if a required field is missing; unknown fields pass silently (forward-compat).
+  `schema.py` defines these as module-level string constants and a `REQUIRED_FIELDS = {"gen_ai.provider.name", "gen_ai.event.name", "gen_ai.event.timestamp"}` set. `validate_event(d: dict) -> None` raises `TrajectorySchemaError` if a required field is missing; unknown fields pass silently (forward-compat).
 
 ### Redaction-on-capture (TRJ-03)
 
@@ -126,7 +126,7 @@ After Phase 3:
   ```
   **Soft-fail discipline:** disk full / permission denied / redactor crash → caught, logged at WARNING, returns `False`. The experiment process MUST NOT crash because of trajectory recorder failures. Pitfall 5b mitigation: an unknown bug in the recorder cannot kill an experiment.
 
-- **D-86:** **Multi-process safety** via `O_APPEND` open mode + `fcntl.flock(fd, LOCK_EX)` around each line append. Single-line atomic appends at the kernel level. Per-process RLock prevents intra-process re-entry deadlock. `automil trajectory record <event-json>` (CLI fallback, D-91) uses the same lock primitive — Claude Code hook + a parallel manual `automil trajectory record` invocation cannot interleave broken lines.
+- **D-86:** **Multi-process safety** via `O_APPEND` open mode + `fcntl.flock(fd, LOCK_EX)` around each line append. Single-line atomic appends at the kernel level. Per-process RLock prevents intra-process re-entry deadlock. **Critical (research finding):** Linux `flock` releases ALL locks on a file the moment ANY fd to that file is closed by the process; the recorder MUST keep an open fd in a per-node-id cache and reuse it across events, NOT open-close per event. The cache is closed/flushed on rotation and on process exit (via `atexit`). `automil trajectory record <event-json>` (CLI fallback) is a short-lived process — it opens the fd for the single event, locks, writes, unlocks, closes; that single-process scope is fine.
 
 - **D-87:** **Runtime declaration is explicit, NEVER inferred** (defends Pitfall 5c-edge: trajectory mis-tagged as Claude when it was actually Codex). The runtime contract:
   - `AUTOMIL_RUNTIME` environment variable declares the runtime: `"claude-code" | "opencode" | "codex" | "deepseek-via-opencode" | "deepseek-via-codex" | "unknown"`.
@@ -171,6 +171,7 @@ After Phase 3:
 
 - **D-92:** **`automil init` rewrite** for runtime selection (Phase 1's init code is preserved; we extend, not replace):
   - Add `--runtime` Click option with choices `[claude, opencode, codex, deepseek-via-opencode, deepseek-via-codex, all]` (default: auto-detect).
+  - Add `--update` Click flag for idempotent re-init: re-renders skills/hooks/AGENTS.md/.gitignore for currently-installed runtimes WITHOUT re-running the project scaffold (config.yaml, program.md, learnings.md preserved if present). **Must bypass the early "already-initialized" `ClickException` guard at `init.py` line 53** (research finding) — when `--update` is true, the guard is short-circuited.
   - Replace the hard-coded `claude_src = package_dir / "claude_assets"` (init.py:90) with a loop over selected runtimes; for each runtime, render skills via the overlay merger (D-89) and write to the runtime's native location.
   - Render the project-root `AGENTS.md` once per `init` invocation.
   - Update the "Next steps" footer to show only the selected runtime(s).
@@ -187,22 +188,26 @@ After Phase 3:
 
 ### Hook integration (TRJ-04)
 
-- **D-95:** **Hook integration matrix** for Phase 3:
+- **D-95:** **Hook integration matrix** for Phase 3 (corrected per research findings):
   | Runtime | Hook mechanism | Integration |
   |---|---|---|
-  | Claude Code | `Stop` hook + post-tool-use (already in `claude_assets/hooks/on_stop.sh`; **EXTEND** in 03-09) | Hook script invokes `automil trajectory record "$(claude_event_json)"` after each tool call |
-  | opencode | `~/.config/opencode/hooks/on_tool_call.sh` (opencode supports hooks per [opencode docs](https://github.com/opencode-ai/opencode)) | New hook script in `agent_assets/opencode/hooks/`, installed by `automil init --runtime opencode` |
-  | Codex | **CLI-fallback only** (Codex hook surface unstable as of 2026-05) | User documentation + `agent_assets/codex/README.md` showing how to invoke `automil trajectory record` from a manual hook script if desired |
-  | DeepSeek | Routed via opencode/Codex; uses host runtime's hook | Documented in `agent_assets/deepseek/README.md` (MRT-06) |
+  | Claude Code | `Stop` hook + post-tool-use; payload arrives **on stdin** (NOT via env var) per [Claude Code Hooks Reference](https://code.claude.com/docs/en/hooks) | Hook shell script reads `HOOK_EVENT=$(cat)` then invokes `automil trajectory record "$HOOK_EVENT"` |
+  | opencode | TypeScript plugin (Bun runtime) — opencode does NOT support shell hooks (research finding; [opencode docs](https://opencode.ai/docs/plugins/), [issue #12472 unimplemented](https://github.com/anomalyco/opencode/issues/12472)) | `.opencode/plugins/automil-trajectory.ts` Bun plugin using `tool.execute.after` and Bun's `$` shell API to invoke `automil trajectory record` |
+  | Codex | **CLI-fallback only** (Codex hook surface unstable as of 2026-05) | `agent_assets/codex/README.md` documents the manual fallback |
+  | DeepSeek | Routed via opencode/Codex; uses host runtime's hook | `agent_assets/deepseek/README.md` (MRT-06) |
 
-- **D-96:** **The `claude_assets/hooks/on_stop.sh` extension** is additive: it currently fires nothing trajectory-related. Phase 3 extends it to:
+- **D-96:** **The Claude Code hook script extension** (additive — current `on_stop.sh` fires nothing trajectory-related):
   ```bash
-  if [[ -n "${AUTOMIL_NODE_ID:-}" && -n "${AUTOMIL_RUNTIME:-}" ]]; then
-      # CLAUDE_HOOK_EVENT is the JSON event payload Claude Code provides
-      automil trajectory record "${CLAUDE_HOOK_EVENT:-}" 2>>"${AUTOMIL_DIR:-/tmp}/trajectory.err.log" || true
+  #!/usr/bin/env bash
+  # Claude Code delivers hook payload on stdin (not via env var) — research finding
+  HOOK_EVENT="$(cat)"
+
+  if [[ -n "${AUTOMIL_NODE_ID:-}" && -n "${AUTOMIL_RUNTIME:-}" && -n "$HOOK_EVENT" ]]; then
+      automil trajectory record "$HOOK_EVENT" \
+          2>>"${AUTOMIL_DIR:-/tmp}/trajectory.err.log" || true
   fi
   ```
-  Soft-fail (`|| true`) — a recorder error never breaks Claude Code's hook chain. The opencode hook is structurally identical (different env-var name for the event payload).
+  Soft-fail (`|| true`) — a recorder error never breaks Claude Code's hook chain. **opencode integration is NOT a parallel shell script** (that was the original hypothesis; research found opencode supports only TypeScript plugins). The opencode plugin invokes the same `automil trajectory record` CLI from a `tool.execute.after` Bun handler — see D-95 row 2.
 
 ### Submit pathway integration (TRJ-05, MRT)
 
