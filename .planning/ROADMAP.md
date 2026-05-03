@@ -14,7 +14,7 @@ An agent can autonomously discover model improvements for any user's training co
 
 - [ ] **Phase 0: Tier 2 cleanup + CLI split + compat shim** — close CONCERNS HIGH-severity items, split monolithic `cli.py`, add `compat.py` re-export so all 48 tests stay green
 - [ ] **Phase 1: Variant registry + config-driven train + reproduction sanity** — keystone phase; ports CCRCC dirty edits to registered variants, validates with ±0.005 reproduction of `node_0176`
-- [ ] **Phase 2: Backend ABC + LocalBackend re-export + MockSLURM fixture** — design backend interface against ≥2 implementations before locking; ABC bounds Phase 6
+- [x] **Phase 2: Backend ABC + LocalBackend re-export + MockSLURM fixture** — design backend interface against ≥2 implementations before locking; ABC bounds Phase 6 (completed 2026-05-03)
 - [ ] **Phase 3: Trajectory recorder + multi-runtime asset reorg** — JSONL trajectories with OTel `gen_ai.*` keys + redaction; `agent_assets/_shared/` + per-runtime overlays; ≥2 runtimes validated end-to-end
 - [ ] **Phase 4: 6h per-cell hard cap + cell-concept formalization** — first-class `cell_id`, two-tier cap (refuse-new at T-buffer, terminate at T), per-fold checkpoint protocol, partial-result reconciliation
 - [ ] **Phase 5: Generalization gate** — `candidate` node status, pre-registered `gate_manifest.json`, paired Wilcoxon + bootstrap CI + Bonferroni, manual nomination default, promotion-rate metric
@@ -88,7 +88,7 @@ An agent can autonomously discover model improvements for any user's training co
   - [x] 02-05-PLAN.md — LocalBackend thin adapter over _orchestrator_daemon + auto-register (BCK-02) — wave 3
   - [x] 02-06-PLAN.md — MockSLURMBackend eventual-consistency fixture (BCK-03) — wave 3
   - [x] 02-07-PLAN.md — Parameterised contract test (≥12 scenarios × 2 backends) + BCK-04 AST lint script + lint pytest gate (BCK-01, BCK-03, BCK-04) — wave 4 ✓ commit 5b88e76
-  - [ ] 02-08-PLAN.md — automil cancel + automil resubmit CLI commands + integration tests against MockSLURM (CLI-03, CLI-04) — wave 5
+  - [x] 02-08-PLAN.md — automil cancel + automil resubmit CLI commands + integration tests against MockSLURM (CLI-03, CLI-04) — wave 5
 **Estimated**: 3–4 days
 
 ### Phase 3: Trajectory recorder + multi-runtime asset reorganisation
@@ -208,7 +208,7 @@ Phase 5 (generalization gate)
 |-------|----------------|--------|-----------|
 | 0. Cleanup + CLI split + compat | 0/7 | Not started | - |
 | 1. Registry + config-driven train + CCRCC reproduction | 0/12 | Not started | - |
-| 2. Backend ABC + LocalBackend + MockSLURM | 6/8 | In Progress|  |
+| 2. Backend ABC + LocalBackend + MockSLURM | 8/8 | Complete   | 2026-05-03 |
 | 3. Trajectory + multi-runtime reorg | 0/0 | Not started | - |
 | 4. 6h per-cell cap + cell formalisation | 0/0 | Not started | - |
 | 5. Generalization gate | 0/0 | Not started | - |

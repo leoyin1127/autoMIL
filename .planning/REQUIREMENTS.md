@@ -94,8 +94,8 @@ Scope of this milestone. Each maps to exactly one roadmap phase (filled in durin
 
 - [ ] **CLI-01**: `automil apply <node_id>` copies a node's variant module + config delta back to the working tree
 - [ ] **CLI-02**: `automil revert-baseline` resets all `registry.editable` paths to their `base_commit` state (idempotent)
-- [ ] **CLI-03**: `automil cancel <node_id>` terminates a running experiment via the backend's `cancel`; archives current state with `status: cancelled`
-- [ ] **CLI-04**: `automil resubmit <node_id>` re-queues a crashed/cancelled node with a fresh worktree
+- [x] **CLI-03**: `automil cancel <node_id>` terminates a running experiment via the backend's `cancel`; archives current state with `status: cancelled`
+- [x] **CLI-04**: `automil resubmit <node_id>` re-queues a crashed/cancelled node with a fresh worktree
 - [ ] **CLI-05**: `automil port-variant <node_id>` converts a node's overlay (dirty edits) into a registered variant module + manifest; idempotent; rejects nodes that are already registered
 - [ ] **CLI-06**: `automil promote-variant <node_id>` moves a candidate variant into the canonical `variants/` directory, writes provenance manifest, and stages for commit
 - [ ] **CLI-07**: `automil reconcile --recompute-best` rebuilds `meta.best_node_id` from the honest non-leaky composite walking only `executed/keep` nodes (closes T2 from earlier this session)
@@ -221,8 +221,8 @@ Mapped 2026-05-01 by `gsd-roadmapper` against `.planning/ROADMAP.md` (9 phases).
 | GTE-06 | Phase 5 | Pending |
 | CLI-01 | Phase 1 | Pending |
 | CLI-02 | Phase 1 | Pending |
-| CLI-03 | Phase 2 | Pending |
-| CLI-04 | Phase 2 | Pending |
+| CLI-03 | Phase 2 | Complete |
+| CLI-04 | Phase 2 | Complete |
 | CLI-05 | Phase 1 | Pending |
 | CLI-06 | Phase 1 | Pending |
 | CLI-07 | Phase 0 | Pending |
