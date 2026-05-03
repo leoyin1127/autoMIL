@@ -45,6 +45,15 @@ from automil.backends._orchestrator_daemon import *  # noqa: F401, F403
 
 
 def __getattr__(name: str):
+    # WR-01 fix (Phase 2 review): short-circuit Python-internal dunder probes
+    # (__path__, __bases__, __test__, __wrapped__, etc.) BEFORE issuing a
+    # DeprecationWarning. The import machinery and pytest collection probe
+    # these on every module access; warning on each one floods the test
+    # output with 14+ spurious "automil.orchestrator.__path__ moved..."
+    # messages. Real callers that hit __getattr__ for a renamed name still
+    # see the deprecation warning.
+    if name.startswith("__") and name.endswith("__"):
+        raise AttributeError(name)
     _warnings.warn(
         f"automil.orchestrator.{name} moved to automil.backends._orchestrator_daemon "
         f"in Phase 2 (D-60). Update imports by 2027-01.",

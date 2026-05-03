@@ -105,13 +105,24 @@ class LocalBackend(Backend):
         #   id, base_commit, overlay_dir, overlay_manifest, deletions,
         #   priority, estimated_vram_gb, timeout_min, graph_metadata,
         #   submitted_at, metadata.backend
+        #
+        # overlay_dir CR-01 fix (Phase 2 review): use spec.overlay_dir, NOT a
+        # hardcoded archive/<node_id> path. resubmit.py passes the OLD node's
+        # archive (archive/<old_id>) as spec.overlay_dir; hardcoding the new
+        # node's path silently runs the resubmitted experiment on base-commit
+        # code instead of the variant overlay. Make the path relative to
+        # orch_dir when possible (matches cli/submit.py's "archive/<id>"
+        # convention); fall back to absolute string if outside orch_dir.
+        try:
+            overlay_dir_str = str(spec.overlay_dir.relative_to(self._orch_dir))
+        except ValueError:
+            overlay_dir_str = str(spec.overlay_dir)
+
         queue_spec: dict = {
             "id": spec.node_id,
             "description": "",
             "base_commit": spec.base_commit,
-            # overlay_dir is stored as a relative path string ("archive/<id>")
-            # so the daemon can resolve it relative to orch_dir.
-            "overlay_dir": f"archive/{spec.node_id}",
+            "overlay_dir": overlay_dir_str,
             "overlay_manifest": {f: "" for f in spec.overlay_files},
             "deletions": [],
             "priority": 1,
