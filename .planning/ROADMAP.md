@@ -101,7 +101,18 @@ An agent can autonomously discover model improvements for any user's training co
   3. `src/automil/agent_assets/_shared/SKILL.md` is the canonical skill content; `claude/`, `codex/`, `opencode/` directories contain ONLY diffs/overrides; `agent_assets/deepseek/README.md` documents that DeepSeek is a *model* routed via opencode/Codex/etc.
   4. `automil init --runtime <claude|codex|opencode|deepseek-via-X>` works with explicit selection AND auto-detection from existing `.claude/`, `.codex/`, `.opencode/`; `AGENTS.md` is generated at the project root; `automil show-skill --runtime <name>` renders the merged per-runtime SKILL/AGENTS file.
   5. End-to-end smoke test: an experiment loop submits, runs, completes, and writes a valid `result.json` under Claude Code AND under one of {opencode, codex} — trajectories captured for both, schema-version metadata correct, redaction tests cover each leak class.
-**Plans**: TBD
+**Plans**: 11 plans across 5 waves
+  - [ ] 03-01-PLAN.md — trajectory package skeleton + schema + redactor + recorder fd-cache (TRJ-01, TRJ-02) — wave 1
+  - [ ] 03-02-PLAN.md — agent_assets/ git mv migration + AGENTS.md + deepseek README + compat shim (MRT-01, MRT-06) — wave 1
+  - [ ] 03-03-PLAN.md — redactor positive-case tests + schema version forward-compat (TRJ-03, TRJ-06) — wave 2
+  - [ ] 03-04-PLAN.md — full rotation manager 5MB/50MB + atomic rename + tests (TRJ-03) — wave 2
+  - [ ] 03-05-PLAN.md — overlay merger _overlay.py + test suite (MRT-01) — wave 2
+  - [ ] 03-06-PLAN.md — runtime.py + submit.py metadata.runtime + config.yaml.j2 passthrough (TRJ-04) — wave 2
+  - [ ] 03-07-PLAN.md — automil init --runtime + --update + auto-detect + AGENTS.md render (MRT-02, MRT-03) — wave 3
+  - [ ] 03-08-PLAN.md — automil show-skill --runtime command (MRT-04) — wave 3
+  - [ ] 03-09-PLAN.md — automil trajectory record/export CLI + recorder tests + export bundle (TRJ-04, TRJ-05) — wave 3
+  - [ ] 03-10-PLAN.md — Claude hook + opencode TS plugin + codex README + gitignore trajectory entries (TRJ-04, TRJ-05) — wave 4
+  - [ ] 03-11-PLAN.md — two-runtime smoke test + Phase 3 acceptance gate (TRJ-05, TRJ-06, MRT-05) — wave 5
 **Estimated**: 4–5 days
 
 ### Phase 4: 6h per-cell hard cap + cell-concept formalisation
