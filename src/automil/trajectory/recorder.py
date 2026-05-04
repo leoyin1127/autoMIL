@@ -177,13 +177,22 @@ def read_metadata(path: Path) -> dict:
     Returns metadata dict for trajectory-v1.* (unknown fields tolerated).
     """
     from automil.trajectory.schema import TrajectorySchemaError  # avoid circular at module level
-    line = path.read_text(encoding="utf-8").splitlines()[0]
-    meta = json.loads(line)
+    # CR-01 (Phase 3 review): empty trajectory files are reachable. Soft rotation
+    # at rotation.py:123 skips the metadata header write if `_read_first_line`
+    # returns None — leaving the new trajectory.jsonl empty. Without this guard
+    # readers see a bare IndexError instead of the typed TrajectorySchemaError.
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if not lines or not lines[0].strip():
+        raise TrajectorySchemaError(
+            f"Trajectory file {path} is empty or missing first-line metadata (D-80)"
+        )
+    meta = json.loads(lines[0])
     version = meta.get("schema_version", "")
-    if version.startswith("trajectory-v2") or (
-        version and not version.startswith("trajectory-v1")
-        and not version.startswith("trajectory-v")
-    ):
+    # CR-02 (Phase 3 review): per D-80 this reader supports v1.* only.
+    # `version.startswith("trajectory-v1")` is NOT enough — it also matches
+    # `trajectory-v11`, `trajectory-v12`, etc. Accept exactly `trajectory-v1`
+    # or `trajectory-v1` followed by a separator (`.` or `-`).
+    if not (version == "trajectory-v1" or version.startswith(("trajectory-v1.", "trajectory-v1-"))):
         raise TrajectorySchemaError(
             f"Unsupported schema_version '{version}'; "
             "this reader supports trajectory-v1.* only (D-80)"

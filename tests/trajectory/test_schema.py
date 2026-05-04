@@ -119,3 +119,69 @@ def test_gen_ai_provider_name_not_gen_ai_system() -> None:
     from automil.trajectory.schema import GEN_AI_PROVIDER_NAME
     assert GEN_AI_PROVIDER_NAME == "gen_ai.provider.name"
     assert "gen_ai.system" not in REQUIRED_FIELDS
+
+
+# --- Phase 3 review regression tests (CR-01, CR-02) ---
+
+def test_read_metadata_empty_file_raises_schema_error(tmp_path: Path) -> None:
+    """CR-01 regression: read_metadata on an empty trajectory file raises
+    TrajectorySchemaError, NOT a bare IndexError. Reachable via soft rotation
+    where the metadata header write was skipped (rotation.py:123)."""
+    traj = tmp_path / "trajectory.jsonl"
+    traj.write_text("")  # empty file
+    with pytest.raises(TrajectorySchemaError, match="empty"):
+        read_metadata(traj)
+
+
+def test_read_metadata_blank_first_line_raises_schema_error(tmp_path: Path) -> None:
+    """CR-01 regression: a file with only whitespace on line 0 also raises typed."""
+    traj = tmp_path / "trajectory.jsonl"
+    traj.write_text("   \n")
+    with pytest.raises(TrajectorySchemaError, match="empty"):
+        read_metadata(traj)
+
+
+@pytest.mark.parametrize("bad_version", [
+    "trajectory-v2",
+    "trajectory-v3",
+    "trajectory-v11",
+    "trajectory-v99",
+    "trajectory-v3.0",
+    "trajectory-vNext",
+    "v1",                   # missing "trajectory-" prefix
+    "v2",
+    "",                     # empty
+    "json-line-v1",         # different schema family
+])
+def test_read_metadata_rejects_non_v1(tmp_path: Path, bad_version: str) -> None:
+    """CR-02 regression: anything that isn't `trajectory-v1.*` MUST raise.
+    Previously v3+ was silently accepted because the compound condition
+    short-circuited on `not startswith("trajectory-v")`."""
+    metadata = {
+        "schema_version":      bad_version,
+        "runtime":             "claude-code",
+        "runtime_version":     "unknown",
+        "tool_schema_version": "unknown",
+        "automil_version":     "1.0.0",
+        "automil_runtime_env": {},
+    }
+    traj = tmp_path / "trajectory.jsonl"
+    traj.write_text(json.dumps(metadata) + "\n")
+    with pytest.raises(TrajectorySchemaError, match="Unsupported schema_version"):
+        read_metadata(traj)
+
+
+@pytest.mark.parametrize("good_version", [
+    "trajectory-v1",
+    "trajectory-v1.0",
+    "trajectory-v1.5",
+    "trajectory-v1.99",
+    "trajectory-v1-rc1",     # any v1.* shape
+])
+def test_read_metadata_accepts_v1_variants(tmp_path: Path, good_version: str) -> None:
+    """CR-02 regression: every `trajectory-v1*` form continues to read OK."""
+    metadata = {"schema_version": good_version, "runtime": "claude-code"}
+    traj = tmp_path / "trajectory.jsonl"
+    traj.write_text(json.dumps(metadata) + "\n")
+    meta = read_metadata(traj)
+    assert meta["schema_version"] == good_version

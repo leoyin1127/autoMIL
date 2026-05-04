@@ -18,9 +18,15 @@ _PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"hf_[A-Za-z0-9]{20,}"),                                  "hf_[REDACTED]"),
     (re.compile(r"ghp_[A-Za-z0-9]{30,}"),                                 "ghp_[REDACTED]"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"),                                 "AKIA[REDACTED]"),
-    (re.compile(r"([A-Z][A-Z0-9_]{1,40}_API_KEY)\s*[:=]\s*\S+"),          r"\1=[REDACTED]"),
-    (re.compile(r"([A-Z][A-Z0-9_]{1,40}_TOKEN)\s*[:=]\s*\S+"),            r"\1=[REDACTED]"),
-    (re.compile(r"([A-Z][A-Z0-9_]{1,40}_KEY)\s*[:=]\s*\S+"),              r"\1=[REDACTED]"),
+    # WR-01 (Phase 3 review): `\S+` matched any non-whitespace value, which
+    # over-redacted legitimate ENV-style strings with very short values like
+    # `CACHE_KEY=abc`, `NO_API_KEY=true`, `GIT_TOKEN=on`. Real secrets are at
+    # least ~8 chars; require `\S{8,}` to filter the obvious false positives.
+    # Path-like values (`PUBLIC_KEY=/path/to/pub`) still match — over-redaction
+    # is the safer side per Pitfall 5a (catastrophic if leaked).
+    (re.compile(r"([A-Z][A-Z0-9_]{1,40}_API_KEY)\s*[:=]\s*\S{8,}"),        r"\1=[REDACTED]"),
+    (re.compile(r"([A-Z][A-Z0-9_]{1,40}_TOKEN)\s*[:=]\s*\S{8,}"),          r"\1=[REDACTED]"),
+    (re.compile(r"([A-Z][A-Z0-9_]{1,40}_KEY)\s*[:=]\s*\S{8,}"),            r"\1=[REDACTED]"),
 ]
 
 _SIZE_CAP_BYTES = 8192  # D-83: 8 KB per-event cap
