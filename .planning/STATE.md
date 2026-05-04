@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-last_updated: "2026-05-03T15:20:00.000Z"
+status: completed
+last_updated: "2026-05-04T06:23:20.490Z"
 progress:
   total_phases: 9
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 38
-  completed_plans: 27
-  percent: 71
+  completed_plans: 38
+  percent: 100
 ---
 
 # State: autoMIL — F2-readiness framework refactor
@@ -30,17 +30,18 @@ progress:
 - `CLAUDE.md` — project instructions and Leo's standing directives
 - `~/.claude/projects/-home-jma-Documents-yinshuol-autoMIL/memory/MEMORY.md` — Leo's standing memory (saturate GPUs, research before submit, never blind-checkout, architectural-not-hyperparam, never ask continue autonomously)
 
-**Current focus:** Phase 03 — trajectory-recorder-multi-runtime-asset-reorganisation (PLANNED — ready for `/gsd-execute-phase 3`)
+**Current focus:** Phase 03 — Trajectory recorder + multi-runtime asset reorganisation
 
 ## Current Position
 
-Phase: 03 (trajectory-recorder-multi-runtime-asset-reorganisation) — PLANNED
-Plan: 0 of 11 (planning complete; execution pending)
+Phase: 03 — COMPLETE
+Plan: 1 of 11
 
 - **Phase:** 03 — Trajectory recorder + multi-runtime asset reorganisation
 - **Plans:** 11 across 5 waves (sequencing forced by 03-09 depends_on 03-08 fix in iter-1)
-- **Status:** Ready for `/gsd-execute-phase 3` (plan-check PASS verdict iter-2 at commit `44044f2`)
-- **Progress (milestone):** [███████░░░] 71% (3/9 phases shipped, 27/38 known plans complete)
+- **Status:** Phase 03 complete (verifier PASS iter-2; 525 tests + 9 skipped, all 7 D-99 hard floors green)
+- **Progress (milestone):** [████░░░░░░] 44% (4/9 phases shipped, 38/38 known plans complete)
+- **Next:** `/gsd-discuss-phase 4` (CAP-01..06 — 6h per-cell hard cap + cell-concept formalisation)
 
 ## Performance Metrics
 
@@ -98,9 +99,9 @@ None at roadmap-creation time. All inputs in place; Leo can review the roadmap a
 
 ## Session Continuity
 
-**Last action:** Phase 03 planning complete. CONTEXT.md bootstrapped autonomously (D-78..D-106), gsd-phase-researcher caught three CONTEXT corrections (gen_ai.system → gen_ai.provider.name, Claude Code stdin hook payload, opencode TypeScript-only plugins, flock fd-cache lifetime). Pattern mapper produced 03-PATTERNS.md with 29/31 file analogs mapped. Planner emitted 11 plans across 5 waves. Plan-checker iter-1 BLOCK (cli/__init__.py race + 03-11 hook bypass); fixed inline; iter-2 PASS at `44044f2`. Ready for `/gsd-execute-phase 3`.
+**Last action:** Phase 03 fully shipped 2026-05-04. Executed 11 plans across 6 effective waves (depends_on-derived: Wave 1 = 03-01/02/06 parallel; Wave 2 = 03-03/04/05 parallel; Wave 3 = 03-07/08 parallel; Wave 4 = 03-09; Wave 5 = 03-10; Wave 6 = 03-11 anti-acceptance). Verifier iter-1 found SC5/MRT-05 result.json gap; closed inline at `c612354` with `test_smoke_full_cycle_each_runtime` parametrized over [claude-code, opencode]. Iter-2 PASS at `b99ecf4`. Suite 425 baseline → 525 + 9 skipped (+100 tests). All 7 D-99 hard floors green: trajectory tests, agent_assets tests, two-runtime smoke, no opentelemetry, baseline preserved, claude_assets only in compat.py, no autobench in trajectory/agent_assets.
 
-**Next action:** `/gsd-execute-phase 3` — execute 11 plans across 5 waves. Wave 5 (03-11) is the Pitfall-3 anti-acceptance gate (real bash on_stop.sh invocation + opencode plugin static-content check).
+**Next action:** `/gsd-discuss-phase 4` to begin Phase 4 (CAP-01..06 — 6h per-cell hard cap + cell-concept formalisation + per-fold checkpoint protocol). Pitfall-4 defence: cap MUST ship WITH per-fold checkpoint protocol or first cap-firing event corrupts results.
 
 **Resume file:** None
 

@@ -15,7 +15,7 @@ An agent can autonomously discover model improvements for any user's training co
 - [ ] **Phase 0: Tier 2 cleanup + CLI split + compat shim** — close CONCERNS HIGH-severity items, split monolithic `cli.py`, add `compat.py` re-export so all 48 tests stay green
 - [ ] **Phase 1: Variant registry + config-driven train + reproduction sanity** — keystone phase; ports CCRCC dirty edits to registered variants, validates with ±0.005 reproduction of `node_0176`
 - [x] **Phase 2: Backend ABC + LocalBackend re-export + MockSLURM fixture** — design backend interface against ≥2 implementations before locking; ABC bounds Phase 6 (completed 2026-05-03)
-- [ ] **Phase 3: Trajectory recorder + multi-runtime asset reorg** — JSONL trajectories with OTel `gen_ai.*` keys + redaction; `agent_assets/_shared/` + per-runtime overlays; ≥2 runtimes validated end-to-end
+- [x] **Phase 3: Trajectory recorder + multi-runtime asset reorg** — JSONL trajectories with OTel `gen_ai.*` keys + redaction; `agent_assets/_shared/` + per-runtime overlays; ≥2 runtimes validated end-to-end
 - [ ] **Phase 4: 6h per-cell hard cap + cell-concept formalization** — first-class `cell_id`, two-tier cap (refuse-new at T-buffer, terminate at T), per-fold checkpoint protocol, partial-result reconciliation
 - [ ] **Phase 5: Generalization gate** — `candidate` node status, pre-registered `gate_manifest.json`, paired Wilcoxon + bootstrap CI + Bonferroni, manual nomination default, promotion-rate metric
 - [ ] **Phase 6: SLURM backend (submitit) + Ray backend (raw ray.remote)** — opt-in extras; honor wall-clock contract via `--signal=B:TERM@30` (SLURM) and `ray.cancel(force=True)` (Ray); parallel-friendly with Phase 7
@@ -102,17 +102,17 @@ An agent can autonomously discover model improvements for any user's training co
   4. `automil init --runtime <claude|codex|opencode|deepseek-via-X>` works with explicit selection AND auto-detection from existing `.claude/`, `.codex/`, `.opencode/`; `AGENTS.md` is generated at the project root; `automil show-skill --runtime <name>` renders the merged per-runtime SKILL/AGENTS file.
   5. End-to-end smoke test: an experiment loop submits, runs, completes, and writes a valid `result.json` under Claude Code AND under one of {opencode, codex} — trajectories captured for both, schema-version metadata correct, redaction tests cover each leak class.
 **Plans**: 11 plans across 5 waves
-  - [ ] 03-01-PLAN.md — trajectory package skeleton + schema + redactor + recorder fd-cache (TRJ-01, TRJ-02) — wave 1
-  - [ ] 03-02-PLAN.md — agent_assets/ git mv migration + AGENTS.md + deepseek README + compat shim (MRT-01, MRT-06) — wave 1
-  - [ ] 03-03-PLAN.md — redactor positive-case tests + schema version forward-compat (TRJ-03, TRJ-06) — wave 2
-  - [ ] 03-04-PLAN.md — full rotation manager 5MB/50MB + atomic rename + tests (TRJ-03) — wave 2
-  - [ ] 03-05-PLAN.md — overlay merger _overlay.py + test suite (MRT-01) — wave 2
-  - [ ] 03-06-PLAN.md — runtime.py + submit.py metadata.runtime + config.yaml.j2 passthrough (TRJ-04) — wave 2
-  - [ ] 03-07-PLAN.md — automil init --runtime + --update + auto-detect + AGENTS.md render (MRT-02, MRT-03) — wave 3
-  - [ ] 03-08-PLAN.md — automil show-skill --runtime command (MRT-04) — wave 3
-  - [ ] 03-09-PLAN.md — automil trajectory record/export CLI + recorder tests + export bundle (TRJ-04, TRJ-05) — wave 3
-  - [ ] 03-10-PLAN.md — Claude hook + opencode TS plugin + codex README + gitignore trajectory entries (TRJ-04, TRJ-05) — wave 4
-  - [ ] 03-11-PLAN.md — two-runtime smoke test + Phase 3 acceptance gate (TRJ-05, TRJ-06, MRT-05) — wave 5
+  - [x] 03-01-PLAN.md — trajectory package skeleton + schema + redactor + recorder fd-cache (TRJ-01, TRJ-02) — wave 1
+  - [x] 03-02-PLAN.md — agent_assets/ git mv migration + AGENTS.md + deepseek README + compat shim (MRT-01, MRT-06) — wave 1
+  - [x] 03-03-PLAN.md — redactor positive-case tests + schema version forward-compat (TRJ-03, TRJ-06) — wave 2
+  - [x] 03-04-PLAN.md — full rotation manager 5MB/50MB + atomic rename + tests (TRJ-03) — wave 2
+  - [x] 03-05-PLAN.md — overlay merger _overlay.py + test suite (MRT-01) — wave 2
+  - [x] 03-06-PLAN.md — runtime.py + submit.py metadata.runtime + config.yaml.j2 passthrough (TRJ-04) — wave 2
+  - [x] 03-07-PLAN.md — automil init --runtime + --update + auto-detect + AGENTS.md render (MRT-02, MRT-03) — wave 3
+  - [x] 03-08-PLAN.md — automil show-skill --runtime command (MRT-04) — wave 3
+  - [x] 03-09-PLAN.md — automil trajectory record/export CLI + recorder tests + export bundle (TRJ-04, TRJ-05) — wave 3
+  - [x] 03-10-PLAN.md — Claude hook + opencode TS plugin + codex README + gitignore trajectory entries (TRJ-04, TRJ-05) — wave 4
+  - [x] 03-11-PLAN.md — two-runtime smoke test + Phase 3 acceptance gate (TRJ-05, TRJ-06, MRT-05) — wave 5
 **Estimated**: 4–5 days
 
 ### Phase 4: 6h per-cell hard cap + cell-concept formalisation
@@ -220,7 +220,7 @@ Phase 5 (generalization gate)
 | 0. Cleanup + CLI split + compat | 0/7 | Not started | - |
 | 1. Registry + config-driven train + CCRCC reproduction | 0/12 | Not started | - |
 | 2. Backend ABC + LocalBackend + MockSLURM | 8/8 | Complete   | 2026-05-03 |
-| 3. Trajectory + multi-runtime reorg | 0/0 | Not started | - |
+| 3. Trajectory + multi-runtime reorg | 11/11 | Complete   | 2026-05-04 |
 | 4. 6h per-cell cap + cell formalisation | 0/0 | Not started | - |
 | 5. Generalization gate | 0/0 | Not started | - |
 | 6. SLURM + Ray backends | 0/0 | Not started | - |
