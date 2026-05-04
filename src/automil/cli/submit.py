@@ -166,10 +166,15 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
             ["git", "ls-files", "--others", "--exclude-standard"],
             cwd=git_root, capture_output=True, text=True,
         ).stdout.strip().splitlines()
-        # Exclude automil and .claude directories from auto-detect
+        # Exclude automil, runtime-config dirs, and AGENTS.md from auto-detect.
+        # AGENTS.md is framework-managed (rendered by `automil init`), not user code.
+        # .claude/, .opencode/, .codex/ are runtime overlay dirs installed by init.
+        _FRAMEWORK_PREFIXES = (automil_rel, ".claude/", ".opencode/", ".codex/")
         all_changed = [
             f for f in tracked + untracked
-            if f and not f.startswith(automil_rel) and not f.startswith(".claude/")
+            if f
+            and f != "AGENTS.md"
+            and not any(f.startswith(p) for p in _FRAMEWORK_PREFIXES)
         ]
 
         if editable:
