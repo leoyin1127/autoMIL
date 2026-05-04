@@ -92,6 +92,15 @@ registry:
   # Empty list disables structural identity checks beyond default dtype/rank.
   identity_constraints: []
 
+# --- Environment passthrough (D-87, TRJ-04) ---
+# Variables in this list are forwarded from the orchestrator process to each
+# experiment subprocess.  AUTOMIL_RUNTIME must be here so the trajectory
+# recorder inside the experiment sees the declared runtime value.
+env:
+  passthrough:
+    - AUTOMIL_*       # All automil framework variables (includes AUTOMIL_RUNTIME)
+    - AUTOMIL_RUNTIME # Runtime declaration — explicit, never inferred (D-87)
+
 # --- Variant selection (D-35, REG-07) ---
 # The framework resolves these via registry.resolve_model(parent, variant) etc.
 # Set after porting your first variant via `automil port-variant <node_id>`.
