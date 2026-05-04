@@ -141,7 +141,14 @@ def _install_runtime_assets(
             dst = opencode_dir / "AGENTS.md"
             if not dst.exists():
                 dst.write_text(agents_src.read_text(encoding="utf-8"), encoding="utf-8")
-        click.echo("  Runtime: opencode — assets installed (.opencode/AGENTS.md)")
+        # .opencode/plugins/automil-trajectory.ts (Bun TypeScript plugin)
+        plugins_dir = opencode_dir / "plugins"
+        plugins_dir.mkdir(exist_ok=True)
+        ts_src = package_dir / "agent_assets" / "opencode" / "plugins" / "automil-trajectory.ts"
+        if ts_src.exists():
+            (plugins_dir / "automil-trajectory.ts").write_text(ts_src.read_text(encoding="utf-8"), encoding="utf-8")
+            click.echo("  Plugin: .opencode/plugins/automil-trajectory.ts")
+        click.echo("  Runtime: opencode — assets installed (.opencode/AGENTS.md + plugin)")
 
     elif rt == "codex":
         codex_dir = project_root / ".codex"
