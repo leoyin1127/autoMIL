@@ -121,6 +121,18 @@ def export(node_id: str, out: str | None) -> None:
 
     from automil.trajectory.export import export_bundle  # lazy import
 
+    # T-03-09-S03 (Phase 3 security audit): node_id is a free-form click argument.
+    # `archive_dir / node_id` with `node_id == "../../etc"` resolves to /etc; the
+    # bundler would then package any `trajectory*.jsonl`-named files found there.
+    # Reject path-like inputs at the CLI boundary — node_ids are graph identifiers
+    # (e.g. "node_0176"), never paths.
+    if not node_id or node_id in (".", "..") or os.path.isabs(node_id) \
+       or ".." in Path(node_id).parts or "/" in node_id or "\\" in node_id:
+        raise click.ClickException(
+            f"Invalid node_id {node_id!r}: must be a graph identifier "
+            f"(e.g. 'node_0176'), not a path."
+        )
+
     automil_dir_env = os.environ.get("AUTOMIL_DIR")
     if automil_dir_env:
         archive_dir = Path(automil_dir_env) / "archive"
