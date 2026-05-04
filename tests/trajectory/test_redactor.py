@@ -41,6 +41,14 @@ def test_redact_positive(secret: str, expected: str) -> None:
     "disk-based",                     # unrelated word
     "stack_api_keys_count=5",         # lowercase variable — pattern requires uppercase
     "index_key=0",                    # lowercase key — pattern requires [A-Z][A-Z0-9_]{1,40}
+    # WR-01 (Phase 3 review) — value-too-short false-positive guards.
+    # Real secrets are at least 8 chars; these legitimate config values
+    # (under 8 chars after `=`) MUST stay un-redacted.
+    "CACHE_KEY=abc",                  # 3-char value
+    "NO_API_KEY=true",                # bool-string value
+    "GIT_TOKEN=on",                   # 2-char flag
+    "FAKE_KEY=",                      # empty value
+    "CONFIG_KEY=v1",                  # short version label
 ])
 def test_redact_not_triggered(safe_string: str) -> None:
     """Non-secrets must NOT be accidentally redacted (false-positive guard)."""

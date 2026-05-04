@@ -24,9 +24,39 @@ done
 
 # Trajectory recording — only fires if AUTOMIL_NODE_ID and AUTOMIL_RUNTIME are both set.
 # These are set by the orchestrator before starting the agent session (not by Claude Code).
+#
+# WR-02 (Phase 3 review): Claude Code's Stop hook delivers a metadata payload
+# (`{session_id, transcript_path, stop_hook_active}` per
+# https://code.claude.com/docs/en/hooks) — NOT a `gen_ai.*` event. Forwarding
+# the raw payload to `automil trajectory record` would fail schema validation
+# every time and silently drop real stop events. Instead, wrap it in a
+# `gen_ai.*` envelope with `event.name = stop_hook` so the recorder accepts
+# it and the original payload is preserved under `gen_ai.event.payload`.
 if [[ -n "${AUTOMIL_NODE_ID:-}" && -n "${AUTOMIL_RUNTIME:-}" && -n "$HOOK_EVENT" ]]; then
-    automil trajectory record "$HOOK_EVENT" \
-        2>>"${AUTOMIL_DIR:-/tmp}/trajectory.err.log" || true
+    # python -c is the only stdlib-portable way to embed a JSON payload as a
+    # value inside a JSON envelope without quoting issues.
+    ENVELOPE=$(AUTOMIL_HOOK_PAYLOAD="$HOOK_EVENT" \
+               AUTOMIL_RUNTIME="$AUTOMIL_RUNTIME" \
+               python3 -c '
+import json, os, datetime
+payload_raw = os.environ.get("AUTOMIL_HOOK_PAYLOAD", "")
+runtime = os.environ.get("AUTOMIL_RUNTIME", "unknown")
+try:
+    payload = json.loads(payload_raw)
+except Exception:
+    payload = {"raw": payload_raw}
+print(json.dumps({
+    "gen_ai.provider.name": runtime,
+    "gen_ai.event.name":    "stop_hook",
+    "gen_ai.event.timestamp": datetime.datetime.utcnow().isoformat(timespec="microseconds") + "Z",
+    "gen_ai.event.payload": payload,
+}))
+' 2>/dev/null)
+
+    if [[ -n "$ENVELOPE" ]]; then
+        automil trajectory record "$ENVELOPE" \
+            2>>"${AUTOMIL_DIR:-/tmp}/trajectory.err.log" || true
+    fi
 fi
 
 exit 0

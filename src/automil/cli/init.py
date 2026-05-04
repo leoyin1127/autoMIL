@@ -274,11 +274,19 @@ def init(path: str, task: str, encoder: str, runtime: str | None, update: bool) 
     package_dir = Path(__file__).parent.parent
 
     # Render project-root AGENTS.md once per init invocation (D-90)
+    # WR-04 (Phase 3 review): never silently overwrite a user-customised
+    # project-root AGENTS.md. Match the `if not dst.exists()` guard used for
+    # every other asset; only --update is allowed to overwrite.
     agents_shared = package_dir / "agent_assets" / "_shared" / "AGENTS.md"
+    agents_dst = project_root / "AGENTS.md"
     if agents_shared.exists():
-        agents_content = agents_shared.read_text(encoding="utf-8")
-        (project_root / "AGENTS.md").write_text(agents_content, encoding="utf-8")
-        click.echo("  Created: AGENTS.md")
+        if not agents_dst.exists() or update:
+            agents_content = agents_shared.read_text(encoding="utf-8")
+            agents_dst.write_text(agents_content, encoding="utf-8")
+            verb = "Updated" if (agents_dst.exists() and update) else "Created"
+            click.echo(f"  {verb}: AGENTS.md")
+        else:
+            click.echo("  Skipped: AGENTS.md (exists; use --update to overwrite)")
 
     # Install per-runtime assets
     for rt in runtimes_to_install:
