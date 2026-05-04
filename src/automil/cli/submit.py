@@ -291,6 +291,10 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
         "submitted_at": datetime.now().isoformat(),
     }
     spec.setdefault("metadata", {})["backend"] = _backend_name
+    # D-97: write metadata.runtime so orchestrator + cancel.py know which
+    # runtime made this submission. AUTOMIL_RUNTIME is set by the agent runtime
+    # (never inferred — D-87). Falls back to "unknown" if unset.
+    spec.setdefault("metadata", {})["runtime"] = os.environ.get("AUTOMIL_RUNTIME", "unknown")
 
     queue_file = adir / "orchestrator" / "queue" / f"{node}.json"
     queue_file.write_text(json.dumps(spec, indent=2))
