@@ -86,13 +86,16 @@ def init(path: str, task: str, encoder: str):
         (automil_dir / target_name).write_text(template.render(**context))
 
     # Install Claude Code skills and hooks into the project
+    # NOTE: asset directory migrated to agent_assets/ in Phase 3 (D-88).
+    # Skills now live at agent_assets/_shared/skills/; hooks at agent_assets/claude/hooks/.
+    # Full runtime-aware init (--runtime flag) is implemented in Plan 03-07.
     package_dir = Path(__file__).parent.parent
-    claude_src = package_dir / "claude_assets"
+    agent_src = package_dir / "agent_assets"
     project_claude = project_root / ".claude"
 
-    if claude_src.exists():
-        # Copy skills (each skill is a subdirectory with SKILL.md)
-        skills_src = claude_src / "skills"
+    if agent_src.exists():
+        # Copy skills from _shared/skills (each skill is a subdirectory with SKILL.md)
+        skills_src = agent_src / "_shared" / "skills"
         if skills_src.exists():
             for skill_dir in skills_src.iterdir():
                 if skill_dir.is_dir():
@@ -104,8 +107,8 @@ def init(path: str, task: str, encoder: str):
                         if not dst.exists():
                             shutil.copy2(skill_file, dst)
 
-        # Copy hook script
-        hooks_src = claude_src / "hooks"
+        # Copy hook script from claude/hooks
+        hooks_src = agent_src / "claude" / "hooks"
         if hooks_src.exists():
             hooks_dst = project_claude / "hooks"
             hooks_dst.mkdir(parents=True, exist_ok=True)
