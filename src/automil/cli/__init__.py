@@ -26,6 +26,7 @@ from automil.cli import orchestrator  # noqa: E402,F401
 from automil.cli import propose  # noqa: E402,F401
 from automil.cli import reconcile  # noqa: E402,F401
 from automil.cli import resubmit  # noqa: E402,F401
+from automil.cli import show_skill  # noqa: E402,F401  (MRT-04 / D-93)
 from automil.cli import status  # noqa: E402,F401
 from automil.cli import submit  # noqa: E402,F401
 from automil.cli import viz  # noqa: E402,F401
