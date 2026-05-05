@@ -46,6 +46,7 @@ training:
   patience: 10
   batch_size: 32
   max_seq_length: 4096
+  fold_count: 5                   # K-fold CV. sklearn-iris demo would set 1; PathBench-MIL uses 5x5
 
 files:
   # The agent scopes the codebase and determines what to edit.
@@ -111,3 +112,17 @@ loss:
   variant: null    # e.g. "ce_smooth008"
 policy:
   variant: null    # e.g. "sam_lookahead"
+
+# --- Cap configuration — consumer-supplied, NOT framework-mandated. ---
+# autoMIL is generic; values below are example defaults Leo's autoMIL-paper
+# experiment campaign uses across all its datasets (CCRCC, CLWD, future
+# additions). A different consumer (sklearn-iris demo with K=1, an external
+# lab with different time budgets, a follow-up paper) would pick different
+# numbers. The framework only requires that values are present and validated
+# (see D-134); the *values* are entirely the consumer's choice.
+# Per-cell override: automil submit --budget-seconds N --safety-buffer-seconds M
+# is honored ONLY on the submit that opens the cell (D-134).
+cap:
+  budget_seconds:        21600    # 6h — Leo's autoMIL-paper campaign default
+  safety_buffer_seconds: 1800     # 30min — must be < budget_seconds; tune to longest-fold duration
+
