@@ -223,6 +223,19 @@ class RunningExperiment:
     estimated_vram_gb: float
 
 
+@dataclass(frozen=True)
+class _NodeHandle:
+    """Minimal handle carrying only node_id; used by _running_in_cell (CAP-02 / D-114).
+
+    Lets _tick_cells pass handle.node_id to self.backend.cancel() without
+    depending on the full backends.base.JobHandle (which carries opaque_id /
+    submitted_at fields that the daemon doesn't track at this layer).  Tests
+    may inject a real Backend whose cancel() receives this handle.
+    """
+
+    node_id: str
+
+
 # ---------------------------------------------------------------------------
 # GPU monitoring
 # ---------------------------------------------------------------------------
@@ -334,6 +347,11 @@ class ExperimentOrchestrator:
         self.draining = False
         self._shutdown = False
         self._timed_out: dict[str, bool] = {}
+        # Phase 4 (CAP-02): optional Backend instance for cancel dispatch.
+        # Injected by tests (or future Backend integration) to receive
+        # cancel(handle, signal=SIGTERM) calls from _tick_cells.  When None,
+        # _tick_cells falls back to _kill_experiment (direct os.killpg path).
+        self.backend: object | None = None
 
         # Detect GPUs
         gpus = query_gpus()
@@ -573,6 +591,17 @@ class ExperimentOrchestrator:
         env["AUTOBENCH_ROOT"] = str(worktree_benchmarks.resolve())
         env["PYTHONPATH"] = pythonpath
 
+        # Phase 4 (D-120): inject fold count so SIGTERM handler in the training
+        # script can read it via automil.runtime_helpers.get_fold_count().
+        # Resolved from automil/config.yaml: training.fold_count; fallback 5.
+        try:
+            import yaml as _yaml
+            _cfg = _yaml.safe_load((self.automil_dir / "config.yaml").read_text()) or {}
+            _fold_count = int((_cfg.get("training") or {}).get("fold_count", 5))
+        except Exception:
+            _fold_count = 5
+        env["AUTOMIL_FOLD_COUNT"] = str(_fold_count)
+
         # 4. Per-spec env (last-write-wins, except blocked keys).
         for k, v in spec.get("env", {}).items():
             if k not in _SPEC_ENV_BLOCKED:
@@ -685,6 +714,85 @@ class ExperimentOrchestrator:
             f"(PID {process.pid}, est. {estimated_vram}GB, timeout {timeout_min}min)"
         )
 
+    def _running_in_cell(self, cell_id: str) -> list:
+        """Return _NodeHandle list for in-self.running experiments tagged with cell_id.
+
+        cell_id matching uses spec["metadata"]["cell_id"] (set by submit, Plan 04-06).
+        Legacy nodes without a cell_id never match — they are immune to cap
+        enforcement (D-117 backward compat).
+
+        Returns:
+            List of _NodeHandle(node_id=...) for matching experiments.
+        """
+        result = []
+        for node_id, exp in self.running.items():
+            spec_meta = (exp.spec or {}).get("metadata", {}) or {}
+            if spec_meta.get("cell_id") == cell_id:
+                result.append(_NodeHandle(node_id=node_id))
+        return result
+
+    def _tick_cells(self) -> None:
+        """Advance cap state machine for all cells (CAP-02 / D-114).
+
+        Idempotent: re-running on an already-transitioned cell is a no-op
+        because next_status returns the same value when consumed/running counts
+        are stable. TERMINATING fires backend.cancel(SIGTERM) on all running
+        in-cell experiments AFTER annotating their running/<node>.json with
+        metadata.cancel_reason='cap' so reconcile_budget_kill can distinguish
+        cap kills from operator cancels (Pitfall 4).
+
+        Process-group kill is the backend's responsibility (D-115).
+        """
+        import signal as _sig
+        from dataclasses import replace
+        from automil.cells import list_cells, next_status, write_cell, CellStatus
+        from automil.cells.registry import _cells_dir
+
+        now = time.time()
+        try:
+            cells_dir = _cells_dir()
+        except RuntimeError:
+            # No automil/config.yaml found — daemon running in test env without
+            # a project root. Skip cap tick silently (no cells to advance).
+            logger.debug("_tick_cells: no automil dir found; skipping cap tick")
+            return
+        for cell in list_cells():
+            running = self._running_in_cell(cell.cell_id)
+            new_status = next_status(cell, now, len(running))
+            if new_status == cell.status:
+                continue
+            if new_status == CellStatus.TERMINATING:
+                for handle in running:
+                    # D-124 / Pitfall 4: write cancel_reason='cap' BEFORE
+                    # calling cancel so reconcile_budget_kill can detect cap kills
+                    # even if the SIGTERM handler races the annotation write.
+                    running_spec_path = self.running_dir / f"{handle.node_id}.json"
+                    if running_spec_path.exists():
+                        try:
+                            spec_data = json.loads(running_spec_path.read_text())
+                            spec_data.setdefault("metadata", {})["cancel_reason"] = "cap"
+                            running_spec_path.write_text(json.dumps(spec_data, indent=2))
+                        except (json.JSONDecodeError, OSError) as exc:
+                            logger.warning(
+                                "Could not annotate cancel_reason for %s: %s",
+                                handle.node_id, exc,
+                            )
+                    if self.backend is not None:
+                        try:
+                            self.backend.cancel(handle, signal=_sig.SIGTERM)
+                        except Exception as exc:
+                            logger.warning(
+                                "backend.cancel failed for %s: %s", handle.node_id, exc
+                            )
+                    else:
+                        # Fallback: direct process-group kill (production path)
+                        self._kill_experiment(handle.node_id, _sig.SIGTERM)
+            write_cell(replace(cell, status=new_status), cells_dir)
+            logger.info(
+                "_tick_cells: %s transitioned %s -> %s (running=%d)",
+                cell.cell_id[:8], cell.status.value, new_status.value, len(running),
+            )
+
     def _check_running(self):
         """Poll running experiments for completion or timeout."""
         for exp_id, exp in list(self.running.items()):
@@ -693,6 +801,34 @@ class ExperimentOrchestrator:
                 self._handle_completion(exp_id, retcode)
             elif time.time() > exp.timeout_at:
                 self._handle_timeout(exp_id)
+
+    def _read_fold_count_for_node(self, node_id: str) -> int:
+        """Read AUTOMIL_FOLD_COUNT from the node spec env, or fall back to config.
+
+        Priority:
+            1. spec.env["AUTOMIL_FOLD_COUNT"] (set by _build_subprocess_env at launch)
+            2. automil/config.yaml: training.fold_count
+            3. Hard fallback: 5 (Leo's paper-campaign default)
+        """
+        for path in (
+            self.running_dir / f"{node_id}.json",
+            self.archive_dir / node_id / "spec.json",
+        ):
+            if path.exists():
+                try:
+                    spec = json.loads(path.read_text())
+                    env = (spec.get("env") or {}) if isinstance(spec, dict) else {}
+                    if "AUTOMIL_FOLD_COUNT" in env:
+                        return int(env["AUTOMIL_FOLD_COUNT"])
+                except (json.JSONDecodeError, OSError, ValueError, TypeError):
+                    continue
+        # Fall back: read automil/config.yaml training.fold_count
+        try:
+            import yaml as _yaml
+            cfg = _yaml.safe_load((self.automil_dir / "config.yaml").read_text()) or {}
+            return int((cfg.get("training") or {}).get("fold_count", 5))
+        except Exception:
+            return 5
 
     def _handle_completion(self, node_id: str, returncode: int):
         """Process a completed experiment: collect results, write TSV, clean up."""
@@ -709,6 +845,80 @@ class ExperimentOrchestrator:
         wt_path = self.runner.worktree_path(node_id)
         gpu_id = exp.gpu
         spec = exp.spec
+
+        # Phase 4: detect cap-driven cancel and reconcile to executed (CAP-04 / D-123, D-124).
+        # Check cancel_reason == 'cap' in running/<node>.json first (annotation written by
+        # _tick_cells before backend.cancel() is called — Pitfall 4 ordering guarantee).
+        # Fall back to archive/<node>/spec.json in case running/ was already cleaned up.
+        cap_killed = False
+        for _spec_path in (
+            self.running_dir / f"{node_id}.json",
+            self.archive_dir / node_id / "spec.json",
+        ):
+            if _spec_path.exists():
+                try:
+                    _raw = json.loads(_spec_path.read_text())
+                    if _raw.get("metadata", {}).get("cancel_reason") == "cap":
+                        cap_killed = True
+                        break
+                except (json.JSONDecodeError, OSError):
+                    pass
+        if cap_killed:
+            from automil.cells.reconcile import reconcile_budget_kill
+            expected_folds = self._read_fold_count_for_node(node_id)
+            payload = reconcile_budget_kill(
+                node_id=node_id,
+                archive_dir=self.archive_dir,
+                graph=self.graph if hasattr(self, "graph") else None,
+                expected_fold_count=expected_folds,
+            )
+            # Per PINNED API in <interfaces>: the running node already exists in the graph
+            # (created by submit() as type=running). We must NOT call add_executed (it
+            # generates a NEW node and would double-count). Instead promote-in-place via
+            # direct dict mutation mirroring mark_failed's pattern (graph.py:272-280).
+            if hasattr(self, "graph") and self.graph is not None:
+                gnode = self.graph.get_node(node_id)
+                if gnode is None:
+                    logger.warning(
+                        "Cap-killed node %s missing from graph; cannot reconcile graph state",
+                        node_id,
+                    )
+                elif payload.get("partial_folds", 0) >= 1:
+                    # Promote running -> executed with partial composite.
+                    gnode["type"] = "executed"
+                    gnode["status"] = "keep"
+                    gnode["composite"] = payload["composite"]
+                    for k in ("test_auc", "test_bacc", "val_auc", "val_bacc"):
+                        if k in payload.get("metrics", {}):
+                            gnode[k] = payload["metrics"][k]
+                    gnode.setdefault("metadata", {})["budget_killed"] = True
+                    self.graph._reevaluate_descendants(node_id)
+                    self.graph.save()
+                else:
+                    # Zero usable folds — crash semantics + budget_killed flag
+                    self.graph.mark_failed(
+                        node_id=node_id,
+                        status="crash",
+                        error="cap fired with zero completed folds",
+                    )
+                    gnode = self.graph.get_node(node_id)
+                    if gnode is not None:
+                        gnode.setdefault("metadata", {})["budget_killed"] = True
+                        self.graph.save()
+            logger.info(
+                "Cap-driven cancel reconciled for %s: status=%s composite=%.4f "
+                "partial_folds=%d/%d",
+                node_id, payload["status"], payload["composite"],
+                payload.get("partial_folds", 0), payload.get("expected_folds", 0),
+            )
+            # Clean running spec and worktree before returning
+            running_spec = self.running_dir / f"{node_id}.json"
+            if running_spec.exists():
+                running_spec.unlink()
+            if wt_path.exists():
+                self.runner.cleanup_worktree(wt_path)
+            self._timed_out.pop(node_id, None)
+            return  # do NOT fall through to the standard completion path
 
         # Try to collect result.json from worktree
         result = self.runner.collect_result(wt_path, archive)
@@ -942,6 +1152,9 @@ class ExperimentOrchestrator:
 
         # 1. Check running experiments
         self._check_running()
+
+        # Phase 4 step 1.5: cap state machine (D-114).
+        self._tick_cells()
 
         # 2. Schedule pending experiments (skip if draining)
         if not self.draining:
