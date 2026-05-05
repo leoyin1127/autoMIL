@@ -571,32 +571,27 @@ These are non-negotiable directives for Phase 5 code:
 
 **If this table is empty:** Empty would mean every claim was verified or cited. The seven assumptions above are flagged for Leo's confirmation during discuss-phase OR locked at planning time with explicit rationale.
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All five open questions surfaced during research are answered below. Each carries a `RESOLVED:` line citing the locking decision (CONTEXT.md D-NNN or downstream plan). The recommendations are the framework defaults the planner uses; Leo can patch CONTEXT.md if he wants to override before plans land.
 
 1. **scipy as core dep — is this a "framework purity" violation?**
-   - What we know: Leo's memory `project_automil_is_generic.md` says framework should plug into any training script with no autobench-specific paths.
-   - What's unclear: scipy is a generic scientific library; it's not autobench-specific. But adding ANY heavy dep to core changes the install footprint.
-   - Recommendation: Add to core. scipy is the F1 paper's standard tool; the gate is meaningless without it; making consumers install it themselves is friction.
+   - RESOLVED: D-148 (CONTEXT.md) + Plan 05-08. Add to core deps. scipy is generic scientific tooling, not autobench-specific. The gate is meaningless without it; making consumers install it themselves is friction.
 
 2. **Should `gate/stats.py` accept `bootstrap_reps` as a parameter or hardcode 1000?**
-   - What we know: GTE-04 and CONTEXT.md D-141 lock 1000 as the framework default.
-   - What's unclear: Should the manifest carry `bootstrap_reps` (per-parent override) or always use 1000?
-   - Recommendation: Manifest carries it (already in D-137 schema). Default 1000. Consumer can override in their `register-manifest` call. Provides per-experiment determinism + paper-time flexibility.
+   - RESOLVED: D-137 (CONTEXT.md). Manifest carries `bootstrap_reps` (per-parent override). Framework default 1000. Consumer can override in `register-manifest`. Per-experiment determinism + paper-time flexibility.
 
 3. **Should the `nominate` -> `candidate` transition cascade-affect descendants?**
-   - What we know: D-136 says descendant cascade is unchanged; the candidate state is purely additive.
-   - What's unclear: If a candidate has children that are also `keep`, do those children get nominated when the candidate gets promoted? The current spec implies NO (children stay `keep`), but that means a registered candidate's `keep` children are now "below" a registered ancestor — semantically weird.
-   - Recommendation: Children stay `keep` until separately nominated. The registered status is a leaf concept; cascading would require their own held-out tests. Document this explicitly in the README of the gate package.
+   - RESOLVED: D-136 (CONTEXT.md). Children stay `keep` until separately nominated. The `candidate` state is purely additive — does NOT trigger Pareto cascade or nominate descendants. The `registered` status is a leaf concept; cascading would require independent held-out tests per descendant. Plan 05-04 documents this in the gate package's README/docstring.
 
 4. **Where does the `gate_log.jsonl` live?**
-   - What we know: Pitfall defenses §"Pitfall 5" says "promotion events logged with full detail in a SEPARATE gate log path, NOT trajectory."
-   - What's unclear: Path? `automil/gate/<parent_id>.gate_log.jsonl`? `archive/<candidate_id>/gate_eval.jsonl`? Both?
-   - Recommendation: Both. Per-parent log at `automil/gate/<parent_id>.gate_log.jsonl` for promotion-rate analysis (one log per gate); per-candidate detail at `archive/<candidate_id>/gate_evaluation.jsonl` for forensic reconstruction. Different read paths, different consumers.
+   - RESOLVED: D-149 + Plan 05-07 (promote.py). Both paths used:
+     - Per-parent log at `automil/gate/<parent_id>.gate_log.jsonl` for promotion-rate analysis (one log per gate, all promote events appended).
+     - Per-candidate detail at `archive/<candidate_id>/gate_evaluation.jsonl` for forensic reconstruction.
+     - Different read paths, different consumers.
 
 5. **Manifest field `git_committed_at_sha` — recursive write?**
-   - What we know: D-138 #4 says "second commit if needed" — write manifest, commit, then update manifest with the resolved SHA, commit again.
-   - What's unclear: Is the second commit visible in `git log` as `gate: backfill commit SHA for <parent_id>` or amended onto the first?
-   - Recommendation: Separate second commit. Amend would rewrite history; not a paper-time forensic concern. Two-line history is fine.
+   - RESOLVED: D-138 (CONTEXT.md) + Plan 05-02. Separate second commit (no amend). Two-line history is fine for paper-time forensic auditing. Amend would rewrite history; rejected. Plan 05-02 implements as a follow-up `git_committed_at_sha`-stamping commit after the initial manifest write+commit.
 
 ## Environment Availability
 
