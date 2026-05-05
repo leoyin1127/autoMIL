@@ -13,6 +13,58 @@ from autobench.pipeline.evaluate import compute_confidence_intervals
 from autobench.pipeline.clam.train import train_fold
 
 
+def _write_fold_result_json(fold_index: int, result: dict) -> None:
+    """Write archive/<node>/fold_<i>_result.json per autoMIL CAP-03 / D-118.
+
+    No-op when AUTOMIL_RESULTS_DIR is unset (e.g., running outside the
+    autoMIL orchestrator).
+
+    Pitfall 5: compute_extended_metrics() returns flat floats at the per-fold
+    level. However, this helper defensively unwraps both flat-float and
+    {"mean": ..., "std": ...} CI-dict shapes in case the caller supplies a
+    post-CI metrics dict.
+    """
+    import json as _json
+    from pathlib import Path
+
+    results_dir = os.environ.get("AUTOMIL_RESULTS_DIR")
+    if not results_dir:
+        return  # not running under autoMIL orchestrator
+
+    fold_count = int(os.environ.get("AUTOMIL_FOLD_COUNT", "5"))
+
+    def _unwrap(metric):
+        # auc_roc may be float OR {"mean": float, ...} (CI-dict shape)
+        if isinstance(metric, dict):
+            return float(metric.get("mean", 0.0))
+        try:
+            return float(metric or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    test_m = result.get("test_metrics", {}) or {}
+    val_m = result.get("val_metrics", {}) or {}
+    metrics = {
+        "val_auc":   _unwrap(val_m.get("auc_roc")),
+        "val_bacc":  _unwrap(val_m.get("balanced_accuracy")),
+        "test_auc":  _unwrap(test_m.get("auc_roc")),
+        "test_bacc": _unwrap(test_m.get("balanced_accuracy")),
+    }
+    composite = (metrics["test_auc"] + metrics["test_bacc"]) / 2.0
+
+    payload = {
+        "fold_index":      fold_index,
+        "fold_count":      fold_count,
+        "status":          "completed",
+        "metrics":         metrics,
+        "composite":       composite,
+        "elapsed_seconds": int(result.get("elapsed_seconds", 0) or 0),
+        "peak_vram_mb":    int(result.get("peak_vram_mb", 0) or 0),
+    }
+    fold_path = Path(results_dir) / f"fold_{fold_index}_result.json"
+    fold_path.write_text(_json.dumps(payload, indent=2))
+
+
 def run_experiment(
     exp_cfg: ExperimentConfig,
     benchmark_dir: str,
@@ -44,6 +96,7 @@ def run_experiment(
             fold, results_dir, device, wandb_project=wandb_project,
         )
         fold_results.append(result)
+        _write_fold_result_json(fold, result)
 
     test_fold_metrics = [fr["test_metrics"] for fr in fold_results]
     val_fold_metrics = [fr["val_metrics"] for fr in fold_results]
