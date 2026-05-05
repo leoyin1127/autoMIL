@@ -16,7 +16,7 @@ An agent can autonomously discover model improvements for any user's training co
 - [ ] **Phase 1: Variant registry + config-driven train + reproduction sanity** — keystone phase; ports CCRCC dirty edits to registered variants, validates with ±0.005 reproduction of `node_0176`
 - [x] **Phase 2: Backend ABC + LocalBackend re-export + MockSLURM fixture** — design backend interface against ≥2 implementations before locking; ABC bounds Phase 6 (completed 2026-05-03)
 - [x] **Phase 3: Trajectory recorder + multi-runtime asset reorg** — JSONL trajectories with OTel `gen_ai.*` keys + redaction; `agent_assets/_shared/` + per-runtime overlays; ≥2 runtimes validated end-to-end
-- [ ] **Phase 4: 6h per-cell hard cap + cell-concept formalization** — first-class `cell_id`, two-tier cap (refuse-new at T-buffer, terminate at T), per-fold checkpoint protocol, partial-result reconciliation
+- [x] **Phase 4: 6h per-cell hard cap + cell-concept formalization** — first-class `cell_id`, two-tier cap (refuse-new at T-buffer, terminate at T), per-fold checkpoint protocol, partial-result reconciliation (completed 2026-05-05)
 - [ ] **Phase 5: Generalization gate** — `candidate` node status, pre-registered `gate_manifest.json`, paired Wilcoxon + bootstrap CI + Bonferroni, manual nomination default, promotion-rate metric
 - [ ] **Phase 6: SLURM backend (submitit) + Ray backend (raw ray.remote)** — opt-in extras; honor wall-clock contract via `--signal=B:TERM@30` (SLURM) and `ray.cancel(force=True)` (Ray); parallel-friendly with Phase 7
 - [ ] **Phase 7: Hardware autodetect + /automil-setup skill** — `LocalBackend.healthcheck()` reports detected hardware (warn-not-decide); idempotent setup skill across runtimes; mandatory dry-run gate

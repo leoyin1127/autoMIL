@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-last_updated: "2026-05-05T00:00:00.000Z"
+last_updated: "2026-05-05T07:30:00.000Z"
 progress:
   total_phases: 9
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 48
-  completed_plans: 38
-  percent: 79
+  completed_plans: 48
+  percent: 100
 ---
 
 # State: autoMIL — F2-readiness framework refactor
@@ -30,18 +30,18 @@ progress:
 - `CLAUDE.md` — project instructions and Leo's standing directives
 - `~/.claude/projects/-home-jma-Documents-yinshuol-autoMIL/memory/MEMORY.md` — Leo's standing memory (saturate GPUs, research before submit, never blind-checkout, architectural-not-hyperparam, never ask continue autonomously)
 
-**Current focus:** Phase 04 — 6h per-cell hard cap + cell-concept formalisation (PLANNED, ready to execute)
+**Current focus:** Phase 05 — Generalization gate (next, depends on Phase 04 cap contract)
 
 ## Current Position
 
-Phase: 04 — PLANNED
-Plan: 0 of 10
+Phase: 04 — COMPLETE
+Plan: 10 of 10
 
 - **Phase:** 04 — 6h per-cell hard cap + cell-concept formalisation
-- **Plans:** 10 across 7 waves (W1: 04-01/02/08 parallel; W2-4 serial through cells/__init__.py: 04-03/04/05; W5: 04-06/07 parallel; W6: 04-09; W7: 04-10 Pitfall-4 anti-acceptance gate)
-- **Status:** Phase 04 PLANNED (researcher 6724bda HIGH confidence; pattern mapper 92a6ae5 17 files mapped; planner ea5f85b 10 plans; plan-checker 0 BLOCKERS / 4 WARNINGS, 3 addressed inline at 220d3e4 — pinned graph.py API to (parent_id, description, techniques, metrics) signature + folded descendant cascade into Pitfall-4 single-file gate; W1 split-04-07 declined per CLAUDE.md simplicity-first)
-- **Progress (milestone):** [████░░░░░░] 44% (4/9 phases shipped, 38/48 known plans complete)
-- **Next:** `/gsd-execute-phase 4` (Wave 1 parallel: 04-01 cells skeleton + 04-02 runtime_helpers + 04-08 autobench fold writer)
+- **Plans:** 10 across 7 waves shipped
+- **Status:** Phase 04 complete (644 tests + 9 skipped, +86 from 558 baseline; Pitfall-4 anti-acceptance gate green; 3 load-bearing integration tests + 18 cap state machine + 11 cell registry + 9 aggregator + 4 runtime_helpers + 6 submit-cell-refusal + 8 daemon _tick_cells + 10 cell CLI + 6 per-fold writer)
+- **Progress (milestone):** [█████░░░░░] 56% (5/9 phases shipped, 48/48 plans complete)
+- **Next:** `/gsd-discuss-phase 5` (GTE-01..06 — generalization gate; depends on Phase 04 cap contract)
 
 ## Performance Metrics
 
@@ -99,9 +99,9 @@ None at roadmap-creation time. All inputs in place; Leo can review the roadmap a
 
 ## Session Continuity
 
-**Last action:** Phase 04 PLANNING complete (2026-05-05). Discuss bootstrapped CONTEXT.md with D-107..D-134 (locked engineering decisions; 6h is paper-campaign default not framework-mandated, D-134 per-cell `--budget-seconds` CLI override; new memory `feedback_paper_campaign_vs_framework.md` saved). Researcher (a15009938e8ed8e3c) wrote 04-RESEARCH.md HIGH confidence with 5 verified findings — signal handler must be in main thread before DataLoader init, _reevaluate_descendants needs zero changes, fold writer lands after fold_results.append, no new deps, sys.exit(0) load-bearing in SIGTERM handler. Pattern mapper produced 04-PATTERNS.md mapping 17 files (10 new + 7 modified) to closest analogs. Planner produced 10 plans across 7 waves. Plan-checker found 0 BLOCKERS / 4 WARNINGS; W2/W3 (descendant cascade location) and W4 (graph API pinning) addressed inline at 220d3e4 — Pitfall-4 anti-acceptance gate (04-10 Task 1) now folds the real-graph descendant cascade with asymmetric better-vs-worse descendants asserting cascade ran against partial composite (0.82) not zero. Plan 04-07's _handle_completion cap-detection branch corrected to use real graph.py API (in-place dict mutation mirroring mark_failed, not nonexistent add_executed(node_id=,composite=) shape).
+**Last action:** Phase 04 fully shipped 2026-05-05. Executed 10 plans across 7 waves. Notable execution events: Plan 04-02 took a Rule-3 deviation creating cells/__init__.py + reconcile.py stub early (its SIGTERM test needed aggregate_folds resolvable at call time); Plan 04-08 also pre-created runtime_helpers.py for the same reason. Wave 1 merge resolved cells/__init__.py union conflict + kept 04-02's canonical runtime_helpers.py; BCK-04 lint caught os.getpid() in runtime_helpers.py (informational logging) and was fixed at 4816661. Plan 04-04 audited 04-02's stub against D-119, tightened exception handling, and added reconcile_budget_kill stub. Pitfall-4 anti-acceptance gate (04-10 Task 1) green — synthetic 5-fold subprocess with budget_seconds=60 (NOT 21600), SIGTERM after fold 3 produces status=partial+composite=0.82+budget_killed=True; real-graph descendant cascade asymmetric assertion (better_nid keeps "keep", worse_nid flips to "discard") proves cascade evaluated against partial composite, not zero. CAP-05 daemon-restart test green (5 tests). reconcile_full end-to-end test green (5 tests including descendant cascade). 644 tests + 9 skipped (+86 from 558 baseline). Framework purity preserved: zero autobench/AUTOBENCH_/benchmarks/ refs in src/automil/cells/, runtime_helpers.py, cli/cell.py. Zero-accumulator regression guard live: no `+= ` on consumed_seconds anywhere.
 
-**Next action:** `/gsd-execute-phase 4` to execute Wave 1 in parallel (04-01 cells skeleton + 04-02 runtime_helpers + 04-08 autobench fold writer). Pitfall-4 defence is the goal-backward verifier — Plan 04-10 must remain load-bearing through execution.
+**Next action:** `/gsd-discuss-phase 5` to begin Phase 5 (GTE-01..06 generalization gate). Phase 5 depends on Phase 04's cap contract; pre-registered held-out manifest + paired Wilcoxon + bootstrap CI + Bonferroni correction. Calibration pilot uses CCRCC node_0176 across 3-5 fresh cells before locking K threshold.
 
 **Resume file:** None
 
