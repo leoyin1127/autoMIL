@@ -9,7 +9,7 @@
 
 Land **per-cell wall-clock budgets** (configurable, with 6h as Leo/CCRCC's chosen default — NOT a framework-mandated value) AND **per-fold checkpoint protocol** in the same phase — the cap MUST ship with the per-fold protocol or the first cap-firing event corrupts results.tsv (Pitfall 4 anti-acceptance).
 
-> **Configuration scope (Leo 2026-05-05):** The 6-hour figure is one specific consumer's choice for one experiment campaign, not a framework property. autoMIL is generic; autobench is one consumer (memory: project_automil_is_generic). Every cap parameter — `budget_seconds`, `safety_buffer_seconds`, and `fold_count` — is consumer-supplied via `automil/config.yaml` AND additionally overridable per-cell via CLI flag (D-134). The framework mandates only the cap *mechanism* (state machine, per-fold protocol, reconciliation) — never the cap *value*.
+> **Configuration scope (Leo 2026-05-05):** The 6-hour figure is the autoMIL-paper research-campaign default — a value Leo picked for ALL his experiments across this milestone (CCRCC, CLWD, future datasets in this paper) — but it is NOT a framework property. autoMIL is generic (memory: project_automil_is_generic); the paper's experiment campaign is one consumer. Every cap parameter — `budget_seconds`, `safety_buffer_seconds`, and `fold_count` — is consumer-supplied via `automil/config.yaml` AND additionally overridable per-cell via CLI flag (D-134). The framework mandates only the cap *mechanism* (state machine, per-fold protocol, reconciliation) — never the cap *value*. A future user (sklearn-iris demo, an external lab, a different paper) sets their own cap and the framework honours it identically.
 
 After Phase 4:
 
@@ -60,8 +60,8 @@ After Phase 4:
       encoder: str                     # e.g. "uni-v2" — from automil/config.yaml
       parent_id: str                   # graph node_id of the cell-root experiment
       started_at: float                # unix epoch seconds (UTC), absolute wall-clock — NOT relative
-      budget_seconds: int              # consumer-supplied; CCRCC default 21600 (6h), NOT framework-mandated
-      safety_buffer_seconds: int       # consumer-supplied; CCRCC default 1800 (30 min)
+      budget_seconds: int              # consumer-supplied; paper-campaign default 21600 (6h), NOT framework-mandated
+      safety_buffer_seconds: int       # consumer-supplied; paper-campaign default 1800 (30 min)
       status: "CellStatus"             # enum (D-110)
   ```
   Frozen so `Cell` instances cannot be mutated mid-tick; status transitions go through `cells/state.py:write_cell()` → atomic on-disk replacement, NOT in-place mutation. Hashable + JSON-serialisable via `dataclasses.asdict`.
@@ -69,7 +69,7 @@ After Phase 4:
   **Default-resolution chain** for `budget_seconds` and `safety_buffer_seconds` at cell creation (precedence high→low):
   1. CLI flag (`automil submit --budget-seconds N --safety-buffer-seconds M` — D-134)
   2. `automil/config.yaml: cap.budget_seconds` / `cap.safety_buffer_seconds` (consumer-supplied)
-  3. Framework fallback (`21600` / `1800`) — used only when neither flag nor config is set; chosen because Leo's CCRCC campaign uses 6h, but the framework treats the fallback as "best guess if nothing was specified," NOT as canonical.
+  3. Framework fallback (`21600` / `1800`) — used only when neither flag nor config is set; chosen because Leo's autoMIL-paper experiment campaign uses 6h across all its datasets (CCRCC, CLWD, future additions), but the framework treats the fallback as "best guess if nothing was specified," NOT as canonical. Any other consumer (different paper, different lab, sklearn-iris demo) MUST configure their own values.
 
 - **D-109:** **`cell_id` derivation** is deterministic and one-line:
   ```python
@@ -346,17 +346,19 @@ After Phase 4:
 - **`automil/config.yaml` extension** (rendered by `automil init` going forward, with comments emphasising consumer-configurable nature):
   ```yaml
   # Cap configuration — consumer-supplied, NOT framework-mandated.
-  # autoMIL is generic; values below are example defaults a CCRCC-shaped consumer
-  # might use. A different consumer (e.g. sklearn-iris with K=1 cv) would pick
-  # very different numbers. The framework only requires that values are present
-  # and validated (see D-134); the *values* are entirely the consumer's choice.
+  # autoMIL is generic; values below are example defaults Leo's autoMIL-paper
+  # experiment campaign uses across all its datasets (CCRCC, CLWD, future
+  # additions). A different consumer (sklearn-iris demo with K=1, an external
+  # lab with different time budgets, a follow-up paper) would pick different
+  # numbers. The framework only requires that values are present and validated
+  # (see D-134); the *values* are entirely the consumer's choice.
   cap:
-    budget_seconds:        21600    # 6h — Leo/CCRCC convention; sklearn-iris might use 1800 (30min)
+    budget_seconds:        21600    # 6h — Leo's autoMIL-paper campaign default
     safety_buffer_seconds: 1800     # 30min — must be < budget_seconds; tune to longest-fold duration
   training:
-    fold_count: 5                   # 5-fold CV; sklearn-iris would set 1; PathBench-MIL uses 5×5
+    fold_count: 5                   # 5-fold CV — Leo's paper convention; sklearn-iris would set 1; PathBench-MIL uses 5×5
   ```
-  Phase 4 ships fallback defaults of `(21600, 1800, 5)` if `cap:` and `training:` are entirely absent — back-compat for legacy autobench projects that haven't re-run `automil init --update`. But the right path for any new consumer is to set their own values explicitly. Per-cell CLI override (`automil submit --budget-seconds N`) lands as D-134.
+  Phase 4 ships fallback defaults of `(21600, 1800, 5)` if `cap:` and `training:` are entirely absent — back-compat for legacy autobench projects that haven't re-run `automil init --update`. The right path for any new consumer (sklearn-iris demo in Phase 8, external labs, follow-up papers) is to set their own values explicitly. Per-cell CLI override (`automil submit --budget-seconds N`) lands as D-134.
 
 - **`get_or_create_cell()` is the only path to cell creation.** No other code constructs a `Cell` directly except deserialisation from `cells/<id>.json`. This keeps the `started_at = time.time()` invariant in one place.
 
@@ -388,4 +390,4 @@ After Phase 4:
 
 *Phase: 04-6h-per-cell-hard-cap-cell-concept-formalisation*
 *Context bootstrapped autonomously 2026-05-05 per Leo's "decide engineering, ask features" directive. No open questions for Leo at planning time.*
-*Amended 2026-05-05 per Leo's clarification that 6h is the CCRCC campaign default, not framework-mandatory. D-134 added (per-cell `--budget-seconds` CLI override on cell creation only); D-108 default-resolution chain made explicit; §specifics config.yaml example annotated. The phase title's "6h" reflects ROADMAP shorthand for the milestone-current campaign value, not a framework constant.*
+*Amended 2026-05-05 per Leo's clarification that 6h is the autoMIL-paper campaign-wide default (used across CCRCC, CLWD, and any future datasets in this milestone's paper), NOT framework-mandatory and NOT CCRCC-specific. D-134 added (per-cell `--budget-seconds` CLI override on cell creation only); D-108 default-resolution chain made explicit; §specifics config.yaml example annotated with sklearn-iris / external-lab / follow-up-paper counter-examples. The phase title's "6h" reflects ROADMAP shorthand for the milestone-current campaign value, not a framework constant.*
