@@ -24,8 +24,13 @@ from automil.cli._helpers import _find_automil_dir, _find_git_root, _matches_sco
 @click.option("--timeout", default=150, help="Timeout in minutes")
 @click.option("--parent", default=None, help="Parent node ID")
 @click.option("--techniques", multiple=True, help="Technique tags")
+@click.option("--budget-seconds", default=None, type=int,
+              help="Override cap.budget_seconds for this cell (D-134; honored only on cell creation; ignored on subsequent submits joining an existing cell with logged INFO).")
+@click.option("--safety-buffer-seconds", default=None, type=int,
+              help="Override cap.safety_buffer_seconds for this cell (D-134; same scoping as --budget-seconds).")
 def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
-           timeout: int, parent: str | None, techniques: tuple):
+           timeout: int, parent: str | None, techniques: tuple,
+           budget_seconds: int | None, safety_buffer_seconds: int | None):
     """Snapshot changed files and queue an experiment.
 
     Variant modules under ``automil/variants/<parent>/<name>.py`` are
@@ -277,6 +282,43 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
     _automil_cfg = yaml.safe_load((adir / "config.yaml").read_text()) if (adir / "config.yaml").exists() else {}
     _backend_name: str = _automil_cfg.get("backend", {}).get("name", "local")
 
+    # D-134: Resolve cap defaults with 3-tier precedence — CLI flag > config > framework fallback.
+    _cap_cfg = _automil_cfg.get("cap", {}) if isinstance(_automil_cfg, dict) else {}
+    _resolved_budget = budget_seconds if budget_seconds is not None else int(_cap_cfg.get("budget_seconds", 21600))
+    _resolved_buffer = safety_buffer_seconds if safety_buffer_seconds is not None else int(_cap_cfg.get("safety_buffer_seconds", 1800))
+    if _resolved_budget <= 0:
+        raise click.ClickException(f"--budget-seconds must be > 0 (got {_resolved_budget})")
+    if not (0 < _resolved_buffer < _resolved_budget):
+        raise click.ClickException(
+            f"--safety-buffer-seconds must satisfy 0 < buffer < budget "
+            f"(got buffer={_resolved_buffer}, budget={_resolved_budget})"
+        )
+
+    # D-116: Cell refusal hook — call get_or_create_cell BEFORE writing the queue spec.
+    # metadata.cell_id is the cap-membership tag the daemon reads to count in-cell experiments.
+    from automil.cells import get_or_create_cell, is_refusing_new, consumed_seconds  # noqa: E402
+
+    _dataset_name = ((_automil_cfg.get("dataset") or {}).get("name", "unknown")
+                     if isinstance(_automil_cfg, dict) else "unknown")
+    _encoder_name = ((_automil_cfg.get("encoder") or {}).get("name", "unknown")
+                     if isinstance(_automil_cfg, dict) else "unknown")
+    _parent_for_cell = parent if parent else "root"
+
+    _cell = get_or_create_cell(
+        dataset=_dataset_name,
+        encoder=_encoder_name,
+        parent_id=_parent_for_cell,
+        budget_seconds=_resolved_budget,
+        safety_buffer_seconds=_resolved_buffer,
+    )
+    if is_refusing_new(_cell):
+        raise click.ClickException(
+            f"Cell {_cell.cell_id[:8]} is {_cell.status.value}: budget exhausted "
+            f"({consumed_seconds(_cell):.0f}/{_cell.budget_seconds}s consumed). "
+            f"Wait for cell to finalize, or submit with a different "
+            f"(dataset={_dataset_name}, encoder={_encoder_name}, parent_id={_parent_for_cell}) tuple."
+        )
+
     # Write spec to queue
     spec = {
         "id": node,
@@ -300,6 +342,10 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
     # runtime made this submission. AUTOMIL_RUNTIME is set by the agent runtime
     # (never inferred — D-87). Falls back to "unknown" if unset.
     spec.setdefault("metadata", {})["runtime"] = os.environ.get("AUTOMIL_RUNTIME", "unknown")
+    # D-117: stamp metadata.cell_id — symmetric to metadata.backend and metadata.runtime.
+    # The daemon's _running_in_cell() filters in-cell experiments by this field.
+    # Backward compat: legacy nodes without metadata.cell_id are treated as cell-less (no cap enforcement).
+    spec.setdefault("metadata", {})["cell_id"] = _cell.cell_id
 
     queue_file = adir / "orchestrator" / "queue" / f"{node}.json"
     queue_file.write_text(json.dumps(spec, indent=2))
