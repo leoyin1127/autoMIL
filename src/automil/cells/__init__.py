@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 
 from automil.cells.cap import next_status
-from automil.cells.reconcile import aggregate_folds
+from automil.cells.reconcile import aggregate_folds, reconcile_budget_kill
 from automil.cells.state import (
     Cell,
     CellStatus,
@@ -32,5 +32,6 @@ __all__ = [
     "make_cell_id",
     "next_status",
     "read_cell",
+    "reconcile_budget_kill",
     "write_cell",
 ]
