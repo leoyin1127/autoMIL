@@ -18,6 +18,7 @@ def main():
 # Order is alphabetic for readability — Click registration is idempotent on
 # repeated import so cycles are not a concern.
 from automil.cli import cancel  # noqa: E402,F401
+from automil.cli import cell    # noqa: E402,F401  (CAP-06 / D-125)
 from automil.cli import check  # noqa: E402,F401
 from automil.cli import control  # noqa: E402,F401
 from automil.cli import init  # noqa: E402,F401
