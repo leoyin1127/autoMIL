@@ -2,10 +2,10 @@
 
 Goal-backward verifier for Phase 4: cap-firing must produce a usable
 partial composite, NOT corrupt results.tsv. budget_seconds=60 here is
-a TEST-ONLY value chosen to make the test executable in seconds —
-Leo's autoMIL-paper campaign uses 21600 (6h), but the test deliberately
-uses 60s because the framework property is the *mechanism*, not the
-*value* (paper_campaign_vs_framework rule).
+a TEST-ONLY value chosen to make the test executable in seconds — the
+framework property is the *mechanism*, not the *value*
+(paper_campaign_vs_framework rule; Leo's paper campaign uses its own
+consumer-supplied cap value via automil/config.yaml).
 
 Composes the full chain end-to-end:
   subprocess SIGTERM -> register_sigterm_flush handler -> result.json
@@ -35,7 +35,7 @@ pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM unsuppo
 def test_cap_fires_with_partial_fold_recovery(tmp_path: Path):
     """Full chain: SIGTERM -> partial result.json -> reconcile -> graph cascade.
 
-    budget_seconds=60 (NOT 21600 — paper-campaign-vs-framework rule).
+    budget_seconds=60 (paper-campaign-vs-framework rule: test uses small value).
     Test finishes in < 15 seconds.
     """
     # 1. Set up synthetic node archive
