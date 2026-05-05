@@ -125,7 +125,17 @@ An agent can autonomously discover model improvements for any user's training co
   3. Per-fold checkpoint protocol works: `train.py` writes `fold_<i>_result.json` after each fold; `result.json` aggregates across completed folds with `status: partial | completed`; a deliberate cap-firing test produces a usable partial result, VRAM returns, and descendants are NOT spuriously discarded.
   4. Budget-killed experiments reconcile to `executed` (NOT `crash`) with whatever partial composite is computable; descendant cascade recomputes against the partial composite, not against zero.
   5. `automil cell status [cell_id]` and `automil cell list` surface budget state for operator inspection (started_at, consumed, remaining, refusing-new threshold, status).
-**Plans**: TBD
+**Plans**: 10 plans across 7 waves (Wave 1: 04-01/02/08 parallel; Waves 2-4 serial through cells/__init__.py; Wave 5: 04-06/07 parallel; Wave 6: 04-09; Wave 7: 04-10 anti-acceptance)
+  - [ ] 04-01-PLAN.md — cells package skeleton + Cell dataclass + atomic IO + cell_id (CAP-01, CAP-05)
+  - [ ] 04-02-PLAN.md — runtime_helpers.py + register_sigterm_flush + get_fold_count (CAP-03)
+  - [ ] 04-03-PLAN.md — cap.py pure state machine + exhaustive transition tests (CAP-02)
+  - [ ] 04-04-PLAN.md — reconcile.py aggregate_folds + reconcile_budget_kill stub (CAP-03, CAP-04)
+  - [ ] 04-05-PLAN.md — registry.py get_or_create_cell + idempotency + restart-safety (CAP-01, CAP-05)
+  - [ ] 04-06-PLAN.md — submit.py cell refusal hook + metadata.cell_id + --budget-seconds CLI override + config.yaml.j2 cap: section (CAP-01, CAP-02)
+  - [ ] 04-07-PLAN.md — _orchestrator_daemon.py _tick_cells + reconcile integration + AUTOMIL_FOLD_COUNT env injection (CAP-02, CAP-04)
+  - [ ] 04-08-PLAN.md — autobench runner.py per-fold writer + run_experiment.py register_sigterm_flush call (CAP-03)
+  - [ ] 04-09-PLAN.md — automil cell status / list CLI + cli/__init__.py registration (CAP-06)
+  - [ ] 04-10-PLAN.md — Pitfall-4 anti-acceptance gate + daemon-restart test + reconcile-cascade test (CAP-03, CAP-04, CAP-05)
 **Estimated**: 3–4 days
 
 ### Phase 5: Generalization gate
