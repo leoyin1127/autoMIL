@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-last_updated: "2026-05-05T07:30:00.000Z"
+last_updated: "2026-05-05T11:00:00.000Z"
 progress:
   total_phases: 9
   completed_phases: 5
-  total_plans: 48
+  total_plans: 60
   completed_plans: 48
-  percent: 100
+  percent: 80
 ---
 
 # State: autoMIL — F2-readiness framework refactor
@@ -30,18 +30,18 @@ progress:
 - `CLAUDE.md` — project instructions and Leo's standing directives
 - `~/.claude/projects/-home-jma-Documents-yinshuol-autoMIL/memory/MEMORY.md` — Leo's standing memory (saturate GPUs, research before submit, never blind-checkout, architectural-not-hyperparam, never ask continue autonomously)
 
-**Current focus:** Phase 05 — Generalization gate (next, depends on Phase 04 cap contract)
+**Current focus:** Phase 05 — Generalization gate (PLANNED, ready to execute)
 
 ## Current Position
 
-Phase: 04 — COMPLETE
-Plan: 10 of 10
+Phase: 05 — PLANNED
+Plan: 0 of 12
 
-- **Phase:** 04 — 6h per-cell hard cap + cell-concept formalisation
-- **Plans:** 10 across 7 waves shipped
-- **Status:** Phase 04 complete (644 tests + 9 skipped, +86 from 558 baseline; Pitfall-4 anti-acceptance gate green; 3 load-bearing integration tests + 18 cap state machine + 11 cell registry + 9 aggregator + 4 runtime_helpers + 6 submit-cell-refusal + 8 daemon _tick_cells + 10 cell CLI + 6 per-fold writer)
-- **Progress (milestone):** [█████░░░░░] 56% (5/9 phases shipped, 48/48 plans complete)
-- **Next:** `/gsd-discuss-phase 5` (GTE-01..06 — generalization gate; depends on Phase 04 cap contract)
+- **Phase:** 05 — Generalization gate
+- **Plans:** 12 across 9 waves (W1: 05-01 stats + 05-03 JobSpec.metadata parallel; W2: 05-02 manifest; W3: 05-04 nominate + 05-05 isolation parallel; W4: 05-06 evaluate; W5: 05-07 promote; W6: 05-08 CLI group + scipy core; W7: 05-09 nominate/promote CLI + 05-10 viz parallel; W8: 05-11 Pitfall-6 anti-acceptance; W9: 05-12 calibration pilot Leo checkpoint)
+- **Status:** Phase 05 PLANNED (researcher 5a704f2 HIGH confidence; pattern mapper 95daf7d 20 files mapped; planner 3600339 12 plans; plan-checker 2 BLOCKERS + 4 WARNINGS, all 6 addressed inline at 6f5d88b — RESEARCH Open Questions marked RESOLVED, 05-VALIDATION.md created, JobHandle signature corrected, retire_manifest rollback hardened)
+- **Progress (milestone):** [█████░░░░░] 56% (5/9 phases shipped, 48/60 plans complete)
+- **Next:** `/gsd-execute-phase 5` (Wave 1 parallel: 05-01 stats.py + 05-03 JobSpec.metadata)
 
 ## Performance Metrics
 
@@ -99,9 +99,9 @@ None at roadmap-creation time. All inputs in place; Leo can review the roadmap a
 
 ## Session Continuity
 
-**Last action:** Phase 04 fully shipped 2026-05-05. Executed 10 plans across 7 waves. Notable execution events: Plan 04-02 took a Rule-3 deviation creating cells/__init__.py + reconcile.py stub early (its SIGTERM test needed aggregate_folds resolvable at call time); Plan 04-08 also pre-created runtime_helpers.py for the same reason. Wave 1 merge resolved cells/__init__.py union conflict + kept 04-02's canonical runtime_helpers.py; BCK-04 lint caught os.getpid() in runtime_helpers.py (informational logging) and was fixed at 4816661. Plan 04-04 audited 04-02's stub against D-119, tightened exception handling, and added reconcile_budget_kill stub. Pitfall-4 anti-acceptance gate (04-10 Task 1) green — synthetic 5-fold subprocess with budget_seconds=60 (NOT 21600), SIGTERM after fold 3 produces status=partial+composite=0.82+budget_killed=True; real-graph descendant cascade asymmetric assertion (better_nid keeps "keep", worse_nid flips to "discard") proves cascade evaluated against partial composite, not zero. CAP-05 daemon-restart test green (5 tests). reconcile_full end-to-end test green (5 tests including descendant cascade). 644 tests + 9 skipped (+86 from 558 baseline). Framework purity preserved: zero autobench/AUTOBENCH_/benchmarks/ refs in src/automil/cells/, runtime_helpers.py, cli/cell.py. Zero-accumulator regression guard live: no `+= ` on consumed_seconds anywhere.
+**Last action:** Phase 05 PLANNING complete (2026-05-05). CONTEXT bootstrapped at 898b526 with D-135..D-151 engineering-locked decisions plus O-01..O-05 OPEN scientific questions (initial K threshold, p_threshold default, held-out selection strategy, calibration pilot scope, auto-nominate scoping). Researcher 5a704f2 HIGH confidence — verified scipy 1.17.1 transitively installed (must lift to core deps in Plan 05-08), JobSpec.metadata kw-only field extension non-breaking, atomic-write-plus-git-commit is a NEW pattern with rollback via path.unlink (NOT git checkout per Leo memory feedback_never_blind_checkout), Bonferroni alpha/K direction (DIVIDE), BCa bootstrap method, mtime-based lru_cache for held-out IDs in trajectory redactor. Pattern mapper 95daf7d mapped 20 files (15 new + 5 modified) — 18/20 with analogs from cells/, trajectory/, cli/cell.py; gate/stats.py + its test are genuinely novel (first scipy usage in src/automil/). Planner 3600339 produced 12 plans across 9 waves with calibration pilot (D-151) as its own plan (05-12, Leo checkpoint). Plan-checker 2 BLOCKERS + 4 WARNINGS, all 6 addressed inline at 6f5d88b: RESEARCH Open Questions marked RESOLVED, 05-VALIDATION.md created (Nyquist compliance), JobHandle field signature pinned correctly (node_id/backend/opaque_id/submitted_at — no job_id), retire_manifest rollback hardened with cached payload restoration.
 
-**Next action:** `/gsd-discuss-phase 5` to begin Phase 5 (GTE-01..06 generalization gate). Phase 5 depends on Phase 04's cap contract; pre-registered held-out manifest + paired Wilcoxon + bootstrap CI + Bonferroni correction. Calibration pilot uses CCRCC node_0176 across 3-5 fresh cells before locking K threshold.
+**Next action:** `/gsd-execute-phase 5` to execute Wave 1 in parallel (05-01 gate/stats.py paired Wilcoxon + bootstrap + Bonferroni; 05-03 JobSpec.metadata kw-only field extension). Pitfall-6 anti-acceptance gate (Plan 05-11) is the goal-backward verifier — must remain single-file load-bearing through execution. Calibration pilot (05-12) requires Leo's manual judgment on K threshold; cannot be fully autonomous.
 
 **Resume file:** None
 
