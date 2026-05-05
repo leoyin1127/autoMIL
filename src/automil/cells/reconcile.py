@@ -1,97 +1,147 @@
-"""Budget-killed reconciliation and fold aggregation (CAP-03, CAP-04 / D-119, D-123).
-
-aggregate_folds() — pure function that walks archive/<node>/fold_*_result.json
-and returns a result.json payload. Called by:
-  - automil.runtime_helpers._handler (SIGTERM flush, D-121)
-  - reconcile_budget_kill() (post-cancel reconciliation, D-123)
-
-reconcile_budget_kill() — called by the daemon when a node transitions from
-RUNNING → CANCELLED with metadata.cancel_reason == "cap" (D-123).
-Implemented in Plan 04-07 (Wave 3). Stub here for Wave 1 importability.
-"""
+"""Per-fold result aggregation + budget-kill reconciliation (CAP-03, CAP-04 / D-119, D-123)."""
 from __future__ import annotations
 
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 def aggregate_folds(node_archive: Path, expected_fold_count: int) -> dict:
-    """Walk fold_*_result.json files in node_archive, return result.json payload.
+    """Walk archive/<node>/fold_*_result.json; return a result.json payload (D-119).
 
-    Pure function — no I/O side effects beyond reading existing files.
+    Pure reader. Malformed fold files are skipped with logger.warning, NOT silently
+    used as zeros (Pitfall 4 defence: aggregator must distinguish missing data from
+    zero-valued data).
 
     Args:
-        node_archive: Directory containing fold_*_result.json files.
+        node_archive: Directory containing fold_<i>_result.json files.
                       For SIGTERM handler: Path.cwd() (D-121).
                       For post-cancel reconcile: archive/<node_id>/ (D-123).
-        expected_fold_count: Total fold count (from AUTOMIL_FOLD_COUNT env, D-120).
+        expected_fold_count: K from training.fold_count config (D-120).
 
     Returns:
-        dict matching result.json schema:
         {
-            "status":           "completed" | "partial" | "crashed",
-            "metrics":          {<key>: <mean across completed folds>},
-            "composite":        <float — mean of per-fold composite>,
-            "partial_folds":    <int — number of completed fold files found>,
-            "expected_folds":   <int — expected_fold_count>,
-            "elapsed_seconds":  <float — sum across completed folds>,
-            "peak_vram_mb":     <float — max across completed folds>,
-            "metadata":         {"budget_killed": False},  # caller sets True for cap kills
+            "status":          "completed" if n==expected else "partial" else "crashed",
+            "composite":       float (mean of per-fold composites; 0.0 if zero folds),
+            "metrics":         {key: mean across folds},
+            "partial_folds":   int,
+            "expected_folds":  int,
+            "elapsed_seconds": int (sum),
+            "peak_vram_mb":    int (max),
         }
 
-    Spec (D-119):
+    Status rules (D-119):
         - All K folds present → status: "completed", partial_folds == expected_fold_count
         - 1 ≤ folds < K → status: "partial", partial_folds: <n>
         - 0 folds → status: "crashed", composite: 0.0
     """
+    if not node_archive.exists():
+        return _crashed_payload(expected_fold_count)
     fold_files = sorted(node_archive.glob("fold_*_result.json"))
-    completed: list[dict] = []
-    for fold_file in fold_files:
+    if not fold_files:
+        return _crashed_payload(expected_fold_count)
+
+    composites: list[float] = []
+    metrics_by_key: dict[str, list[float]] = {}
+    elapsed_total = 0
+    peak_vram = 0
+
+    for ff in fold_files:
         try:
-            data = json.loads(fold_file.read_text())
-            completed.append(data)
-        except Exception as exc:
-            logger.warning("aggregate_folds: skipping malformed fold file %s: %s", fold_file, exc)
+            data = json.loads(ff.read_text())
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Skipping malformed fold file %s: %s", ff, exc)
+            continue
+        composites.append(float(data.get("composite", 0.0)))
+        for k, v in data.get("metrics", {}).items():
+            try:
+                metrics_by_key.setdefault(k, []).append(float(v))
+            except (TypeError, ValueError):
+                logger.warning("Skipping non-numeric metric %s=%r in %s", k, v, ff)
+                continue
+        elapsed_total += int(data.get("elapsed_seconds", 0) or 0)
+        peak_vram = max(peak_vram, int(data.get("peak_vram_mb", 0) or 0))
 
-    n = len(completed)
-
+    n = len(composites)
     if n == 0:
-        return {
-            "status": "crashed",
-            "metrics": {},
-            "composite": 0.0,
-            "partial_folds": 0,
-            "expected_folds": expected_fold_count,
-            "elapsed_seconds": 0.0,
-            "peak_vram_mb": 0.0,
-            "metadata": {"budget_killed": False},
-        }
-
-    # Aggregate metrics: mean per-key across completed folds
-    all_metric_keys: set[str] = set()
-    for fold in completed:
-        all_metric_keys.update(fold.get("metrics", {}).keys())
-
-    metrics: dict[str, float] = {}
-    for key in all_metric_keys:
-        values = [fold["metrics"][key] for fold in completed if key in fold.get("metrics", {})]
-        metrics[key] = sum(values) / len(values) if values else 0.0
-
-    composite = sum(f.get("composite", 0.0) for f in completed) / n
-    elapsed_seconds = sum(f.get("elapsed_seconds", 0.0) for f in completed)
-    peak_vram_mb = max((f.get("peak_vram_mb", 0.0) for f in completed), default=0.0)
-    status = "completed" if n == expected_fold_count else "partial"
+        return _crashed_payload(expected_fold_count)
 
     return {
-        "status": status,
-        "metrics": metrics,
-        "composite": composite,
+        "status": "completed" if n == expected_fold_count else "partial",
+        "composite": sum(composites) / n,
+        "metrics": {k: sum(v) / len(v) for k, v in metrics_by_key.items()},
         "partial_folds": n,
         "expected_folds": expected_fold_count,
-        "elapsed_seconds": elapsed_seconds,
-        "peak_vram_mb": peak_vram_mb,
-        "metadata": {"budget_killed": False},
+        "elapsed_seconds": elapsed_total,
+        "peak_vram_mb": peak_vram,
     }
+
+
+def _crashed_payload(expected_fold_count: int) -> dict:
+    return {
+        "status": "crashed",
+        "composite": 0.0,
+        "metrics": {},
+        "partial_folds": 0,
+        "expected_folds": expected_fold_count,
+        "elapsed_seconds": 0,
+        "peak_vram_mb": 0,
+    }
+
+
+def reconcile_budget_kill(
+    node_id: str,
+    archive_dir: Path,
+    graph: Any,
+    expected_fold_count: int,
+) -> dict:
+    """Post-cap-cancel reconciliation (CAP-04 / D-123).
+
+    Aggregates whatever fold files are present in archive/<node_id>/,
+    writes archive/<node_id>/result.json with metadata.budget_killed=True,
+    and returns the payload dict so the caller can drive graph updates.
+
+    STUB — Plan 04-08 wires this into the daemon's _handle_completion path
+    and adds the graph mutation calls (graph.add_executed / graph.mark_failed
+    + _reevaluate_descendants). For Wave 3 this stub:
+      1. Aggregates fold files via aggregate_folds()
+      2. Tags metadata.budget_killed=True per D-124
+      3. Writes archive/<node_id>/result.json
+      4. Returns the payload dict
+
+    The graph-mutation portion (D-123 steps 2b and 3b) lands in Plan 04-08
+    alongside the daemon _tick_cells integration where the graph reference
+    is in scope.
+
+    D-124 discriminator:
+        ≥1 fold → payload["status"] in ("partial", "completed") — caller sets
+                  graph node status: executed, metadata.budget_killed=True
+        0 folds → payload["status"] == "crashed" — caller sets graph node
+                  status: crashed, metadata.budget_killed=True
+
+    Args:
+        node_id:              Graph node id of the budget-killed experiment.
+        archive_dir:          Parent directory; fold files at archive_dir/node_id/.
+        graph:                ExperimentGraph instance (unused in stub — Plan 04-08).
+        expected_fold_count:  K from AUTOMIL_FOLD_COUNT env / config (D-120).
+
+    Returns:
+        result.json payload dict with metadata.budget_killed=True.
+    """
+    node_archive = archive_dir / node_id
+    payload = aggregate_folds(node_archive, expected_fold_count)
+    payload.setdefault("metadata", {})["budget_killed"] = True
+    node_archive.mkdir(parents=True, exist_ok=True)
+    (node_archive / "result.json").write_text(json.dumps(payload, indent=2))
+    logger.info(
+        "reconcile_budget_kill %s: status=%s partial_folds=%d/%d composite=%.4f",
+        node_id,
+        payload["status"],
+        payload["partial_folds"],
+        payload["expected_folds"],
+        payload["composite"],
+    )
+    return payload
