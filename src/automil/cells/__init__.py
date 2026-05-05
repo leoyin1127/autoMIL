@@ -13,6 +13,12 @@ import logging
 
 from automil.cells.cap import next_status
 from automil.cells.reconcile import aggregate_folds, reconcile_budget_kill
+from automil.cells.registry import (
+    get_cell,
+    get_or_create_cell,
+    is_refusing_new,
+    list_cells,
+)
 from automil.cells.state import (
     Cell,
     CellStatus,
@@ -29,6 +35,10 @@ __all__ = [
     "CellStatus",
     "aggregate_folds",
     "consumed_seconds",
+    "get_cell",
+    "get_or_create_cell",
+    "is_refusing_new",
+    "list_cells",
     "make_cell_id",
     "next_status",
     "read_cell",
