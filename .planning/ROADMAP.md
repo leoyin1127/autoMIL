@@ -148,7 +148,19 @@ An agent can autonomously discover model improvements for any user's training co
   3. Promotion criterion is a paired Wilcoxon (or comparable test from `gate_manifest.json`) with bootstrap CI (1000 reps) and Bonferroni correction across held-out cells; `K` (minimum cells passed) and `p_threshold` are config-set, not gut-feel constants.
   4. Promotion-rate metric (% of nominated candidates that passed gate) is exposed in the viz dashboard and `automil status`; a calibration pilot (CCRCC `node_0176` applied to 3–5 fresh cells) sets initial K before locking.
   5. Held-out cells are NEVER visible to the agent during search (verified via trajectory inspection in CI).
-**Plans**: TBD
+**Plans**: 12 plans across 9 waves
+  - [ ] 05-01-PLAN.md (W1) — gate package skeleton + stats.py (paired Wilcoxon + BCa bootstrap + Bonferroni divide direction) (GTE-04)
+  - [ ] 05-03-PLAN.md (W1) — JobSpec.metadata field + LocalBackend/MockSLURM passthrough (GTE-03 prerequisite)
+  - [ ] 05-02-PLAN.md (W2) — manifest.py: GateManifest frozen dataclass + atomic write + write_manifest_committed (Leo memory rollback via path.unlink) + retire flow (GTE-01, GTE-02)
+  - [ ] 05-04-PLAN.md (W3) — gate.nominate keep->candidate idempotent + ExperimentGraph.nominations_in_window/promotion_rate helpers (GTE-01, GTE-05, GTE-06)
+  - [ ] 05-05-PLAN.md (W3) — trajectory redactor extension (held-out node-id placeholder, mtime-cached) + cli/propose.py rank held-out filter (GTE-01)
+  - [ ] 05-06-PLAN.md (W4) — gate.evaluate_candidate: Backend.submit per held-out cell + concurrent poll + skip-on-cap (GTE-03)
+  - [ ] 05-07-PLAN.md (W5) — gate.promote: pass/fail/inconclusive + Bonferroni-corrected paired test + gate_log emission + two-stage gate (GTE-01, GTE-04, GTE-06)
+  - [ ] 05-08-PLAN.md (W6) — automil gate group + register/retire/status/stats subcommands + scipy lift to core deps + config.yaml.j2 gate: section (GTE-01, GTE-02, GTE-04, GTE-06)
+  - [ ] 05-09-PLAN.md (W7) — automil nominate + automil promote (--calibrate) top-level CLI commands (GTE-05)
+  - [ ] 05-10-PLAN.md (W7) — viz /api/promotion-rate endpoint + automil status promotion_rate display (GTE-06)
+  - [ ] 05-11-PLAN.md (W8) — Pitfall-6 anti-acceptance test (D-149, 9 load-bearing assertions) + framework-purity guard + BCK-04 lint extension to gate/ (GTE-01..06)
+  - [ ] 05-12-PLAN.md (W9) — Calibration pilot smoke test + .planning/phase-05-calibration.md scaffold + Leo CHECKPOINT to run actual pilot (D-151) (GTE-04, GTE-06)
 **Estimated**: 4–5 days
 
 ### Phase 6: SLURM backend (submitit) + Ray backend (raw ray.remote)
