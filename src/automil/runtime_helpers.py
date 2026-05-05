@@ -56,4 +56,4 @@ def register_sigterm_flush(*, fold_count_env: str = "AUTOMIL_FOLD_COUNT") -> Non
 
     signal.signal(signal.SIGTERM, _handler)
     _SIGTERM_REGISTERED = True
-    logger.info("register_sigterm_flush: SIGTERM handler installed (PID=%d)", os.getpid())
+    logger.info("register_sigterm_flush: SIGTERM handler installed")
