@@ -1,0 +1,154 @@
+"""Unit tests for _write_fold_result_json in autobench CLAM runner.
+
+Covers:
+  - env-gating (AUTOMIL_RESULTS_DIR absent → no-op)
+  - flat-float metric mapping to D-118 keys (Pitfall 5, flat shape)
+  - CI-dict metric mapping to D-118 keys (Pitfall 5, dict shape)
+  - one file per fold, fold_index in JSON
+  - fold_count sourced from AUTOMIL_FOLD_COUNT env
+  - missing metrics → zero fallback (no exception)
+"""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from autobench.pipeline.clam.runner import _write_fold_result_json
+
+
+# ---------------------------------------------------------------------------
+# Fixtures / helpers
+# ---------------------------------------------------------------------------
+
+def _minimal_result(
+    test_auc: float = 0.85,
+    test_bacc: float = 0.82,
+    val_auc: float = 0.86,
+    val_bacc: float = 0.81,
+    elapsed: int = 100,
+    vram: int = 4500,
+) -> dict:
+    return {
+        "test_metrics": {"auc_roc": test_auc, "balanced_accuracy": test_bacc},
+        "val_metrics": {"auc_roc": val_auc, "balanced_accuracy": val_bacc},
+        "elapsed_seconds": elapsed,
+        "peak_vram_mb": vram,
+        "fold": 0,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Test 1: writes fold file when AUTOMIL_RESULTS_DIR is set
+# ---------------------------------------------------------------------------
+
+def test_writes_fold_file_when_results_dir_set(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOMIL_RESULTS_DIR", str(tmp_path))
+
+    result = _minimal_result()
+    _write_fold_result_json(2, result)
+
+    fold_file = tmp_path / "fold_2_result.json"
+    assert fold_file.exists(), "fold_2_result.json should be written to AUTOMIL_RESULTS_DIR"
+
+    payload = json.loads(fold_file.read_text())
+    assert payload["fold_index"] == 2
+    assert payload["status"] == "completed"
+    assert payload["metrics"]["test_auc"] == pytest.approx(0.85)
+    assert payload["metrics"]["test_bacc"] == pytest.approx(0.82)
+    assert payload["metrics"]["val_auc"] == pytest.approx(0.86)
+    assert payload["metrics"]["val_bacc"] == pytest.approx(0.81)
+    assert payload["composite"] == pytest.approx((0.85 + 0.82) / 2.0)
+    assert payload["elapsed_seconds"] == 100
+    assert payload["peak_vram_mb"] == 4500
+
+
+# ---------------------------------------------------------------------------
+# Test 2: no-op when AUTOMIL_RESULTS_DIR is unset
+# ---------------------------------------------------------------------------
+
+def test_noop_when_results_dir_unset(tmp_path, monkeypatch):
+    monkeypatch.delenv("AUTOMIL_RESULTS_DIR", raising=False)
+
+    # Should not raise; no file should be written anywhere
+    _write_fold_result_json(0, _minimal_result())
+
+    assert list(tmp_path.iterdir()) == [], "No files should be written when AUTOMIL_RESULTS_DIR is unset"
+
+
+# ---------------------------------------------------------------------------
+# Test 3: CI-dict metric shape is unwrapped correctly (Pitfall 5)
+# ---------------------------------------------------------------------------
+
+def test_metric_keys_mapped_correctly_from_dict_shape(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOMIL_RESULTS_DIR", str(tmp_path))
+
+    result = {
+        "test_metrics": {
+            "auc_roc": {"mean": 0.91, "std": 0.02, "ci_low": 0.87, "ci_high": 0.95},
+            "balanced_accuracy": {"mean": 0.88, "std": 0.01, "ci_low": 0.86, "ci_high": 0.90},
+        },
+        "val_metrics": {
+            "auc_roc": {"mean": 0.89, "std": 0.03},
+            "balanced_accuracy": {"mean": 0.85, "std": 0.02},
+        },
+        "elapsed_seconds": 200,
+        "peak_vram_mb": 3000,
+    }
+    _write_fold_result_json(1, result)
+
+    payload = json.loads((tmp_path / "fold_1_result.json").read_text())
+    assert payload["metrics"]["test_auc"] == pytest.approx(0.91)
+    assert payload["metrics"]["test_bacc"] == pytest.approx(0.88)
+    assert payload["metrics"]["val_auc"] == pytest.approx(0.89)
+    assert payload["metrics"]["val_bacc"] == pytest.approx(0.85)
+
+
+# ---------------------------------------------------------------------------
+# Test 4: one file per fold, each with correct fold_index
+# ---------------------------------------------------------------------------
+
+def test_writes_one_file_per_fold(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOMIL_RESULTS_DIR", str(tmp_path))
+
+    for fold_idx in range(5):
+        result = _minimal_result(test_auc=0.8 + fold_idx * 0.01)
+        _write_fold_result_json(fold_idx, result)
+
+    for fold_idx in range(5):
+        fold_file = tmp_path / f"fold_{fold_idx}_result.json"
+        assert fold_file.exists(), f"fold_{fold_idx}_result.json should exist"
+        payload = json.loads(fold_file.read_text())
+        assert payload["fold_index"] == fold_idx
+
+
+# ---------------------------------------------------------------------------
+# Test 5: fold_count read from AUTOMIL_FOLD_COUNT env
+# ---------------------------------------------------------------------------
+
+def test_uses_automil_fold_count_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOMIL_RESULTS_DIR", str(tmp_path))
+    monkeypatch.setenv("AUTOMIL_FOLD_COUNT", "7")
+
+    _write_fold_result_json(2, _minimal_result())
+
+    payload = json.loads((tmp_path / "fold_2_result.json").read_text())
+    assert payload["fold_count"] == 7
+
+
+# ---------------------------------------------------------------------------
+# Test 6: missing metrics keys → zero fallback, no exception
+# ---------------------------------------------------------------------------
+
+def test_handles_missing_metrics_gracefully(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOMIL_RESULTS_DIR", str(tmp_path))
+
+    result = {"test_metrics": {}, "val_metrics": {}}
+    _write_fold_result_json(0, result)  # should not raise
+
+    payload = json.loads((tmp_path / "fold_0_result.json").read_text())
+    assert payload["metrics"]["test_auc"] == pytest.approx(0.0)
+    assert payload["metrics"]["test_bacc"] == pytest.approx(0.0)
+    assert payload["metrics"]["val_auc"] == pytest.approx(0.0)
+    assert payload["metrics"]["val_bacc"] == pytest.approx(0.0)
