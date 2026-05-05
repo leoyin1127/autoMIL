@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-last_updated: "2026-05-04T06:23:20.490Z"
+last_updated: "2026-05-05T00:00:00.000Z"
 progress:
   total_phases: 9
   completed_phases: 4
-  total_plans: 38
+  total_plans: 48
   completed_plans: 38
-  percent: 100
+  percent: 79
 ---
 
 # State: autoMIL — F2-readiness framework refactor
@@ -30,18 +30,18 @@ progress:
 - `CLAUDE.md` — project instructions and Leo's standing directives
 - `~/.claude/projects/-home-jma-Documents-yinshuol-autoMIL/memory/MEMORY.md` — Leo's standing memory (saturate GPUs, research before submit, never blind-checkout, architectural-not-hyperparam, never ask continue autonomously)
 
-**Current focus:** Phase 03 — Trajectory recorder + multi-runtime asset reorganisation
+**Current focus:** Phase 04 — 6h per-cell hard cap + cell-concept formalisation (PLANNED, ready to execute)
 
 ## Current Position
 
-Phase: 03 — COMPLETE
-Plan: 1 of 11
+Phase: 04 — PLANNED
+Plan: 0 of 10
 
-- **Phase:** 03 — Trajectory recorder + multi-runtime asset reorganisation
-- **Plans:** 11 across 5 waves (sequencing forced by 03-09 depends_on 03-08 fix in iter-1)
-- **Status:** Phase 03 complete (verifier PASS iter-2; 525 tests + 9 skipped, all 7 D-99 hard floors green)
-- **Progress (milestone):** [████░░░░░░] 44% (4/9 phases shipped, 38/38 known plans complete)
-- **Next:** `/gsd-discuss-phase 4` (CAP-01..06 — 6h per-cell hard cap + cell-concept formalisation)
+- **Phase:** 04 — 6h per-cell hard cap + cell-concept formalisation
+- **Plans:** 10 across 7 waves (W1: 04-01/02/08 parallel; W2-4 serial through cells/__init__.py: 04-03/04/05; W5: 04-06/07 parallel; W6: 04-09; W7: 04-10 Pitfall-4 anti-acceptance gate)
+- **Status:** Phase 04 PLANNED (researcher 6724bda HIGH confidence; pattern mapper 92a6ae5 17 files mapped; planner ea5f85b 10 plans; plan-checker 0 BLOCKERS / 4 WARNINGS, 3 addressed inline at 220d3e4 — pinned graph.py API to (parent_id, description, techniques, metrics) signature + folded descendant cascade into Pitfall-4 single-file gate; W1 split-04-07 declined per CLAUDE.md simplicity-first)
+- **Progress (milestone):** [████░░░░░░] 44% (4/9 phases shipped, 38/48 known plans complete)
+- **Next:** `/gsd-execute-phase 4` (Wave 1 parallel: 04-01 cells skeleton + 04-02 runtime_helpers + 04-08 autobench fold writer)
 
 ## Performance Metrics
 
@@ -99,9 +99,9 @@ None at roadmap-creation time. All inputs in place; Leo can review the roadmap a
 
 ## Session Continuity
 
-**Last action:** Phase 03 fully shipped 2026-05-04. Executed 11 plans across 6 effective waves (depends_on-derived: Wave 1 = 03-01/02/06 parallel; Wave 2 = 03-03/04/05 parallel; Wave 3 = 03-07/08 parallel; Wave 4 = 03-09; Wave 5 = 03-10; Wave 6 = 03-11 anti-acceptance). Verifier iter-1 found SC5/MRT-05 result.json gap; closed inline at `c612354` with `test_smoke_full_cycle_each_runtime` parametrized over [claude-code, opencode]. Iter-2 PASS at `b99ecf4`. Suite 425 baseline → 525 + 9 skipped (+100 tests). All 7 D-99 hard floors green: trajectory tests, agent_assets tests, two-runtime smoke, no opentelemetry, baseline preserved, claude_assets only in compat.py, no autobench in trajectory/agent_assets.
+**Last action:** Phase 04 PLANNING complete (2026-05-05). Discuss bootstrapped CONTEXT.md with D-107..D-134 (locked engineering decisions; 6h is paper-campaign default not framework-mandated, D-134 per-cell `--budget-seconds` CLI override; new memory `feedback_paper_campaign_vs_framework.md` saved). Researcher (a15009938e8ed8e3c) wrote 04-RESEARCH.md HIGH confidence with 5 verified findings — signal handler must be in main thread before DataLoader init, _reevaluate_descendants needs zero changes, fold writer lands after fold_results.append, no new deps, sys.exit(0) load-bearing in SIGTERM handler. Pattern mapper produced 04-PATTERNS.md mapping 17 files (10 new + 7 modified) to closest analogs. Planner produced 10 plans across 7 waves. Plan-checker found 0 BLOCKERS / 4 WARNINGS; W2/W3 (descendant cascade location) and W4 (graph API pinning) addressed inline at 220d3e4 — Pitfall-4 anti-acceptance gate (04-10 Task 1) now folds the real-graph descendant cascade with asymmetric better-vs-worse descendants asserting cascade ran against partial composite (0.82) not zero. Plan 04-07's _handle_completion cap-detection branch corrected to use real graph.py API (in-place dict mutation mirroring mark_failed, not nonexistent add_executed(node_id=,composite=) shape).
 
-**Next action:** `/gsd-discuss-phase 4` to begin Phase 4 (CAP-01..06 — 6h per-cell hard cap + cell-concept formalisation + per-fold checkpoint protocol). Pitfall-4 defence: cap MUST ship WITH per-fold checkpoint protocol or first cap-firing event corrupts results.
+**Next action:** `/gsd-execute-phase 4` to execute Wave 1 in parallel (04-01 cells skeleton + 04-02 runtime_helpers + 04-08 autobench fold writer). Pitfall-4 defence is the goal-backward verifier — Plan 04-10 must remain load-bearing through execution.
 
 **Resume file:** None
 
