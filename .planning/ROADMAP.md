@@ -245,7 +245,7 @@ Phase 5 (generalization gate)
 | 3. Trajectory + multi-runtime reorg | 11/11 | Complete   | 2026-05-04 |
 | 4. 6h per-cell cap + cell formalisation | 0/0 | Not started | - |
 | 5. Generalization gate | 0/0 | Not started | - |
-| 6. SLURM + Ray backends | 8/10 | In Progress|  |
+| 6. SLURM + Ray backends | 9/10 | In Progress|  |
 | 7. Hardware autodetect + /automil-setup | 0/0 | Not started | - |
 | 8. Decoupling audit + acceptance | 0/0 | Not started | - |
 
