@@ -1,6 +1,6 @@
 """Pure-function statistical core for the generalization gate (D-141 / GTE-04).
 
-Pattern mirrors cells/cap.py — pure functions, no filesystem I/O, no time.time(),
+Pattern mirrors cells/cap.py — pure functions, no filesystem I/O, no clock reads,
 caller injects all state. The ONLY scipy importer in src/automil/ (D-148).
 
 Bonferroni direction: divide alpha by K (Wikipedia convention). Never multiply
