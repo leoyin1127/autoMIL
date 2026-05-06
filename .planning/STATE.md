@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-last_updated: "2026-05-05T11:00:00.000Z"
+last_updated: "2026-05-06T03:30:00.000Z"
 progress:
   total_phases: 9
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 60
-  completed_plans: 48
-  percent: 80
+  completed_plans: 60
+  percent: 100
 ---
 
 # State: autoMIL — F2-readiness framework refactor
@@ -30,18 +30,27 @@ progress:
 - `CLAUDE.md` — project instructions and Leo's standing directives
 - `~/.claude/projects/-home-jma-Documents-yinshuol-autoMIL/memory/MEMORY.md` — Leo's standing memory (saturate GPUs, research before submit, never blind-checkout, architectural-not-hyperparam, never ask continue autonomously)
 
-**Current focus:** Phase 05 — Generalization gate (PLANNED, ready to execute)
+**Current focus:** Phase 06 — SLURM + Ray backends (next, depends on Phase 02 ABC + Phase 04 cap contract)
 
 ## Current Position
 
-Phase: 05 — PLANNED
-Plan: 0 of 12
+Phase: 05 — COMPLETE
+Plan: 12 of 12
 
 - **Phase:** 05 — Generalization gate
-- **Plans:** 12 across 9 waves (W1: 05-01 stats + 05-03 JobSpec.metadata parallel; W2: 05-02 manifest; W3: 05-04 nominate + 05-05 isolation parallel; W4: 05-06 evaluate; W5: 05-07 promote; W6: 05-08 CLI group + scipy core; W7: 05-09 nominate/promote CLI + 05-10 viz parallel; W8: 05-11 Pitfall-6 anti-acceptance; W9: 05-12 calibration pilot Leo checkpoint)
-- **Status:** Phase 05 PLANNED (researcher 5a704f2 HIGH confidence; pattern mapper 95daf7d 20 files mapped; planner 3600339 12 plans; plan-checker 2 BLOCKERS + 4 WARNINGS, all 6 addressed inline at 6f5d88b — RESEARCH Open Questions marked RESOLVED, 05-VALIDATION.md created, JobHandle signature corrected, retire_manifest rollback hardened)
-- **Progress (milestone):** [█████░░░░░] 56% (5/9 phases shipped, 48/60 plans complete)
-- **Next:** `/gsd-execute-phase 5` (Wave 1 parallel: 05-01 stats.py + 05-03 JobSpec.metadata)
+- **Plans:** 12 across 9 waves shipped
+- **Status:** Phase 05 complete (779 tests + 9 skipped, +113 from 666 Phase-4-end baseline; Pitfall-6 anti-acceptance gate green with all 9 D-149 assertions in single file; gate package fully wired — manifest + stats + nominate + evaluate + promote + 4 CLI subcommands + 2 top-level commands + viz/status promotion_rate metric; framework purity preserved; BCK-04 lint extended to gate/; scipy promoted to core deps; calibration pilot scaffold awaits Leo's follow-up to lock empirical K threshold)
+- **Progress (milestone):** [██████░░░░] 67% (6/9 phases shipped, 60/60 known plans complete)
+- **Next:** `/gsd-discuss-phase 6` (BCK-05/06 — SLURM + Ray backends; depends on Phase 02 backend ABC + Phase 04 cap contract; parallel-friendly with Phase 7)
+
+## Phase 5 Leo Follow-up (deferred — not a blocker for Phase 6)
+
+The calibration pilot (D-151, Plan 05-12) framework-side scaffold is committed at `90011e8`. The actual empirical K-threshold determination requires Leo to:
+1. Choose a known-good change (recommended: CCRCC `node_0176` config applied to fresh cells).
+2. Pick 3-5 fresh cells (3 CCRCC + 2 CLWD per recommendation).
+3. Register a calibration manifest, submit, run `automil promote --calibrate <candidate_id>`.
+4. Inspect the delta matrix in `archive/<candidate_id>/gate_evaluation.jsonl` and pick K such that the change passes consistently.
+5. Update `.planning/phase-05-calibration.md` with chosen K and rationale; commit.
 
 ## Performance Metrics
 
@@ -99,9 +108,9 @@ None at roadmap-creation time. All inputs in place; Leo can review the roadmap a
 
 ## Session Continuity
 
-**Last action:** Phase 05 PLANNING complete (2026-05-05). CONTEXT bootstrapped at 898b526 with D-135..D-151 engineering-locked decisions plus O-01..O-05 OPEN scientific questions (initial K threshold, p_threshold default, held-out selection strategy, calibration pilot scope, auto-nominate scoping). Researcher 5a704f2 HIGH confidence — verified scipy 1.17.1 transitively installed (must lift to core deps in Plan 05-08), JobSpec.metadata kw-only field extension non-breaking, atomic-write-plus-git-commit is a NEW pattern with rollback via path.unlink (NOT git checkout per Leo memory feedback_never_blind_checkout), Bonferroni alpha/K direction (DIVIDE), BCa bootstrap method, mtime-based lru_cache for held-out IDs in trajectory redactor. Pattern mapper 95daf7d mapped 20 files (15 new + 5 modified) — 18/20 with analogs from cells/, trajectory/, cli/cell.py; gate/stats.py + its test are genuinely novel (first scipy usage in src/automil/). Planner 3600339 produced 12 plans across 9 waves with calibration pilot (D-151) as its own plan (05-12, Leo checkpoint). Plan-checker 2 BLOCKERS + 4 WARNINGS, all 6 addressed inline at 6f5d88b: RESEARCH Open Questions marked RESOLVED, 05-VALIDATION.md created (Nyquist compliance), JobHandle field signature pinned correctly (node_id/backend/opaque_id/submitted_at — no job_id), retire_manifest rollback hardened with cached payload restoration.
+**Last action:** Phase 05 fully shipped 2026-05-05/06. Executed 12 plans across 9 waves. Wave 1 parallel (05-01 stats.py + 05-03 JobSpec.metadata extension). Wave 2 (05-02 GateManifest persistence + atomic-write-plus-git-commit). Wave 3 parallel (05-04 nominate + graph helpers + 05-05 held-out isolation in trajectory redactor + rank). Wave 4 (05-06 evaluate_candidate via Backend.submit). Wave 5 (05-07 promote two-stage gate). Wave 6 (05-08 automil gate CLI group + scipy lifted to core deps + config.yaml.j2 gate: section). Wave 7 parallel (05-09 nominate/promote top-level CLI + 05-10 viz/status promotion_rate). Wave 8 (05-11 Pitfall-6 anti-acceptance gate — 9 D-149 assertions in single file: synthetic 3-cell graph, manifest registered, search loop, agent-blind verification, nominate, promote, status transitions, gate_eval submit metadata, post-promote trajectory leak verification). Wave 9 (05-12 calibration pilot scaffold + Leo follow-up). Notable: scipy 1.17.1 was already transitively installed; promoted to core deps. JobSpec.metadata kw-only frozen-dataclass field extension was non-breaking. atomic-write-plus-git-commit pattern rollback uses path.unlink + cached-payload restore (NOT git checkout per Leo memory feedback_never_blind_checkout). Bonferroni applied as alpha/K (DIVIDE direction enforced via grep-acceptance + AST guard). 779 tests + 9 skipped (+113 from Phase 4's 666 baseline). Framework purity preserved: zero autobench/AUTOBENCH_/benchmarks/ refs in src/automil/gate/. BCK-04 lint extended to cover gate/ subdirectory. test_pitfall6_held_out_isolation.py is the load-bearing acceptance gate; 35 Pitfall-6 assertion citations in 3 test functions all green.
 
-**Next action:** `/gsd-execute-phase 5` to execute Wave 1 in parallel (05-01 gate/stats.py paired Wilcoxon + bootstrap + Bonferroni; 05-03 JobSpec.metadata kw-only field extension). Pitfall-6 anti-acceptance gate (Plan 05-11) is the goal-backward verifier — must remain single-file load-bearing through execution. Calibration pilot (05-12) requires Leo's manual judgment on K threshold; cannot be fully autonomous.
+**Next action:** `/gsd-discuss-phase 6` to begin Phase 6 (BCK-05/06 SLURM backend (submitit) + Ray backend (raw ray.remote)). Phase 6 depends on Phase 2 (Backend ABC) + Phase 4 (cap contract). SLURM `--signal=B:TERM@30` honors the wall-clock contract; Ray `ray.cancel(force=True)` does the same. Both opt-in via pip extras. Parallel-friendly with Phase 7 hardware autodetect.
 
 **Resume file:** None
 
