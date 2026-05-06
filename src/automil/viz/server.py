@@ -202,6 +202,48 @@ async def index_handler(request):
     return web.FileResponse(STATIC_DIR / "index.html")
 
 
+async def promotion_rate_handler(request):
+    """GTE-06 / D-144: serve current promotion_rate + gate-health diagnostic.
+
+    Reads graph.json on every request (no internal counter that can drift).
+    Soft-fails to safe zeros when graph.json is absent or contains no nominations.
+    """
+    from automil.gate.stats import diagnose_gate_health
+    from automil.graph import ExperimentGraph
+
+    response_data = {
+        "promotion_rate": 0.0,
+        "nominated": 0,
+        "promoted": 0,
+        "health_diagnostic": "no data — graph.json not found",
+        "window_days": 30,
+    }
+    try:
+        if GRAPH_FILE.exists():
+            graph = ExperimentGraph(path=str(GRAPH_FILE))
+            rate = graph.promotion_rate(days=30)
+            nominated_nodes = graph.nominations_in_window(days=30)
+            nominated_count = len(nominated_nodes)
+            promoted_count = sum(
+                1 for n in nominated_nodes if n.get("status") == "registered"
+            )
+            if nominated_count > 0:
+                diagnostic = diagnose_gate_health(rate)
+            else:
+                diagnostic = "no data — zero nominations in 30-day window"
+            response_data = {
+                "promotion_rate": rate,
+                "nominated": nominated_count,
+                "promoted": promoted_count,
+                "health_diagnostic": diagnostic,
+                "window_days": 30,
+            }
+    except Exception:
+        # Soft-fail: return safe defaults (Pitfall 5a parallel discipline)
+        pass
+    return web.json_response(response_data)
+
+
 @web.middleware
 async def _no_cache_static(request, handler):
     response = await handler(request)
@@ -214,6 +256,7 @@ def create_app() -> web.Application:
     app = web.Application(middlewares=[_no_cache_static])
     app.router.add_get("/", index_handler)
     app.router.add_get("/events", sse_handler)
+    app.router.add_get("/api/promotion-rate", promotion_rate_handler)
     app.router.add_static("/static", STATIC_DIR)
     app.on_shutdown.append(_on_shutdown)
     return app

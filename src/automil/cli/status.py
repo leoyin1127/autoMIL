@@ -23,6 +23,23 @@ def status():
         proposed = sum(1 for n in graph.nodes.values() if n.get("type") == "proposed")
         best = graph.meta.get("best_composite", 0)
         click.echo(f"Executed: {executed}  Proposed: {proposed}  Best: {best:.4f}")
+
+        # GTE-06 / D-144: promotion rate + gate-health diagnostic
+        try:
+            rate = graph.promotion_rate(days=30)
+            nominated_nodes = graph.nominations_in_window(days=30)
+            nominated = len(nominated_nodes)
+            promoted = sum(1 for n in nominated_nodes if n.get("status") == "registered")
+            if nominated > 0:
+                from automil.gate.stats import diagnose_gate_health
+                click.echo(
+                    f"Promotion rate (30d): {rate:.1%} ({promoted}/{nominated}) — "
+                    f"{diagnose_gate_health(rate)}"
+                )
+            else:
+                click.echo("Promotion rate (30d): no data (zero nominations in 30-day window)")
+        except Exception:
+            pass  # soft-fail: status never breaks on gate-helper bugs
     else:
         click.echo("No graph.json found.")
 
