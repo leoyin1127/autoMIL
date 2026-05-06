@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-last_updated: "2026-05-06T04:00:00.000Z"
+last_updated: "2026-05-06T05:00:00.000Z"
 progress:
   total_phases: 9
   completed_phases: 6
@@ -30,18 +30,19 @@ progress:
 - `CLAUDE.md` — project instructions and Leo's standing directives
 - `~/.claude/projects/-home-jma-Documents-yinshuol-autoMIL/memory/MEMORY.md` — Leo's standing memory (saturate GPUs, research before submit, never blind-checkout, architectural-not-hyperparam, never ask continue autonomously)
 
-**Current focus:** Phase 06 — SLURM + Ray backends (CONTEXT bootstrapped autonomously 2026-05-06; ready for `/gsd-plan-phase 6`)
+**Current focus:** Phase 06 — SLURM + Ray backends (10 plans across 7 waves; plan-checker PASS iter-2; ready for `/gsd-execute-phase 6`)
 
 ## Current Position
 
-Phase: 06 — CONTEXT bootstrapped (D-152..D-188 locked autonomously)
-Plan: 0 of TBD
+Phase: 06 — PLANS READY (10 plans, plan-checker PASS iter-2)
+Plan: 0 of 10
 
 - **Phase:** 06 — SLURM backend (submitit) + Ray backend (raw ray.remote)
-- **Plans:** TBD (target ~9–11 across 6–7 waves)
-- **Status:** Phase 06 CONTEXT.md committed at `fd3bd6b` — 37 engineering decisions (D-152..D-188) locked autonomously per Leo's `feedback_decide_engineering_ask_features` directive; all 4 candidate gray areas (SLURM directive source, Ray init lifecycle, running/ namespace migration, test infra scope) resolved by production-pattern reasoning + prior-phase contract continuity. Acceptance gate is the 11-clause conjunction in D-179: contract test parametrised over `[Local, MockSLURM, SLURM-DebugExecutor, Ray-local_mode]`, BCK-04 lint clean, extras gating intact, `running/` namespaced (breaking change with daemon-refusal-to-start guardrail), log unification orchestrator-owned, framework purity preserved, `node_0176`-equivalent smoke within ±0.005 across all CI-runnable backends. Ready for `/gsd-plan-phase 6`.
-- **Progress (milestone):** [██████░░░░] 67% (6/9 phases shipped, 60/60 plans complete; Phase 06 CONTEXT next gate is plan-phase)
-- **Next:** `/gsd-plan-phase 6` — phase-researcher fetches submitit + ray API surface; planner decomposes D-152..D-188 into wave-cadence plan files; plan-checker verifies plans achieve Phase 6 success criteria 1–5.
+- **Plans:** 10 across 7 waves (Wave 0–6) — committed at `2e0a886` post-iter-1 fixes
+- **Status:** All upstream artifacts in place: `06-CONTEXT.md` (37 D-152..D-188 decisions), `06-RESEARCH.md` (5 API corrections in OQ-1..4: `timeout_min`/`slurm_additional_parameters`/`job.paths.stdout`/`WorkerCrashedError`/`ray.init` no-local-mode), `06-VALIDATION.md` (Wave 0 stubs + per-task verification map), `06-PATTERNS.md` (21 files mapped to closest analogs), 10 PLAN.md files + `06-PLAN-SUMMARY.md`. Plan-checker iter-1 returned BLOCK with 1 BLOCKER (B-1: `Runner.create_worktree` API mismatch) + 8 warnings; iter-1 fixes applied inline (B-1 + W-1 entity scrub + W-9 explicit if/elif chain + W-4 subprocess cwd/env to avoid CWD pollution). Plan-checker iter-2 returned PASS — all fixes verified clean, all 4 unchanged dimensions still healthy.
+- **Wave map:** W0 (06-01 scaffolding) → W1 (06-02 extras+errors ‖ 06-03 config+check) → W2 (06-04 SLURM ‖ 06-05 Ray) → W3 (06-06 namespace migration) → W4 (06-07 log unification) → W5 (06-08 contract-test ‖ 06-09 node_0176 smoke) → W6 (06-10 acceptance gate).
+- **Progress (milestone):** [██████░░░░] 67% (6/9 phases shipped; Phase 06 plans ready, execution pending)
+- **Next:** `/gsd-execute-phase 6` — wave-based parallel execution via worktrees; estimated ~3.0h focused execution (~30% parallelism savings from W1/W2/W5 parallel pairs).
 
 ## Phase 5 Leo Follow-up (deferred — not a blocker for Phase 6)
 
@@ -112,7 +113,9 @@ None at roadmap-creation time. All inputs in place; Leo can review the roadmap a
 
 **Phase 05 prior:** Phase 05 fully shipped 2026-05-05/06. Executed 12 plans across 9 waves. Wave 1 parallel (05-01 stats.py + 05-03 JobSpec.metadata extension). Wave 2 (05-02 GateManifest persistence + atomic-write-plus-git-commit). Wave 3 parallel (05-04 nominate + graph helpers + 05-05 held-out isolation in trajectory redactor + rank). Wave 4 (05-06 evaluate_candidate via Backend.submit). Wave 5 (05-07 promote two-stage gate). Wave 6 (05-08 automil gate CLI group + scipy lifted to core deps + config.yaml.j2 gate: section). Wave 7 parallel (05-09 nominate/promote top-level CLI + 05-10 viz/status promotion_rate). Wave 8 (05-11 Pitfall-6 anti-acceptance gate — 9 D-149 assertions in single file: synthetic 3-cell graph, manifest registered, search loop, agent-blind verification, nominate, promote, status transitions, gate_eval submit metadata, post-promote trajectory leak verification). Wave 9 (05-12 calibration pilot scaffold + Leo follow-up). Notable: scipy 1.17.1 was already transitively installed; promoted to core deps. JobSpec.metadata kw-only frozen-dataclass field extension was non-breaking. atomic-write-plus-git-commit pattern rollback uses path.unlink + cached-payload restore (NOT git checkout per Leo memory feedback_never_blind_checkout). Bonferroni applied as alpha/K (DIVIDE direction enforced via grep-acceptance + AST guard). 779 tests + 9 skipped (+113 from Phase 4's 666 baseline). Framework purity preserved: zero autobench/AUTOBENCH_/benchmarks/ refs in src/automil/gate/. BCK-04 lint extended to cover gate/ subdirectory. test_pitfall6_held_out_isolation.py is the load-bearing acceptance gate; 35 Pitfall-6 assertion citations in 3 test functions all green.
 
-**Next action:** `/gsd-plan-phase 6`. Phase 06 CONTEXT is committed; ready for phase-researcher (submitit + ray API surface fetch via `mcp__context7__*` or web), planner (decomposition of D-152..D-188 into wave-cadence plan files; target ~9–11 plans across 6–7 waves), and plan-checker (verify plans achieve Phase 6 success criteria 1–5).
+**Next action:** `/gsd-execute-phase 6`. Phase 06 has 10 PLAN.md files + PLAN-SUMMARY + plan-checker PASS-iter-2. Wave-based parallel execution: W0→W1‖→W2‖→W3→W4→W5‖→W6. Estimated ~3.0h focused execution.
+
+**Phase 06 prior session log:** `/gsd-discuss-phase 6` (CONTEXT bootstrapped autonomously per `feedback_decide_engineering_ask_features` — 37 D-152..D-188 engineering decisions, fd3bd6b), `/gsd-plan-phase 6` (researcher sonnet → 5 API corrections, 5bdc1f7; VALIDATION.md 9037ff7; pattern-mapper sonnet 6076ac6; planner opus → 10 plans + summary; plan-checker opus iter-1 BLOCK with 1 blocker + 8 warnings → iter-1 fixes applied inline 2e0a886; plan-checker opus iter-2 PASS).
 
 **Resume file:** None
 
