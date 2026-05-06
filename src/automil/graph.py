@@ -12,7 +12,7 @@ import math
 import os
 import tempfile
 import tokenize
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -404,6 +404,47 @@ class ExperimentGraph:
             if len(result) >= n:
                 break
         return result
+
+    # --- Gate helpers (D-144, GTE-06) ---
+
+    def nominations_in_window(self, days: int = 30) -> list[dict]:
+        """Return nodes whose history contains a 'nominated' event in the last ``days`` days.
+
+        A node may have multiple 'nominated' events (e.g. retire+re-nominate).
+        The first matching event within the window is sufficient to include the
+        node in the result — each node appears at most once.
+
+        Legacy nodes without a ``history`` key are silently skipped (D-147).
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        result = []
+        for node in self.nodes.values():
+            for event in node.get("history", []):
+                if event.get("event") != "nominated":
+                    continue
+                try:
+                    ts = datetime.fromisoformat(event["timestamp"])
+                except (ValueError, KeyError, TypeError):
+                    continue
+                # Normalise naive timestamps to UTC for comparison
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=timezone.utc)
+                if ts > cutoff:
+                    result.append(node)
+                    break
+        return result
+
+    def promotion_rate(self, days: int = 30) -> float:
+        """Return promoted / nominated over a rolling window (D-144).
+
+        Returns 0.0 when no nominations exist in the window (zero-division guard).
+        Promoted nodes are those whose current status is ``'registered'``.
+        """
+        nominated = self.nominations_in_window(days)
+        if not nominated:
+            return 0.0
+        promoted = [n for n in nominated if n.get("status") == "registered"]
+        return len(promoted) / len(nominated)
 
     # --- Deduplication ---
     @staticmethod
