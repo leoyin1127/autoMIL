@@ -194,6 +194,20 @@ def _patch_no_cells(monkeypatch) -> None:
     monkeypatch.setattr("automil.gate.evaluate.get_cell", lambda cid: None)
 
 
+def _get_promote_module():
+    """Return the automil.gate.promote MODULE (not the function of the same name).
+
+    We must use sys.modules because `import automil.gate.promote` at the top
+    of the package resolves to the *function* due to the __init__.py re-export.
+    """
+    import importlib
+    import sys
+    # Force module load if not yet imported
+    if "automil.gate.promote" not in sys.modules:
+        importlib.import_module("automil.gate.promote")
+    return sys.modules["automil.gate.promote"]
+
+
 def _patch_evaluate_with_deltas(monkeypatch, deltas: list[float]) -> None:
     """Replace evaluate_candidate with a stub that returns given deltas."""
     def fake_evaluate(candidate_node_id, manifest, backend, graph, **kwargs):
@@ -212,7 +226,8 @@ def _patch_evaluate_with_deltas(monkeypatch, deltas: list[float]) -> None:
             for i, d in enumerate(deltas)
         ]
         return per_cell, []  # no skipped
-    monkeypatch.setattr("automil.gate.promote.evaluate_candidate", fake_evaluate)
+
+    monkeypatch.setattr(_get_promote_module(), "evaluate_candidate", fake_evaluate)
 
 
 # ---------------------------------------------------------------------------
@@ -257,14 +272,32 @@ def test_promote_requires_existing_manifest(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_promote_pass_path(tmp_path, monkeypatch):
-    """Strong positive deltas -> status='registered'; history has gate_result pass."""
+    """Strong positive deltas -> status='registered'; history has gate_result pass.
+
+    Uses 5 held-out cells with p_threshold=0.1 so the Bonferroni-corrected alpha
+    (0.1/5 = 0.02) is comfortably above the Wilcoxon minimum achievable p for n=5
+    (0.031 is the minimum with the one-sided test). We use rng_seed=42 for
+    deterministic bootstrap CI.
+    """
     from automil.gate.promote import promote
 
-    deltas = [0.05, 0.04, 0.06]
+    # 5 strongly-positive deltas; Wilcoxon p=0.031, Bonferroni-corrected alpha=0.02
+    # We use p_threshold=0.2 (K=5 -> p_corrected=0.04 > 0.031)
+    deltas = [0.05, 0.04, 0.06, 0.03, 0.05]
     _patch_evaluate_with_deltas(monkeypatch, deltas)
 
+    held_out_cells = [
+        ("cell_a", "ccrcc", "uni_v2", "high_grade"),
+        ("cell_b", "clwd", "hibou_l", "subtype"),
+        ("cell_c", "ccrcc", "ctranspath", "high_grade"),
+        ("cell_d", "clwd", "uni_v2", "subtype"),
+        ("cell_e", "ccrcc", "uni_v2", "subtype"),
+    ]
     graph = _make_graph(candidate_status="candidate", tmp_path=tmp_path)
-    manifest = _make_manifest(K=3, bootstrap_reps=100)
+    # p_threshold=0.2 -> Bonferroni-corrected = 0.2/5 = 0.04; Wilcoxon p=0.031 <= 0.04 -> PASS
+    manifest = _make_manifest(
+        held_out_cells=held_out_cells, K=5, p_threshold=0.2, bootstrap_reps=200
+    )
     manifests_dir = tmp_path / "gate"
     write_manifest(manifest, manifests_dir)
     archive_dir = tmp_path / "archive"
@@ -277,7 +310,7 @@ def test_promote_pass_path(tmp_path, monkeypatch):
         archive_dir=archive_dir,
     )
 
-    assert result is True
+    assert result is True, "Expected pass path to return True"
     node = graph.nodes["node_0002"]
     assert node["status"] == "registered"
 
@@ -288,8 +321,8 @@ def test_promote_pass_path(tmp_path, monkeypatch):
     assert ev["result"] == "pass"
     assert "p_value" in ev
     assert ev.get("ci_low") is not None
-    assert ev["wins"] == 3
-    assert ev["K_effective"] == 3
+    assert ev["wins"] == 5
+    assert ev["K_effective"] == 5
     assert ev.get("skipped_cells_due_to_cap", []) == []
 
 
@@ -354,7 +387,7 @@ def test_promote_inconclusive_when_K_effective_below_floor(tmp_path, monkeypatch
         skipped = ["cell_1111", "cell_2222"]  # 2 skipped -> K_effective = 3 - 2 = 1
         return per_cell, skipped
 
-    monkeypatch.setattr("automil.gate.promote.evaluate_candidate", fake_evaluate)
+    monkeypatch.setattr(_get_promote_module(), "evaluate_candidate", fake_evaluate)
 
     # Manifest K=3 with 3 cells
     manifest = _make_manifest(
@@ -408,7 +441,7 @@ def test_promote_uses_bonferroni_corrected_alpha(tmp_path, monkeypatch):
         captured["p_threshold"] = p_threshold
         return original_func(deltas, p_threshold, bootstrap_reps, rng_seed)
 
-    monkeypatch.setattr("automil.gate.promote.paired_wilcoxon_with_bootstrap", spy)
+    monkeypatch.setattr(_get_promote_module(), "paired_wilcoxon_with_bootstrap", spy)
 
     # 4 cells, K=4
     held_out_cells = [

@@ -23,6 +23,7 @@ from automil.gate.manifest import (
     write_manifest_committed,
 )
 from automil.gate.nominate import nominate
+from automil.gate.promote import promote
 from automil.gate.stats import (
     bonferroni_correct,
     diagnose_gate_health,
@@ -39,6 +40,7 @@ __all__ = [
     "load_manifest",
     "nominate",
     "paired_wilcoxon_with_bootstrap",
+    "promote",
     "read_manifest",
     "retire_manifest",
     "validate_manifest_dict",
