@@ -273,6 +273,107 @@ def query_gpus() -> list[GPUInfo]:
 
 
 # ---------------------------------------------------------------------------
+# D-170 / D-171: Cross-backend log unification helpers
+# ---------------------------------------------------------------------------
+
+def _atomic_write_lines(path: Path, lines: list[str]) -> None:
+    """Atomic write of log lines (D-170 / Phase 0 D-25 atomic-write pattern).
+
+    Uses tempfile.mkstemp neighbour + os.replace (NOT git checkout — Leo memory
+    feedback_never_blind_checkout: rollback uses os.unlink).
+
+    Args:
+        path: target path (parent dir created if absent).
+        lines: list of strings; pre-existing newline characters are preserved.
+            If callers provide raw lines without newlines, the writer does NOT
+            add them — this matches LocalBackend's log_iter() semantics where
+            splitlines(keepends=True) is used at yield time.
+    """
+    import os as _os                # noqa: PLC0415; module-scope helper
+    import tempfile as _tempfile    # noqa: PLC0415
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_fd, tmp_path = _tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    try:
+        with _os.fdopen(tmp_fd, "w") as f:
+            f.writelines(lines)
+        _os.replace(tmp_path, str(path))
+    except Exception:
+        try:
+            _os.unlink(tmp_path)  # rollback per memory:feedback_never_blind_checkout
+        except OSError:
+            pass
+        raise
+
+
+def _drain_log_iter_with_timeout(backend, handle, timeout: float = 60.0) -> list[str]:
+    """Drain backend.log_iter(handle) with a hard timeout (D-170).
+
+    Spawns a daemon thread that consumes the iterator. After `timeout` seconds
+    the wrapper returns the lines collected so far; backends whose log_iter
+    doesn't close within the timeout are treated as a contract violation
+    (logged warning). The thread is daemon=True so abandoned drainers are
+    cleaned up on daemon exit.
+    """
+    import threading as _threading  # noqa: PLC0415
+
+    lines: list[str] = []
+    done = _threading.Event()
+
+    def _drain() -> None:
+        try:
+            for line in backend.log_iter(handle):
+                lines.append(line)
+        except Exception as exc:
+            logger.warning("_drain_log_iter_with_timeout: log_iter raised %s", exc)
+        finally:
+            done.set()
+
+    t = _threading.Thread(target=_drain, daemon=True)
+    t.start()
+    t.join(timeout=timeout)
+    if not done.is_set():
+        node_label = getattr(handle, "node_id", "<unknown>")
+        logger.warning(
+            "log_iter for %s did not close within %.1fs — force-closing (D-170 contract violation).",
+            node_label, timeout,
+        )
+    return lines
+
+
+def _symlink_slurm_logs(automil_dir: Path, archive_node_dir: Path, spec_data: dict) -> None:
+    """D-171: symlink submitit's native stdout/stderr logs into archive/<id>/.
+
+    Creates archive/<id>/slurm-stdout.out and archive/<id>/slurm-stderr.err as
+    symlinks (NOT copies) pointing at submitit-logs/{opaque_id}_0_log.out/.err.
+    Reduces disk usage — submitit already owns those files on disk.
+
+    This is a module-level function (NOT a method) so it can be tested without
+    instantiating ExperimentOrchestrator.
+    """
+    opaque_id = spec_data.get("opaque_id", "")
+    if not opaque_id:
+        return
+    submitit_logs = (
+        automil_dir / "orchestrator" / "running" / "slurm" / "submitit-logs"
+    )
+    stdout_src = submitit_logs / f"{opaque_id}_0_log.out"
+    stderr_src = submitit_logs / f"{opaque_id}_0_log.err"
+    stdout_dst = archive_node_dir / "slurm-stdout.out"
+    stderr_dst = archive_node_dir / "slurm-stderr.err"
+    if stdout_src.exists() and not stdout_dst.exists():
+        try:
+            stdout_dst.symlink_to(stdout_src.resolve())
+        except OSError as exc:
+            logger.warning("D-171 stdout symlink failed: %s", exc)
+    if stderr_src.exists() and not stderr_dst.exists():
+        try:
+            stderr_dst.symlink_to(stderr_src.resolve())
+        except OSError as exc:
+            logger.warning("D-171 stderr symlink failed: %s", exc)
+
+
+# ---------------------------------------------------------------------------
 # Orchestrator
 # ---------------------------------------------------------------------------
 class ExperimentOrchestrator:
@@ -861,6 +962,38 @@ class ExperimentOrchestrator:
         except Exception:
             return 5
 
+    def _read_backend_name_for_node(self, node_id: str) -> str:
+        """Read metadata.backend from the running spec (any backend subdir) or archive spec.
+
+        Returns 'local' as fallback (Phase 2 D-76 legacy compatibility).
+        """
+        for backend_subdir in ("local", "slurm", "ray"):
+            candidate = self.running_root / backend_subdir / f"{node_id}.json"
+            if candidate.exists():
+                try:
+                    payload = json.loads(candidate.read_text())
+                    return payload.get("backend") or backend_subdir
+                except (json.JSONDecodeError, OSError):
+                    continue
+        archive_spec = self.archive_dir / node_id / "spec.json"
+        if archive_spec.exists():
+            try:
+                payload = json.loads(archive_spec.read_text())
+                return payload.get("metadata", {}).get("backend", "local")
+            except (json.JSONDecodeError, OSError):
+                pass
+        return "local"
+
+    def _read_running_spec(self, node_id: str, backend_name: str) -> dict:
+        """Read running/<backend>/<node>.json; return {} if absent."""
+        path = self.running_root / backend_name / f"{node_id}.json"
+        if not path.exists():
+            return {}
+        try:
+            return json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return {}
+
     def _handle_completion(self, node_id: str, returncode: int):
         """Process a completed experiment: collect results, write TSV, clean up."""
         exp = self.running.pop(node_id)
@@ -1004,6 +1137,45 @@ class ExperimentOrchestrator:
 
         # Append to results.tsv (sole writer)
         self._append_results_tsv(node_id, result, description=spec.get("description", ""))
+
+        # D-170: cross-backend log unification.
+        # For non-local backends, the orchestrator drains backend.log_iter()
+        # into archive/<id>/run.log. The local backend already writes this file
+        # inline (via log_fh in _launch); we only add the cross-backend drain
+        # for SLURM/Ray cases where archive run.log doesn't yet exist.
+        archive_run_log = archive / "run.log"
+        backend_name_for_node = self._read_backend_name_for_node(node_id)
+        if backend_name_for_node and backend_name_for_node != "local" and not archive_run_log.exists():
+            try:
+                from automil.backends import BACKENDS  # noqa: PLC0415
+                from automil.backends.base import JobHandle  # noqa: PLC0415
+                BackendCls = BACKENDS.get(backend_name_for_node)
+                if BackendCls is not None:
+                    spec_data = self._read_running_spec(node_id, backend_name_for_node)
+                    drain_handle = JobHandle(
+                        node_id=node_id,
+                        backend=backend_name_for_node,
+                        opaque_id=spec_data.get("opaque_id", ""),
+                        submitted_at=spec_data.get("submitted_at", 0.0),
+                    )
+                    # Reuse the configured backend instance if it matches; else instantiate.
+                    _backend = (
+                        self.backend
+                        if (
+                            self.backend is not None
+                            and getattr(self.backend, "_backend_name", None) == backend_name_for_node
+                        )
+                        else BackendCls(self.automil_dir, self.config)
+                    )
+                    drain_lines = _drain_log_iter_with_timeout(_backend, drain_handle, timeout=60.0)
+                    _atomic_write_lines(archive_run_log, drain_lines)
+                    # D-171: for SLURM nodes, symlink submitit's native log files into archive/.
+                    if backend_name_for_node == "slurm":
+                        _symlink_slurm_logs(self.automil_dir, archive, spec_data)
+            except Exception as exc:
+                logger.warning(
+                    "D-170 cross-backend log unification failed for %s: %s", node_id, exc
+                )
 
         # Clean running spec
         running_spec = self.running_dir / f"{node_id}.json"
