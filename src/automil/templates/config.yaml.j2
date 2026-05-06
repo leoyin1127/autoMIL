@@ -102,3 +102,30 @@ loss:
   variant: null    # e.g. "ce_smooth008"
 policy:
   variant: null    # e.g. "sam_lookahead"
+
+# --- Backend configuration (Phase 6 / D-152..D-188) ---
+# Select the job execution backend. Default "local" works on any machine.
+# "slurm" requires: pip install -e '.[slurm]' + valid directives below.
+# "ray"   requires: pip install -e '.[ray]'   + RAY_ADDRESS env var or local cluster.
+backend:
+  name: "local"            # "local" | "slurm" | "ray"
+
+  slurm:
+    # walltime_seconds is the framework-side cap value (D-155, RESEARCH.md OQ-1).
+    # SLURMBackend converts this to submitit's timeout_min = max(1, walltime_seconds // 60).
+    walltime_seconds: 21600       # 6h default; override per-campaign
+    debug_in_process: false       # set true to use submitit cluster="debug" (CI/test only)
+    directives:
+      partition: "TODO_FILL_IN"   # required — operator-supplied; e.g. "compute"
+      account: "TODO_FILL_IN"     # required — operator-supplied; e.g. "mylab"
+      qos: null                   # optional — null disables; e.g. "high"
+      cpus_per_task: 8            # required — integer
+      mem_gb: 48                  # required — integer
+      gpus_per_node: 1            # optional — defaults to 1 if omitted
+      # NOTE: `signal` is framework-mandated as "B:TERM@30" (Phase 4 D-115 cap contract);
+      # automil check rejects any operator override here.
+
+  ray:
+    # Hybrid init (D-161): try ray.init(address=RAY_ADDRESS or "auto"); on
+    # ConnectionError fall back to local cluster IF allow_local_fallback is true.
+    allow_local_fallback: true    # false → raise RayClusterUnreachableError if RAY_ADDRESS unreachable
