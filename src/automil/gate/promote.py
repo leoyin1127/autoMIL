@@ -155,9 +155,7 @@ def promote(
     # ------------------------------------------------------------------ #
     deltas = np.array([r["delta"] for r in per_cell_results])
     p_corrected = bonferroni_correct(manifest.p_threshold, K_effective)
-    passes_test, p_value, (ci_low, ci_high), wins = paired_wilcoxon_with_bootstrap(
-        deltas, p_corrected, manifest.bootstrap_reps,
-    )
+    passes_test, p_value, (ci_low, ci_high), wins = paired_wilcoxon_with_bootstrap(deltas, p_corrected, manifest.bootstrap_reps)  # noqa: E501
 
     # Win iff: Wilcoxon p <= alpha_corrected AND CI lower > 0 AND >= K_effective wins
     gate_pass = bool(passes_test and (wins >= K_effective))
