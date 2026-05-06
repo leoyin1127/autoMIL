@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-02T07:28:20.577Z"
+last_updated: "2026-05-06T18:11:19.647Z"
 progress:
   total_phases: 9
-  completed_phases: 1
-  total_plans: 19
-  completed_plans: 7
-  percent: 37
+  completed_phases: 6
+  total_plans: 70
+  completed_plans: 62
+  percent: 89
 ---
 
 # State: autoMIL — F2-readiness framework refactor
@@ -30,17 +30,29 @@ progress:
 - `CLAUDE.md` — project instructions and Leo's standing directives
 - `~/.claude/projects/-home-jma-Documents-yinshuol-autoMIL/memory/MEMORY.md` — Leo's standing memory (saturate GPUs, research before submit, never blind-checkout, architectural-not-hyperparam, never ask continue autonomously)
 
-**Current focus:** Phase 01 — variant-registry-config-driven-train-py-ccrcc-reproduction-s
+**Current focus:** Phase 06 — slurm-backend-submitit-ray-backend-raw-ray-remote
 
 ## Current Position
 
-Phase: 01 (variant-registry-config-driven-train-py-ccrcc-reproduction-s) — EXECUTING
-Plan: 1 of 12
+Phase: 06 (slurm-backend-submitit-ray-backend-raw-ray-remote) — EXECUTING
+Plan: 2 of 10
 
-- **Phase:** 0 — Tier 2 cleanup + CLI split + compat shim
-- **Plan:** none yet (run `/gsd-plan-phase 0` to decompose)
-- **Status:** Executing Phase 01
-- **Progress:** [██████████] 100%
+- **Phase:** 06 — SLURM backend (submitit) + Ray backend (raw ray.remote)
+- **Plans:** 10 across 7 waves (Wave 0–6) — committed at `2e0a886` post-iter-1 fixes
+- **Status:** Ready to execute
+- **Wave map:** W0 (06-01 scaffolding) → W1 (06-02 extras+errors ‖ 06-03 config+check) → W2 (06-04 SLURM ‖ 06-05 Ray) → W3 (06-06 namespace migration) → W4 (06-07 log unification) → W5 (06-08 contract-test ‖ 06-09 node_0176 smoke) → W6 (06-10 acceptance gate).
+- **Progress (milestone):** [██████░░░░] 67% (6/9 phases shipped; Phase 06 plans ready, execution pending)
+- **Next:** `/gsd-execute-phase 6` — wave-based parallel execution via worktrees; estimated ~3.0h focused execution (~30% parallelism savings from W1/W2/W5 parallel pairs).
+
+## Phase 5 Leo Follow-up (deferred — not a blocker for Phase 6)
+
+The calibration pilot (D-151, Plan 05-12) framework-side scaffold is committed at `90011e8`. The actual empirical K-threshold determination requires Leo to:
+
+1. Choose a known-good change (recommended: CCRCC `node_0176` config applied to fresh cells).
+2. Pick 3-5 fresh cells (3 CCRCC + 2 CLWD per recommendation).
+3. Register a calibration manifest, submit, run `automil promote --calibrate <candidate_id>`.
+4. Inspect the delta matrix in `archive/<candidate_id>/gate_evaluation.jsonl` and pick K such that the change passes consistently.
+5. Update `.planning/phase-05-calibration.md` with chosen K and rationale; commit.
 
 ## Performance Metrics
 
@@ -52,11 +64,18 @@ Plan: 1 of 12
 | Granularity | fine | Per `.planning/config.json` |
 | Parallelization | enabled | Phase 6 ↔ Phase 7 are the strongest parallel pair |
 | Mode | yolo | Auto-approve gates within roadmap; Leo reviews artifacts |
+| Phase 02 P02-01 | 6m | 3 tasks | 5 files |
+| Phase 02 P02-06 | 8m | 3 tasks | 1 file |
+| Phase 02 P02-07 | 8m | 5 tasks | 5 files |
+| Phase 02 P02-08 | 25 | 6 tasks | 5 files |
+| Phase 06 P01 | 360 | 3 tasks | 8 files |
 
 ## Accumulated Context
 
 ### Decisions logged (from PROJECT.md → ROADMAP.md)
 
+- MockSLURMBackend: PENDING/RUNNING→CRASHED on restart (timer threads cannot resume) — ✓ Done (02-06, 2026-05-02)
+- BCK-04 lint allowlist includes viz/server.py (viz daemon PID lifecycle, not job-control) — ✓ Done (02-07, 2026-05-02)
 - Registry-first, not config-first, for cross-dataset isolation — Pending (Phase 1)
 - Skills only for autonomous setup; CLI for everything else — Pending (Phase 7)
 - Pluggable orchestrator backends with `local` as default — Pending (Phase 2 ABC, Phase 6 SLURM/Ray)
@@ -92,11 +111,15 @@ None at roadmap-creation time. All inputs in place; Leo can review the roadmap a
 
 ## Session Continuity
 
-**Last action:** Phase 0 context gathered (2026-05-01 via `/gsd-discuss-phase 0`). CONTEXT.md + DISCUSSION-LOG.md written and committed (`b696e24`). 20 implementation decisions captured (D-01..D-20) across CLI split, env whitelist, compat.py shape, `reconcile --recompute-best` contract, plus mechanical CLN items.
+**Last action:** Phase 06 CONTEXT bootstrapped autonomously 2026-05-06 (commit `fd3bd6b`). Leo's `/gsd-discuss-phase 6` invocation; presented 4 gray areas via AskUserQuestion (SLURM directives source, Ray init lifecycle, `running/` namespace migration, cross-backend test infra). Leo response: "no need to discuss the engineering/coding level question with me, only feature and user level question needed. You may decide based on best practice and production level experiences." Bootstrapped CONTEXT.md with 37 locked engineering decisions (D-152..D-188). Key resolutions: SLURM directives = framework-mandated (`time` from cap budget, `signal=B:TERM@30` matching Phase 4 D-115) + consumer-supplied (cluster-specific via `automil/config.yaml: backend.slurm.directives` with `automil check` enforcing TODO-sentinel removal); Ray init = hybrid (try `RAY_ADDRESS`, fall back to local) matching FSDP/accelerate pattern; `running/` namespacing = breaking change (CLAUDE.md "no BC hacks" + refactor milestone) with daemon-refusal-to-start guardrail; test infra = parametrised over `[Local, MockSLURM, SLURM-DebugExecutor, Ray-local_mode]` in CI + `requires_slurm`/`requires_ray` markers for nightly real-cluster; one-actor-per-submit on Ray (no multi-fold placement groups) matching Local + SLURM semantics; log unification = orchestrator-owned (drains `backend.log_iter()` into `archive/<id>/run.log` via Phase 0 atomic-write pattern); submitit `Checkpointable` NOT used (D-122 framework-doesn't-inject precludes). Phase 5's prior action notes follow below for continuity.
 
-**Next action:** Run `/gsd-plan-phase 0` to decompose Phase 0 into executable plans. Per-CLN/CLI-item commits (target 8) at `fine` granularity.
+**Phase 05 prior:** Phase 05 fully shipped 2026-05-05/06. Executed 12 plans across 9 waves. Wave 1 parallel (05-01 stats.py + 05-03 JobSpec.metadata extension). Wave 2 (05-02 GateManifest persistence + atomic-write-plus-git-commit). Wave 3 parallel (05-04 nominate + graph helpers + 05-05 held-out isolation in trajectory redactor + rank). Wave 4 (05-06 evaluate_candidate via Backend.submit). Wave 5 (05-07 promote two-stage gate). Wave 6 (05-08 automil gate CLI group + scipy lifted to core deps + config.yaml.j2 gate: section). Wave 7 parallel (05-09 nominate/promote top-level CLI + 05-10 viz/status promotion_rate). Wave 8 (05-11 Pitfall-6 anti-acceptance gate — 9 D-149 assertions in single file: synthetic 3-cell graph, manifest registered, search loop, agent-blind verification, nominate, promote, status transitions, gate_eval submit metadata, post-promote trajectory leak verification). Wave 9 (05-12 calibration pilot scaffold + Leo follow-up). Notable: scipy 1.17.1 was already transitively installed; promoted to core deps. JobSpec.metadata kw-only frozen-dataclass field extension was non-breaking. atomic-write-plus-git-commit pattern rollback uses path.unlink + cached-payload restore (NOT git checkout per Leo memory feedback_never_blind_checkout). Bonferroni applied as alpha/K (DIVIDE direction enforced via grep-acceptance + AST guard). 779 tests + 9 skipped (+113 from Phase 4's 666 baseline). Framework purity preserved: zero autobench/AUTOBENCH_/benchmarks/ refs in src/automil/gate/. BCK-04 lint extended to cover gate/ subdirectory. test_pitfall6_held_out_isolation.py is the load-bearing acceptance gate; 35 Pitfall-6 assertion citations in 3 test functions all green.
 
-**Resume file:** `.planning/phases/00-tier-2-cleanup-cli-split-compat-shim/00-CONTEXT.md`
+**Next action:** `/gsd-execute-phase 6`. Phase 06 has 10 PLAN.md files + PLAN-SUMMARY + plan-checker PASS-iter-2. Wave-based parallel execution: W0→W1‖→W2‖→W3→W4→W5‖→W6. Estimated ~3.0h focused execution.
+
+**Phase 06 prior session log:** `/gsd-discuss-phase 6` (CONTEXT bootstrapped autonomously per `feedback_decide_engineering_ask_features` — 37 D-152..D-188 engineering decisions, fd3bd6b), `/gsd-plan-phase 6` (researcher sonnet → 5 API corrections, 5bdc1f7; VALIDATION.md 9037ff7; pattern-mapper sonnet 6076ac6; planner opus → 10 plans + summary; plan-checker opus iter-1 BLOCK with 1 blocker + 8 warnings → iter-1 fixes applied inline 2e0a886; plan-checker opus iter-2 PASS).
+
+**Resume file:** None
 
 **To resume in a fresh session:** Read this file first, then `.planning/ROADMAP.md`, then the phase's `00-CONTEXT.md`, then plan files under `.planning/phases/00-tier-2-cleanup-cli-split-compat-shim/plans/` (created by `/gsd-plan-phase`).
 

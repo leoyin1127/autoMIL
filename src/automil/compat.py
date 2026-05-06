@@ -57,8 +57,10 @@ the move). Future plan authors set this when promoting an entry.
 """
 from __future__ import annotations
 
+import warnings as _warnings
+
 # ---------------------------------------------------------------------------
-# Active aliases (D-07) — EMPTY in Phase 0
+# Active aliases (D-07)
 # ---------------------------------------------------------------------------
 # Future phases promote entries from `_PLANNED_MIGRATIONS` below into this
 # section by adding a live re-export that emits DeprecationWarning on USE.
@@ -67,6 +69,40 @@ from __future__ import annotations
 # Phase 0 ships zero entries: cli.py was renamed to a cli/ package and
 # cli/__init__.py re-exports `main`, so `from automil.cli import main` keeps
 # resolving without a compat shim.
+#
+# Phase 2 (D-60): automil.orchestrator.ExperimentOrchestrator ->
+#   automil.backends._orchestrator_daemon.ExperimentOrchestrator
+# The full re-export shim lives at src/automil/orchestrator.py (the old path);
+# existing `from automil.orchestrator import ExperimentOrchestrator` call sites
+# continue to resolve via that shim. See also Plan 02-04.
+
+# --- Active deprecated path: automil.claude_assets (promoted Phase 3 / D-88) ---
+def __getattr__(name: str):
+    """PEP 562: redirect automil.claude_assets.* imports to automil.agent_assets (D-88)."""
+    # WR-01 pattern: short-circuit dunder probes BEFORE issuing DeprecationWarning.
+    # The import machinery and pytest collection probe __path__, __spec__, etc.
+    # on every module access; warning on each one floods the test output.
+    if name.startswith("__") and name.endswith("__"):
+        raise AttributeError(name)
+    _warnings.warn(
+        _DEPRECATION_MESSAGE_FORMAT.format(
+            old_path=f"automil.claude_assets.{name}",
+            new_path="automil.agent_assets._shared or automil.agent_assets.claude",
+            phase=3,
+            date="2027-06",
+        ),
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    # Attempt to redirect to agent_assets equivalent
+    import importlib as _importlib
+    try:
+        return _importlib.import_module(f"automil.agent_assets.{name}")
+    except ModuleNotFoundError:
+        raise AttributeError(
+            f"automil.claude_assets.{name!r} has no equivalent in automil.agent_assets; "
+            f"check the Phase 3 migration guide."
+        )
 
 # ---------------------------------------------------------------------------
 # Deprecation-message format (D-09)
@@ -83,24 +119,10 @@ _DEPRECATION_MESSAGE_FORMAT = (
 # the Active section above; this dict shrinks by one entry per promotion.
 # NEVER imported. NEVER executed. Pure documentation.
 _PLANNED_MIGRATIONS: dict[str, dict[str, object]] = {
-    "automil.orchestrator.ExperimentOrchestrator": {
-        "new_path": "automil.backends.local.LocalBackend",
-        "owning_phase": 2,
-        "rationale": (
-            "BCK-02: Phase 2 ships LocalBackend as a re-export shim over the "
-            "existing 750-line orchestrator code so the Backend ABC has a real "
-            "implementation locked against the MockSLURM fixture."
-        ),
-    },
-    "automil.claude_assets": {
-        "new_path": "automil.agent_assets._shared + automil.agent_assets.claude",
-        "owning_phase": 3,
-        "rationale": (
-            "MRT-01: Phase 3 reorganises agent assets so _shared/ holds the "
-            "canonical SKILL.md and per-runtime subdirectories (claude/, "
-            "codex/, opencode/) hold only diffs/overrides."
-        ),
-    },
+    # NOTE: "automil.orchestrator.ExperimentOrchestrator" was promoted to Active
+    # in Phase 2 (Plan 02-04 / D-60). Removed from this dict per the D-08 rule.
+    # NOTE: "automil.claude_assets" was promoted to Active in Phase 3 (Plan 03-02
+    # / D-88). The live __getattr__ shim is in the Active aliases section above.
     "TBD-Phase-1": {
         "new_path": "TBD-Phase-1",
         "owning_phase": 1,

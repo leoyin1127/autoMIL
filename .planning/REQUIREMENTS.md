@@ -37,12 +37,12 @@ Scope of this milestone. Each maps to exactly one roadmap phase (filled in durin
 
 <!-- Pluggable orchestrator: same code on laptop, SLURM cluster, Ray cluster. -->
 
-- [ ] **BCK-01**: `Backend` ABC with `submit(spec) -> JobHandle`, `poll(handle) -> JobState`, `list_running() -> [JobHandle]`, `cancel(handle, signal) -> None`, `log_iter(handle) -> Iterator[str]`; state-not-control-flow `JobState` enum (`pending | running | completed | crashed | cancelled | budget_killed`)
-- [ ] **BCK-02**: `LocalBackend` ships as a re-export shim over the existing 750-line orchestrator; behavioural diff vs current orchestrator = empty (verified by existing 48-test suite passing)
-- [ ] **BCK-03**: `MockSLURMBackend` test fixture: simulates eventual-consistency status (5s poll lag), opaque `job_id`, fire-and-forget `cancel`, node-local filesystem; used to validate the ABC against ≥2 implementations BEFORE locking
-- [ ] **BCK-04**: Lint check (ruff/mypy custom rule) forbids `os.kill`, `Popen`, `pid` references outside `backends/local.py` and `backends/_orchestrator_daemon.py`
-- [ ] **BCK-05**: `SLURMBackend` (`backends/slurm.py`) on top of `submitit>=1.5.3`; opt-in via `pip install -e '.[slurm]'`; `--time --signal=B:TERM@30` SLURM directives match framework's wall-clock contract
-- [ ] **BCK-06**: `RayBackend` (`backends/ray.py`) on top of `ray>=2.55.1` raw `ray.remote` + placement groups (NOT `ray.tune`); opt-in via `pip install -e '.[ray]'`; `ray.get(timeout=...)` + `ray.cancel(force=True)` honour wall-clock contract
+- [x] **BCK-01**: `Backend` ABC with `submit(spec) -> JobHandle`, `poll(handle) -> JobState`, `list_running() -> [JobHandle]`, `cancel(handle, signal) -> None`, `log_iter(handle) -> Iterator[str]`; state-not-control-flow `JobState` enum (`pending | running | completed | crashed | cancelled | budget_killed`)
+- [x] **BCK-02**: `LocalBackend` ships as a re-export shim over the existing 750-line orchestrator; behavioural diff vs current orchestrator = empty (verified by existing 48-test suite passing)
+- [x] **BCK-03**: `MockSLURMBackend` test fixture: simulates eventual-consistency status (5s poll lag), opaque `job_id`, fire-and-forget `cancel`, node-local filesystem; used to validate the ABC against ≥2 implementations BEFORE locking
+- [x] **BCK-04**: Lint check (ruff/mypy custom rule) forbids `os.kill`, `Popen`, `pid` references outside `backends/local.py` and `backends/_orchestrator_daemon.py`
+- [x] **BCK-05**: `SLURMBackend` (`backends/slurm.py`) on top of `submitit>=1.5.3`; opt-in via `pip install -e '.[slurm]'`; `--time --signal=B:TERM@30` SLURM directives match framework's wall-clock contract
+- [x] **BCK-06**: `RayBackend` (`backends/ray.py`) on top of `ray>=2.55.1` raw `ray.remote` + placement groups (NOT `ray.tune`); opt-in via `pip install -e '.[ray]'`; `ray.get(timeout=...)` + `ray.cancel(force=True)` honour wall-clock contract
 
 ### Trajectory (TRJ)
 
@@ -94,8 +94,8 @@ Scope of this milestone. Each maps to exactly one roadmap phase (filled in durin
 
 - [ ] **CLI-01**: `automil apply <node_id>` copies a node's variant module + config delta back to the working tree
 - [ ] **CLI-02**: `automil revert-baseline` resets all `registry.editable` paths to their `base_commit` state (idempotent)
-- [ ] **CLI-03**: `automil cancel <node_id>` terminates a running experiment via the backend's `cancel`; archives current state with `status: cancelled`
-- [ ] **CLI-04**: `automil resubmit <node_id>` re-queues a crashed/cancelled node with a fresh worktree
+- [x] **CLI-03**: `automil cancel <node_id>` terminates a running experiment via the backend's `cancel`; archives current state with `status: cancelled`
+- [x] **CLI-04**: `automil resubmit <node_id>` re-queues a crashed/cancelled node with a fresh worktree
 - [ ] **CLI-05**: `automil port-variant <node_id>` converts a node's overlay (dirty edits) into a registered variant module + manifest; idempotent; rejects nodes that are already registered
 - [ ] **CLI-06**: `automil promote-variant <node_id>` moves a candidate variant into the canonical `variants/` directory, writes provenance manifest, and stages for commit
 - [ ] **CLI-07**: `automil reconcile --recompute-best` rebuilds `meta.best_node_id` from the honest non-leaky composite walking only `executed/keep` nodes (closes T2 from earlier this session)
@@ -189,12 +189,12 @@ Mapped 2026-05-01 by `gsd-roadmapper` against `.planning/ROADMAP.md` (9 phases).
 | REG-07 | Phase 1 | Pending |
 | REG-08 | Phase 1 | Pending |
 | REG-09 | Phase 1 | Pending |
-| BCK-01 | Phase 2 | Pending |
-| BCK-02 | Phase 2 | Pending |
-| BCK-03 | Phase 2 | Pending |
-| BCK-04 | Phase 2 | Pending |
-| BCK-05 | Phase 6 | Pending |
-| BCK-06 | Phase 6 | Pending |
+| BCK-01 | Phase 2 | Complete |
+| BCK-02 | Phase 2 | Complete |
+| BCK-03 | Phase 2 | Complete |
+| BCK-04 | Phase 2 | Complete |
+| BCK-05 | Phase 6 | Complete |
+| BCK-06 | Phase 6 | Complete |
 | TRJ-01 | Phase 3 | Pending |
 | TRJ-02 | Phase 3 | Pending |
 | TRJ-03 | Phase 3 | Pending |
@@ -221,8 +221,8 @@ Mapped 2026-05-01 by `gsd-roadmapper` against `.planning/ROADMAP.md` (9 phases).
 | GTE-06 | Phase 5 | Pending |
 | CLI-01 | Phase 1 | Pending |
 | CLI-02 | Phase 1 | Pending |
-| CLI-03 | Phase 2 | Pending |
-| CLI-04 | Phase 2 | Pending |
+| CLI-03 | Phase 2 | Complete |
+| CLI-04 | Phase 2 | Complete |
 | CLI-05 | Phase 1 | Pending |
 | CLI-06 | Phase 1 | Pending |
 | CLI-07 | Phase 0 | Pending |

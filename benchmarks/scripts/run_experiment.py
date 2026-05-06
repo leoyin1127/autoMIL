@@ -29,6 +29,7 @@ import torch
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
+from automil.runtime_helpers import register_sigterm_flush
 from autobench.config import load_dataset_config
 from autobench.pipeline.config import (
     ExperimentConfig,
@@ -98,6 +99,12 @@ def summary_to_result_json(summary: dict, elapsed: float) -> dict:
 
 
 def main() -> None:
+    # CAP-03 / D-121: install SIGTERM handler BEFORE any DataLoader/multiprocessing setup.
+    # The handler aggregates archive/<node>/fold_*_result.json into a partial result.json
+    # on cap-driven cancel, then sys.exit(0) — letting the orchestrator reconcile to
+    # status='executed' with metadata.budget_killed=True.
+    register_sigterm_flush()
+
     args = parse_args()
     start_time = time.time()
 

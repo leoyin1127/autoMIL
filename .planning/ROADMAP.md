@@ -14,10 +14,10 @@ An agent can autonomously discover model improvements for any user's training co
 
 - [ ] **Phase 0: Tier 2 cleanup + CLI split + compat shim** — close CONCERNS HIGH-severity items, split monolithic `cli.py`, add `compat.py` re-export so all 48 tests stay green
 - [ ] **Phase 1: Variant registry + config-driven train + reproduction sanity** — keystone phase; ports CCRCC dirty edits to registered variants, validates with ±0.005 reproduction of `node_0176`
-- [ ] **Phase 2: Backend ABC + LocalBackend re-export + MockSLURM fixture** — design backend interface against ≥2 implementations before locking; ABC bounds Phase 6
-- [ ] **Phase 3: Trajectory recorder + multi-runtime asset reorg** — JSONL trajectories with OTel `gen_ai.*` keys + redaction; `agent_assets/_shared/` + per-runtime overlays; ≥2 runtimes validated end-to-end
-- [ ] **Phase 4: 6h per-cell hard cap + cell-concept formalization** — first-class `cell_id`, two-tier cap (refuse-new at T-buffer, terminate at T), per-fold checkpoint protocol, partial-result reconciliation
-- [ ] **Phase 5: Generalization gate** — `candidate` node status, pre-registered `gate_manifest.json`, paired Wilcoxon + bootstrap CI + Bonferroni, manual nomination default, promotion-rate metric
+- [x] **Phase 2: Backend ABC + LocalBackend re-export + MockSLURM fixture** — design backend interface against ≥2 implementations before locking; ABC bounds Phase 6 (completed 2026-05-03)
+- [x] **Phase 3: Trajectory recorder + multi-runtime asset reorg** — JSONL trajectories with OTel `gen_ai.*` keys + redaction; `agent_assets/_shared/` + per-runtime overlays; ≥2 runtimes validated end-to-end
+- [x] **Phase 4: 6h per-cell hard cap + cell-concept formalization** — first-class `cell_id`, two-tier cap (refuse-new at T-buffer, terminate at T), per-fold checkpoint protocol, partial-result reconciliation (completed 2026-05-05)
+- [x] **Phase 5: Generalization gate** — `candidate` node status, pre-registered `gate_manifest.json`, paired Wilcoxon + bootstrap CI + Bonferroni, manual nomination default, promotion-rate metric (completed 2026-05-06; calibration pilot K-determination deferred to Leo follow-up)
 - [ ] **Phase 6: SLURM backend (submitit) + Ray backend (raw ray.remote)** — opt-in extras; honor wall-clock contract via `--signal=B:TERM@30` (SLURM) and `ray.cancel(force=True)` (Ray); parallel-friendly with Phase 7
 - [ ] **Phase 7: Hardware autodetect + /automil-setup skill** — `LocalBackend.healthcheck()` reports detected hardware (warn-not-decide); idempotent setup skill across runtimes; mandatory dry-run gate
 - [ ] **Phase 8: Decoupling completion + acceptance** — `grep -r autobench src/automil/` returns zero; sklearn-iris consumer runs end-to-end; final CCRCC `node_0176` ±0.005 reproduction on registry path
@@ -80,7 +80,15 @@ An agent can autonomously discover model improvements for any user's training co
   3. `MockSLURMBackend` test fixture simulates eventual-consistency status (5s poll lag), opaque `job_id`, fire-and-forget `cancel`, node-local filesystem; the ABC's contract is exercised against both backends via shared parameterised tests BEFORE the ABC is locked.
   4. A ruff/mypy custom rule lint-blocks `os.kill`, `Popen`, and `pid` references outside `backends/local.py` and `backends/_orchestrator_daemon.py`.
   5. `automil cancel <node_id>` and `automil resubmit <node_id>` are wired through `Backend.cancel` and `Backend.submit`; cancelled nodes archive with `status: cancelled` and resubmits get a fresh worktree.
-**Plans**: TBD
+**Plans**: 8 plans across 5 waves
+  - [x] 02-01-PLAN.md — Backend ABC + JobHandle/JobSpec/JobState dataclasses + errors.py + test package skeleton (BCK-01) — wave 1
+  - [x] 02-02-PLAN.md — BACKENDS registry singleton + @register decorator (extends 02-01's __init__.py) (BCK-01) — wave 2
+  - [x] 02-03-PLAN.md — Extend cli/submit.py to write metadata.backend to queue spec (BCK-01, CLI-03/04 prereq) — wave 1
+  - [x] 02-04-PLAN.md — git mv orchestrator.py → _orchestrator_daemon.py + 5-line re-export shim + compat.py update (BCK-02) — wave 2
+  - [x] 02-05-PLAN.md — LocalBackend thin adapter over _orchestrator_daemon + auto-register (BCK-02) — wave 3
+  - [x] 02-06-PLAN.md — MockSLURMBackend eventual-consistency fixture (BCK-03) — wave 3
+  - [x] 02-07-PLAN.md — Parameterised contract test (≥12 scenarios × 2 backends) + BCK-04 AST lint script + lint pytest gate (BCK-01, BCK-03, BCK-04) — wave 4 ✓ commit 5b88e76
+  - [x] 02-08-PLAN.md — automil cancel + automil resubmit CLI commands + integration tests against MockSLURM (CLI-03, CLI-04) — wave 5
 **Estimated**: 3–4 days
 
 ### Phase 3: Trajectory recorder + multi-runtime asset reorganisation
@@ -93,7 +101,18 @@ An agent can autonomously discover model improvements for any user's training co
   3. `src/automil/agent_assets/_shared/SKILL.md` is the canonical skill content; `claude/`, `codex/`, `opencode/` directories contain ONLY diffs/overrides; `agent_assets/deepseek/README.md` documents that DeepSeek is a *model* routed via opencode/Codex/etc.
   4. `automil init --runtime <claude|codex|opencode|deepseek-via-X>` works with explicit selection AND auto-detection from existing `.claude/`, `.codex/`, `.opencode/`; `AGENTS.md` is generated at the project root; `automil show-skill --runtime <name>` renders the merged per-runtime SKILL/AGENTS file.
   5. End-to-end smoke test: an experiment loop submits, runs, completes, and writes a valid `result.json` under Claude Code AND under one of {opencode, codex} — trajectories captured for both, schema-version metadata correct, redaction tests cover each leak class.
-**Plans**: TBD
+**Plans**: 11 plans across 5 waves
+  - [x] 03-01-PLAN.md — trajectory package skeleton + schema + redactor + recorder fd-cache (TRJ-01, TRJ-02) — wave 1
+  - [x] 03-02-PLAN.md — agent_assets/ git mv migration + AGENTS.md + deepseek README + compat shim (MRT-01, MRT-06) — wave 1
+  - [x] 03-03-PLAN.md — redactor positive-case tests + schema version forward-compat (TRJ-03, TRJ-06) — wave 2
+  - [x] 03-04-PLAN.md — full rotation manager 5MB/50MB + atomic rename + tests (TRJ-03) — wave 2
+  - [x] 03-05-PLAN.md — overlay merger _overlay.py + test suite (MRT-01) — wave 2
+  - [x] 03-06-PLAN.md — runtime.py + submit.py metadata.runtime + config.yaml.j2 passthrough (TRJ-04) — wave 2
+  - [x] 03-07-PLAN.md — automil init --runtime + --update + auto-detect + AGENTS.md render (MRT-02, MRT-03) — wave 3
+  - [x] 03-08-PLAN.md — automil show-skill --runtime command (MRT-04) — wave 3
+  - [x] 03-09-PLAN.md — automil trajectory record/export CLI + recorder tests + export bundle (TRJ-04, TRJ-05) — wave 3
+  - [x] 03-10-PLAN.md — Claude hook + opencode TS plugin + codex README + gitignore trajectory entries (TRJ-04, TRJ-05) — wave 4
+  - [x] 03-11-PLAN.md — two-runtime smoke test + Phase 3 acceptance gate (TRJ-05, TRJ-06, MRT-05) — wave 5
 **Estimated**: 4–5 days
 
 ### Phase 4: 6h per-cell hard cap + cell-concept formalisation
@@ -106,7 +125,17 @@ An agent can autonomously discover model improvements for any user's training co
   3. Per-fold checkpoint protocol works: `train.py` writes `fold_<i>_result.json` after each fold; `result.json` aggregates across completed folds with `status: partial | completed`; a deliberate cap-firing test produces a usable partial result, VRAM returns, and descendants are NOT spuriously discarded.
   4. Budget-killed experiments reconcile to `executed` (NOT `crash`) with whatever partial composite is computable; descendant cascade recomputes against the partial composite, not against zero.
   5. `automil cell status [cell_id]` and `automil cell list` surface budget state for operator inspection (started_at, consumed, remaining, refusing-new threshold, status).
-**Plans**: TBD
+**Plans**: 10 plans across 7 waves (Wave 1: 04-01/02/08 parallel; Waves 2-4 serial through cells/__init__.py; Wave 5: 04-06/07 parallel; Wave 6: 04-09; Wave 7: 04-10 anti-acceptance)
+  - [ ] 04-01-PLAN.md — cells package skeleton + Cell dataclass + atomic IO + cell_id (CAP-01, CAP-05)
+  - [ ] 04-02-PLAN.md — runtime_helpers.py + register_sigterm_flush + get_fold_count (CAP-03)
+  - [ ] 04-03-PLAN.md — cap.py pure state machine + exhaustive transition tests (CAP-02)
+  - [ ] 04-04-PLAN.md — reconcile.py aggregate_folds + reconcile_budget_kill stub (CAP-03, CAP-04)
+  - [ ] 04-05-PLAN.md — registry.py get_or_create_cell + idempotency + restart-safety (CAP-01, CAP-05)
+  - [ ] 04-06-PLAN.md — submit.py cell refusal hook + metadata.cell_id + --budget-seconds CLI override + config.yaml.j2 cap: section (CAP-01, CAP-02)
+  - [ ] 04-07-PLAN.md — _orchestrator_daemon.py _tick_cells + reconcile integration + AUTOMIL_FOLD_COUNT env injection (CAP-02, CAP-04)
+  - [ ] 04-08-PLAN.md — autobench runner.py per-fold writer + run_experiment.py register_sigterm_flush call (CAP-03)
+  - [ ] 04-09-PLAN.md — automil cell status / list CLI + cli/__init__.py registration (CAP-06)
+  - [ ] 04-10-PLAN.md — Pitfall-4 anti-acceptance gate + daemon-restart test + reconcile-cascade test (CAP-03, CAP-04, CAP-05)
 **Estimated**: 3–4 days
 
 ### Phase 5: Generalization gate
@@ -119,7 +148,19 @@ An agent can autonomously discover model improvements for any user's training co
   3. Promotion criterion is a paired Wilcoxon (or comparable test from `gate_manifest.json`) with bootstrap CI (1000 reps) and Bonferroni correction across held-out cells; `K` (minimum cells passed) and `p_threshold` are config-set, not gut-feel constants.
   4. Promotion-rate metric (% of nominated candidates that passed gate) is exposed in the viz dashboard and `automil status`; a calibration pilot (CCRCC `node_0176` applied to 3–5 fresh cells) sets initial K before locking.
   5. Held-out cells are NEVER visible to the agent during search (verified via trajectory inspection in CI).
-**Plans**: TBD
+**Plans**: 12 plans across 9 waves
+  - [ ] 05-01-PLAN.md (W1) — gate package skeleton + stats.py (paired Wilcoxon + BCa bootstrap + Bonferroni divide direction) (GTE-04)
+  - [ ] 05-03-PLAN.md (W1) — JobSpec.metadata field + LocalBackend/MockSLURM passthrough (GTE-03 prerequisite)
+  - [ ] 05-02-PLAN.md (W2) — manifest.py: GateManifest frozen dataclass + atomic write + write_manifest_committed (Leo memory rollback via path.unlink) + retire flow (GTE-01, GTE-02)
+  - [ ] 05-04-PLAN.md (W3) — gate.nominate keep->candidate idempotent + ExperimentGraph.nominations_in_window/promotion_rate helpers (GTE-01, GTE-05, GTE-06)
+  - [ ] 05-05-PLAN.md (W3) — trajectory redactor extension (held-out node-id placeholder, mtime-cached) + cli/propose.py rank held-out filter (GTE-01)
+  - [ ] 05-06-PLAN.md (W4) — gate.evaluate_candidate: Backend.submit per held-out cell + concurrent poll + skip-on-cap (GTE-03)
+  - [ ] 05-07-PLAN.md (W5) — gate.promote: pass/fail/inconclusive + Bonferroni-corrected paired test + gate_log emission + two-stage gate (GTE-01, GTE-04, GTE-06)
+  - [ ] 05-08-PLAN.md (W6) — automil gate group + register/retire/status/stats subcommands + scipy lift to core deps + config.yaml.j2 gate: section (GTE-01, GTE-02, GTE-04, GTE-06)
+  - [ ] 05-09-PLAN.md (W7) — automil nominate + automil promote (--calibrate) top-level CLI commands (GTE-05)
+  - [ ] 05-10-PLAN.md (W7) — viz /api/promotion-rate endpoint + automil status promotion_rate display (GTE-06)
+  - [ ] 05-11-PLAN.md (W8) — Pitfall-6 anti-acceptance test (D-149, 9 load-bearing assertions) + framework-purity guard + BCK-04 lint extension to gate/ (GTE-01..06)
+  - [ ] 05-12-PLAN.md (W9) — Calibration pilot smoke test + .planning/phase-05-calibration.md scaffold + Leo CHECKPOINT to run actual pilot (D-151) (GTE-04, GTE-06)
 **Estimated**: 4–5 days
 
 ### Phase 6: SLURM backend (submitit) + Ray backend (raw ray.remote)
@@ -200,11 +241,11 @@ Phase 5 (generalization gate)
 |-------|----------------|--------|-----------|
 | 0. Cleanup + CLI split + compat | 0/7 | Not started | - |
 | 1. Registry + config-driven train + CCRCC reproduction | 0/12 | Not started | - |
-| 2. Backend ABC + LocalBackend + MockSLURM | 0/0 | Not started | - |
-| 3. Trajectory + multi-runtime reorg | 0/0 | Not started | - |
+| 2. Backend ABC + LocalBackend + MockSLURM | 8/8 | Complete   | 2026-05-03 |
+| 3. Trajectory + multi-runtime reorg | 11/11 | Complete   | 2026-05-04 |
 | 4. 6h per-cell cap + cell formalisation | 0/0 | Not started | - |
 | 5. Generalization gate | 0/0 | Not started | - |
-| 6. SLURM + Ray backends | 0/0 | Not started | - |
+| 6. SLURM + Ray backends | 2/10 | In Progress|  |
 | 7. Hardware autodetect + /automil-setup | 0/0 | Not started | - |
 | 8. Decoupling audit + acceptance | 0/0 | Not started | - |
 
