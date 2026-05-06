@@ -81,7 +81,8 @@ def cancel(node_id: str, timeout: int) -> None:
 
     # Step 4 (W-03 fix): read opaque_id + submitted_at from running/<node_id>.json.
     orch_dir = adir / "orchestrator"
-    running_path = orch_dir / "running" / f"{node_id}.json"
+    # D-169: per-backend namespace; backend_name resolved at step 3 (D-76 default 'local').
+    running_path = orch_dir / "running" / backend_name / f"{node_id}.json"
     if not running_path.exists():
         raise click.ClickException(
             f"Refusing to cancel: no running spec at {running_path}. "

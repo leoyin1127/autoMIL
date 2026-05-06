@@ -39,7 +39,12 @@ def _make_orch(tmp_path: Path, config_yaml: str = "orchestrator: {}\n") -> Any:
     automil_dir.mkdir(parents=True, exist_ok=True)
     (automil_dir / "config.yaml").write_text(config_yaml)
     (tmp_path / ".git").mkdir(exist_ok=True)
-    return ExperimentOrchestrator(project_root=tmp_path, automil_dir=automil_dir)
+    orch = ExperimentOrchestrator(project_root=tmp_path, automil_dir=automil_dir)
+    # D-169 (Phase 6): __init__ no longer pre-creates running/local/ to preserve
+    # the D-168 startup guardrail. Tests that write running specs directly must
+    # create orch.running_dir (= running/local/) themselves.
+    orch.running_dir.mkdir(parents=True, exist_ok=True)
+    return orch
 
 
 def _write_cell_json(cells_dir: Path, cell_id: str, status: str,

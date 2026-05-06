@@ -112,8 +112,13 @@ def _write_running_spec(
     node_id: str,
     opaque_id: str,
     submitted_at: float | None = None,
+    backend_name: str = "local",
 ) -> None:
-    """Write running/<node_id>.json with opaque_id + submitted_at.
+    """Write running/<backend_name>/<node_id>.json with opaque_id + submitted_at.
+
+    D-169: per-backend namespaced path (Phase 6). cancel.py reads from
+    running/<backend_name>/<id>.json; backend_name defaults to 'local' for
+    legacy nodes (D-76 fallback).
 
     This is the source of truth cancel.py reads (W-03 fix: opaque_id is NOT
     stored in graph.json metadata).
@@ -126,7 +131,9 @@ def _write_running_spec(
         "command": ["python", "train.py"],
         "env": {},
     }
-    running_path = adir / "orchestrator" / "running" / f"{node_id}.json"
+    running_dir = adir / "orchestrator" / "running" / backend_name
+    running_dir.mkdir(parents=True, exist_ok=True)
+    running_path = running_dir / f"{node_id}.json"
     running_path.write_text(json.dumps(spec, indent=2))
 
 
@@ -208,7 +215,8 @@ def test_cancel_happy_path(
     opaque_id = handle.opaque_id
 
     # Write running spec (W-03: source of truth for cancel.py).
-    _write_running_spec(adir, running_node_id, opaque_id)
+    # D-169: namespaced under running/mock_slurm/ since this test uses mock_slurm backend.
+    _write_running_spec(adir, running_node_id, opaque_id, backend_name="mock_slurm")
 
     # Write graph with node in 'running' state + metadata.backend = "mock_slurm".
     _write_graph(adir, {
@@ -237,8 +245,9 @@ def test_cancel_happy_path(
     )
     assert graph["nodes"][running_node_id].get("metadata", {}).get("cancel_reason") == "cli"
 
-    # running/<id>.json must have been moved to archive/<id>/.
-    running_path = adir / "orchestrator" / "running" / f"{running_node_id}.json"
+    # running/mock_slurm/<id>.json must have been moved to archive/<id>/.
+    # D-169: namespaced path (Phase 6).
+    running_path = adir / "orchestrator" / "running" / "mock_slurm" / f"{running_node_id}.json"
     assert not running_path.exists(), "running spec not archived after cancel"
     archive_path = adir / "orchestrator" / "archive" / running_node_id
     assert archive_path.exists(), "archive directory not created after cancel"
@@ -381,7 +390,8 @@ def test_cancel_timeout(
     from automil.backends import BACKENDS  # noqa: PLC0415
     BACKENDS["mock_slurm"] = _StubbornBackend
 
-    _write_running_spec(adir, node_id, opaque_id)
+    # D-169: running spec at namespaced path running/mock_slurm/<id>.json.
+    _write_running_spec(adir, node_id, opaque_id, backend_name="mock_slurm")
     _write_graph(adir, {
         node_id: {
             "id": node_id,
