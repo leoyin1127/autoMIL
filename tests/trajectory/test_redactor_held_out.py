@@ -155,7 +155,8 @@ def test_redact_handles_missing_graph(tmp_path, monkeypatch):
     """When no automil/config.yaml is found, static patterns still apply; node IDs pass through."""
     # chdir to a dir with no automil/config.yaml so _find_automil_dir() raises
     monkeypatch.chdir(tmp_path)
-    result = redact("node_0099 sk-secret1234567890key")
+    # sk- token needs 20+ chars after prefix: "secretsecret12345678" = 20 chars
+    result = redact("node_0099 sk-secretsecret12345678key")
     # Static pattern fires; node_0099 NOT redacted (soft-fail: no graph available)
     assert "sk-[REDACTED]" in result
     assert "node_0099" in result  # NOT replaced when graph unavailable

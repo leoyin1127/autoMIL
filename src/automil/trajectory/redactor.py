@@ -5,6 +5,7 @@ Redaction is mandatory — no opt-out flag (Pitfall 5a defence).
 """
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import re
@@ -31,11 +32,53 @@ _PATTERNS: list[tuple[re.Pattern, str]] = [
 
 _SIZE_CAP_BYTES = 8192  # D-83: 8 KB per-event cap
 
+# D-139: regex to match node IDs that may be held-out gate-eval children
+_NODE_ID_RE = re.compile(r"\bnode_\d{4,}\b")
+
+
+@functools.lru_cache(maxsize=1)
+def _held_out_ids_cached(graph_mtime: float) -> frozenset:
+    """Mtime-keyed lookup of held-out node IDs.
+
+    The lru_cache key is the graph.json mtime; modifying the file invalidates
+    the cache automatically (Pitfall 2 mitigation). Returns frozenset() on any
+    read error — soft-fail discipline (Pitfall 5a parallel).
+    """
+    from automil.cli._helpers import _find_automil_dir
+    try:
+        adir = _find_automil_dir()
+        data = json.loads((adir / "graph.json").read_text())
+        return frozenset(
+            nid for nid, n in data.get("nodes", {}).items()
+            if isinstance(n, dict)
+            and n.get("metadata", {}).get("held_out", False)
+        )
+    except Exception:
+        return frozenset()
+
+
+def _held_out_ids() -> frozenset:
+    """Return current held-out node IDs, cached by graph.json mtime."""
+    from automil.cli._helpers import _find_automil_dir
+    try:
+        adir = _find_automil_dir()
+        mtime = (adir / "graph.json").stat().st_mtime
+    except Exception:
+        mtime = 0.0
+    return _held_out_ids_cached(mtime)
+
 
 def redact(s: str) -> str:
     """Apply all compiled redaction patterns to a string. Returns a new string."""
     for pattern, replacement in _PATTERNS:
         s = pattern.sub(replacement, s)
+    # D-139 dynamic: redact held-out node IDs to <HELD_OUT> placeholder
+    held_out = _held_out_ids()
+    if held_out:
+        s = _NODE_ID_RE.sub(
+            lambda m: "<HELD_OUT>" if m.group(0) in held_out else m.group(0),
+            s,
+        )
     return s
 
 
