@@ -17,6 +17,7 @@ dependencies = [
     "pyyaml>=6.0",
     "python-dotenv>=1.0",
     "torch>=2.10.0",
+    "scipy>=1.11",      # D-141 GTE-04: paired Wilcoxon + bootstrap CI (gate stats)
 ]
 
 [project.optional-dependencies]
@@ -38,7 +39,9 @@ testpaths = ["tests"]
 
 [dependency-groups]
 dev = [
+    "numpy>=2.2.6",
     "pytest>=9.0.2",
+    "scipy>=1.15.3",
 ]
 
 [tool.uv.workspace]

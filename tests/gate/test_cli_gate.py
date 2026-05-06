@@ -58,21 +58,23 @@ def test_config_yaml_j2_has_gate_section():
 
 
 def test_rendered_config_parses_yaml():
-    """T-4: Rendered config.yaml.j2 (no variables) must parse as valid YAML
+    """T-4: Rendered config.yaml.j2 with placeholder vars must parse as valid YAML
     with gate section containing expected defaults."""
     import yaml
-    from jinja2 import Environment, FileSystemLoader, Undefined
+    from jinja2 import Environment, FileSystemLoader
 
     template_dir = (
         Path(__file__).parent.parent.parent
         / "src" / "automil" / "templates"
     )
-    env = Environment(
-        loader=FileSystemLoader(str(template_dir)),
-        undefined=Undefined,  # silently ignore undefined vars
-    )
+    env = Environment(loader=FileSystemLoader(str(template_dir)))
     template = env.get_template("config.yaml.j2")
-    rendered = template.render()
+    # Provide all template variables so the rendered YAML is valid
+    rendered = template.render(
+        project_name="test_project",
+        task_type="classification",
+        encoder="uni_v2",
+    )
     data = yaml.safe_load(rendered)
     gate = data.get("gate", {})
     assert gate.get("auto_nominate") is False, (
