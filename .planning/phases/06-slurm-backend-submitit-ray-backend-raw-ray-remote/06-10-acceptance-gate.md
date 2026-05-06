@@ -325,7 +325,7 @@ def test_d179_clause_11_changelog_breaking_entry():
 This file is the single command Leo runs to confirm Phase 6 is complete. Each clause failure is independent so partial regressions are diagnosable. Subsequent maintenance changes that break any D-179 clause will fail this test.
   </action>
   <verify>
-    <automated>uv run pytest tests/backends/test_phase6_acceptance.py -v 2>&amp;1 | tail -30</automated>
+    <automated>uv run pytest tests/backends/test_phase6_acceptance.py -v 2>&1 | tail -30</automated>
   </verify>
   <done>
     `tests/backends/test_phase6_acceptance.py` exists with exactly 11 test functions, one per D-179 clause. Each test passes when its clause is satisfied. Tests for clauses 5, 6, 7 (slurm-debug, ray-local) skip cleanly when extras absent — they don't false-fail on a no-extras dev machine. The full test file's pass/skip mix on this machine reflects what Leo's environment supports.
@@ -354,7 +354,7 @@ which clause regressed.
 Do NOT add a release date — this remains "(unreleased)" until Leo cuts a tag. Do NOT modify any other section of CHANGELOG.md.
   </action>
   <verify>
-    <automated>grep -E "^### Verification$" CHANGELOG.md &amp;&amp; grep -E "test_phase6_acceptance" CHANGELOG.md</automated>
+    <automated>grep -E "^### Verification$" CHANGELOG.md && grep -E "test_phase6_acceptance" CHANGELOG.md</automated>
   </verify>
   <done>
     CHANGELOG.md `## 6.0.0` block contains a `### Verification` subsection between `### Added` and `### Compatibility` referencing `test_phase6_acceptance.py` and the 11 D-179 clauses.

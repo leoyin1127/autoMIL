@@ -272,7 +272,7 @@ def run_node_0176_smoke(backend_name: str, project_root: Path, automil_dir: Path
 **Note on the LocalBackend dispatch path**: the helper does NOT use `LocalBackend.submit()` because the test fixture has no live daemon — `LocalBackend.submit` would write a queue file that nothing picks up. Instead `_run_local` runs `python train.py` directly via subprocess, which is what the daemon would do. This is acceptable for an acceptance smoke (we are testing that the SAME train.py producing the SAME result.json gets composite=0.502 regardless of the path it took).
   </action>
   <verify>
-    <automated>uv run pytest tests/backends/test_node_0176_smoke.py -x -v 2>&amp;1 | tail -30</automated>
+    <automated>uv run pytest tests/backends/test_node_0176_smoke.py -x -v 2>&1 | tail -30</automated>
   </verify>
   <done>
     `tests/backends/_smoke_helpers.py` exists with `run_node_0176_smoke` returning 0.502 for the synthetic 1-fold experiment. The Wave-0 stub `tests/backends/test_node_0176_smoke.py::test_node_0176_equivalent_composite_within_tolerance[local]` passes; `[slurm-debug]` passes when submitit installed (skips otherwise); `[ray-local]` passes when ray installed (skips otherwise). Tolerance assertion `abs(composite - 0.502) <= 0.005` evaluates True for all three.

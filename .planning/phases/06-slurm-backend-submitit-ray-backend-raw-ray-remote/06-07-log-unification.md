@@ -293,7 +293,7 @@ def _symlink_slurm_logs(automil_dir: Path, archive_node_dir: Path, spec_data: di
 DO NOT remove or modify any existing LocalBackend archive-finalisation logic. The new code only ADDS the cross-backend drain when `backend_name != "local"` AND the archive run.log doesn't already exist (idempotency guard).
   </action>
   <verify>
-    <automated>uv run pytest tests/backends/test_log_unification.py -x -v &amp;&amp; uv run pytest tests/ -x -q --ignore=tests/backends/test_node_0176_smoke.py</automated>
+    <automated>uv run pytest tests/backends/test_log_unification.py -x -v && uv run pytest tests/ -x -q --ignore=tests/backends/test_node_0176_smoke.py</automated>
   </verify>
   <done>
     `_atomic_write_lines` and `_drain_log_iter_with_timeout` defined at module scope in `_orchestrator_daemon.py`. `_handle_completion` invokes them when `backend_name != "local"`. `_symlink_slurm_logs` is a module-level function. The 4 Wave-0 stubs in test_log_unification.py either pass (timeout test, slurm/ray drain tests via importorskip) or skip cleanly. The local stub (`test_archive_run_log_local`) explicitly skips per its body. Phase 5 baseline preserved.
