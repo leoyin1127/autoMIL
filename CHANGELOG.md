@@ -30,6 +30,13 @@ without namespaced subdirectories, it exits with a `BREAKING CHANGE` message
 listing the files found. This guardrail prevents a half-migrated state from
 corrupting live runs.
 
+### Verification
+
+Phase 6 is complete when `uv run pytest tests/backends/test_phase6_acceptance.py -v`
+reports all 11 D-179 clauses passing (or skipping cleanly when `[slurm]`/`[ray]`
+extras absent). Each test maps to exactly one clause; partial failures localize
+which clause regressed.
+
 ### Added
 
 - `SLURMBackend` (`src/automil/backends/slurm.py`) — opt-in via `pip install -e '.[slurm]'`.
