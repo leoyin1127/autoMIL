@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-last_updated: "2026-05-06T05:00:00.000Z"
+status: executing
+last_updated: "2026-05-06T18:11:19.647Z"
 progress:
   total_phases: 9
   completed_phases: 6
-  total_plans: 60
-  completed_plans: 60
-  percent: 100
+  total_plans: 70
+  completed_plans: 62
+  percent: 89
 ---
 
 # State: autoMIL — F2-readiness framework refactor
@@ -30,16 +30,16 @@ progress:
 - `CLAUDE.md` — project instructions and Leo's standing directives
 - `~/.claude/projects/-home-jma-Documents-yinshuol-autoMIL/memory/MEMORY.md` — Leo's standing memory (saturate GPUs, research before submit, never blind-checkout, architectural-not-hyperparam, never ask continue autonomously)
 
-**Current focus:** Phase 06 — SLURM + Ray backends (10 plans across 7 waves; plan-checker PASS iter-2; ready for `/gsd-execute-phase 6`)
+**Current focus:** Phase 06 — slurm-backend-submitit-ray-backend-raw-ray-remote
 
 ## Current Position
 
-Phase: 06 — PLANS READY (10 plans, plan-checker PASS iter-2)
-Plan: 0 of 10
+Phase: 06 (slurm-backend-submitit-ray-backend-raw-ray-remote) — EXECUTING
+Plan: 2 of 10
 
 - **Phase:** 06 — SLURM backend (submitit) + Ray backend (raw ray.remote)
 - **Plans:** 10 across 7 waves (Wave 0–6) — committed at `2e0a886` post-iter-1 fixes
-- **Status:** All upstream artifacts in place: `06-CONTEXT.md` (37 D-152..D-188 decisions), `06-RESEARCH.md` (5 API corrections in OQ-1..4: `timeout_min`/`slurm_additional_parameters`/`job.paths.stdout`/`WorkerCrashedError`/`ray.init` no-local-mode), `06-VALIDATION.md` (Wave 0 stubs + per-task verification map), `06-PATTERNS.md` (21 files mapped to closest analogs), 10 PLAN.md files + `06-PLAN-SUMMARY.md`. Plan-checker iter-1 returned BLOCK with 1 BLOCKER (B-1: `Runner.create_worktree` API mismatch) + 8 warnings; iter-1 fixes applied inline (B-1 + W-1 entity scrub + W-9 explicit if/elif chain + W-4 subprocess cwd/env to avoid CWD pollution). Plan-checker iter-2 returned PASS — all fixes verified clean, all 4 unchanged dimensions still healthy.
+- **Status:** Ready to execute
 - **Wave map:** W0 (06-01 scaffolding) → W1 (06-02 extras+errors ‖ 06-03 config+check) → W2 (06-04 SLURM ‖ 06-05 Ray) → W3 (06-06 namespace migration) → W4 (06-07 log unification) → W5 (06-08 contract-test ‖ 06-09 node_0176 smoke) → W6 (06-10 acceptance gate).
 - **Progress (milestone):** [██████░░░░] 67% (6/9 phases shipped; Phase 06 plans ready, execution pending)
 - **Next:** `/gsd-execute-phase 6` — wave-based parallel execution via worktrees; estimated ~3.0h focused execution (~30% parallelism savings from W1/W2/W5 parallel pairs).
@@ -47,6 +47,7 @@ Plan: 0 of 10
 ## Phase 5 Leo Follow-up (deferred — not a blocker for Phase 6)
 
 The calibration pilot (D-151, Plan 05-12) framework-side scaffold is committed at `90011e8`. The actual empirical K-threshold determination requires Leo to:
+
 1. Choose a known-good change (recommended: CCRCC `node_0176` config applied to fresh cells).
 2. Pick 3-5 fresh cells (3 CCRCC + 2 CLWD per recommendation).
 3. Register a calibration manifest, submit, run `automil promote --calibrate <candidate_id>`.
@@ -67,6 +68,7 @@ The calibration pilot (D-151, Plan 05-12) framework-side scaffold is committed a
 | Phase 02 P02-06 | 8m | 3 tasks | 1 file |
 | Phase 02 P02-07 | 8m | 5 tasks | 5 files |
 | Phase 02 P02-08 | 25 | 6 tasks | 5 files |
+| Phase 06 P01 | 360 | 3 tasks | 8 files |
 
 ## Accumulated Context
 

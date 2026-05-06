@@ -41,8 +41,8 @@ Scope of this milestone. Each maps to exactly one roadmap phase (filled in durin
 - [x] **BCK-02**: `LocalBackend` ships as a re-export shim over the existing 750-line orchestrator; behavioural diff vs current orchestrator = empty (verified by existing 48-test suite passing)
 - [x] **BCK-03**: `MockSLURMBackend` test fixture: simulates eventual-consistency status (5s poll lag), opaque `job_id`, fire-and-forget `cancel`, node-local filesystem; used to validate the ABC against ≥2 implementations BEFORE locking
 - [x] **BCK-04**: Lint check (ruff/mypy custom rule) forbids `os.kill`, `Popen`, `pid` references outside `backends/local.py` and `backends/_orchestrator_daemon.py`
-- [ ] **BCK-05**: `SLURMBackend` (`backends/slurm.py`) on top of `submitit>=1.5.3`; opt-in via `pip install -e '.[slurm]'`; `--time --signal=B:TERM@30` SLURM directives match framework's wall-clock contract
-- [ ] **BCK-06**: `RayBackend` (`backends/ray.py`) on top of `ray>=2.55.1` raw `ray.remote` + placement groups (NOT `ray.tune`); opt-in via `pip install -e '.[ray]'`; `ray.get(timeout=...)` + `ray.cancel(force=True)` honour wall-clock contract
+- [x] **BCK-05**: `SLURMBackend` (`backends/slurm.py`) on top of `submitit>=1.5.3`; opt-in via `pip install -e '.[slurm]'`; `--time --signal=B:TERM@30` SLURM directives match framework's wall-clock contract
+- [x] **BCK-06**: `RayBackend` (`backends/ray.py`) on top of `ray>=2.55.1` raw `ray.remote` + placement groups (NOT `ray.tune`); opt-in via `pip install -e '.[ray]'`; `ray.get(timeout=...)` + `ray.cancel(force=True)` honour wall-clock contract
 
 ### Trajectory (TRJ)
 
@@ -193,8 +193,8 @@ Mapped 2026-05-01 by `gsd-roadmapper` against `.planning/ROADMAP.md` (9 phases).
 | BCK-02 | Phase 2 | Complete |
 | BCK-03 | Phase 2 | Complete |
 | BCK-04 | Phase 2 | Complete |
-| BCK-05 | Phase 6 | Pending |
-| BCK-06 | Phase 6 | Pending |
+| BCK-05 | Phase 6 | Complete |
+| BCK-06 | Phase 6 | Complete |
 | TRJ-01 | Phase 3 | Pending |
 | TRJ-02 | Phase 3 | Pending |
 | TRJ-03 | Phase 3 | Pending |
