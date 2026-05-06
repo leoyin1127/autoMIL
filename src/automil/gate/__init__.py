@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 
+from automil.gate.evaluate import evaluate_candidate
 from automil.gate.manifest import (
     GateManifest,
     load_manifest,
@@ -34,6 +35,7 @@ __all__ = [
     "GateManifest",
     "bonferroni_correct",
     "diagnose_gate_health",
+    "evaluate_candidate",
     "load_manifest",
     "nominate",
     "paired_wilcoxon_with_bootstrap",
