@@ -18,7 +18,7 @@ An agent can autonomously discover model improvements for any user's training co
 - [x] **Phase 3: Trajectory recorder + multi-runtime asset reorg** — JSONL trajectories with OTel `gen_ai.*` keys + redaction; `agent_assets/_shared/` + per-runtime overlays; ≥2 runtimes validated end-to-end
 - [x] **Phase 4: 6h per-cell hard cap + cell-concept formalization** — first-class `cell_id`, two-tier cap (refuse-new at T-buffer, terminate at T), per-fold checkpoint protocol, partial-result reconciliation (completed 2026-05-05)
 - [x] **Phase 5: Generalization gate** — `candidate` node status, pre-registered `gate_manifest.json`, paired Wilcoxon + bootstrap CI + Bonferroni, manual nomination default, promotion-rate metric (completed 2026-05-06; calibration pilot K-determination deferred to Leo follow-up)
-- [ ] **Phase 6: SLURM backend (submitit) + Ray backend (raw ray.remote)** — opt-in extras; honor wall-clock contract via `--signal=B:TERM@30` (SLURM) and `ray.cancel(force=True)` (Ray); parallel-friendly with Phase 7
+- [x] **Phase 6: SLURM backend (submitit) + Ray backend (raw ray.remote)** — opt-in extras; honor wall-clock contract via `--signal=B:TERM@30` (SLURM) and `ray.cancel(force=True)` (Ray); parallel-friendly with Phase 7 (completed 2026-05-06)
 - [ ] **Phase 7: Hardware autodetect + /automil-setup skill** — `LocalBackend.healthcheck()` reports detected hardware (warn-not-decide); idempotent setup skill across runtimes; mandatory dry-run gate
 - [ ] **Phase 8: Decoupling completion + acceptance** — `grep -r autobench src/automil/` returns zero; sklearn-iris consumer runs end-to-end; final CCRCC `node_0176` ±0.005 reproduction on registry path
 
@@ -245,7 +245,7 @@ Phase 5 (generalization gate)
 | 3. Trajectory + multi-runtime reorg | 11/11 | Complete   | 2026-05-04 |
 | 4. 6h per-cell cap + cell formalisation | 0/0 | Not started | - |
 | 5. Generalization gate | 0/0 | Not started | - |
-| 6. SLURM + Ray backends | 9/10 | In Progress|  |
+| 6. SLURM + Ray backends | 10/10 | Complete   | 2026-05-06 |
 | 7. Hardware autodetect + /automil-setup | 0/0 | Not started | - |
 | 8. Decoupling audit + acceptance | 0/0 | Not started | - |
 
