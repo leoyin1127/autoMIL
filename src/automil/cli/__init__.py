@@ -24,6 +24,7 @@ from automil.cli import control  # noqa: E402,F401
 from automil.cli import gate    # noqa: E402,F401  (GTE-01..06 / D-145)
 from automil.cli import init  # noqa: E402,F401
 from automil.cli import lifecycle  # noqa: E402,F401
+from automil.cli import nominate  # noqa: E402,F401  (GTE-05 / D-142)
 from automil.cli import orchestrator  # noqa: E402,F401
 from automil.cli import propose  # noqa: E402,F401
 from automil.cli import reconcile  # noqa: E402,F401
