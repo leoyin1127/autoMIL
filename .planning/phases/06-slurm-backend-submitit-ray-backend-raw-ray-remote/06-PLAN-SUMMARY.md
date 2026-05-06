@@ -3,7 +3,7 @@
 **Generated:** 2026-05-06
 **Phase:** 06-slurm-backend-submitit-ray-backend-raw-ray-remote
 **Total plans:** 10
-**Total waves:** 7 (Waves 0–6)
+**Total waves:** 7 (Waves 1–7; 1-indexed per GSD convention)
 **Requirements:** BCK-05, BCK-06
 
 ---
@@ -12,18 +12,18 @@
 
 | Wave | Plans (parallel within wave) | Theme |
 |------|------------------------------|-------|
-| **Wave 0** | `06-01` | Test scaffolding — 8 stubs land RED so implementation plans flip them to GREEN |
-| **Wave 1** | `06-02` ‖ `06-03` | Foundations — extras + errors (parallel) and config-template + check (parallel) |
-| **Wave 2** | `06-04` ‖ `06-05` | Backend implementations — SLURMBackend (parallel) and RayBackend (parallel) |
-| **Wave 3** | `06-06` | `running/` namespace migration — breaking change with daemon-refusal-to-start guardrail |
-| **Wave 4** | `06-07` | Cross-backend log unification — orchestrator-owned `archive/<id>/run.log` |
-| **Wave 5** | `06-08` ‖ `06-09` | Test extensions — contract test parametrise (parallel) and node_0176 smoke (parallel) |
-| **Wave 6** | `06-10` | Acceptance gate — single-file 11-clause D-179 verifier |
+| **Wave 1** | `06-01` | Test scaffolding — 8 stubs land RED so implementation plans flip them to GREEN |
+| **Wave 2** | `06-02` ‖ `06-03` | Foundations — extras + errors (parallel) and config-template + check (parallel) |
+| **Wave 3** | `06-04` ‖ `06-05` | Backend implementations — SLURMBackend (parallel) and RayBackend (parallel) |
+| **Wave 4** | `06-06` | `running/` namespace migration — breaking change with daemon-refusal-to-start guardrail |
+| **Wave 5** | `06-07` | Cross-backend log unification — orchestrator-owned `archive/<id>/run.log` |
+| **Wave 6** | `06-08` ‖ `06-09` | Test extensions — contract test parametrise (parallel) and node_0176 smoke (parallel) |
+| **Wave 7** | `06-10` | Acceptance gate — single-file 11-clause D-179 verifier |
 
 **Parallel pairs (file-disjoint per execute-phase wave-execution model):**
-- Wave 1: `06-02` (pyproject.toml + errors.py + __init__.py) ‖ `06-03` (config.yaml.j2 + cli/check.py) — disjoint ✓
-- Wave 2: `06-04` (slurm.py only) ‖ `06-05` (ray.py only) — disjoint ✓
-- Wave 5: `06-08` (test_contract.py) ‖ `06-09` (test_node_0176_smoke.py + _smoke_helpers.py) — disjoint ✓
+- Wave 2: `06-02` (pyproject.toml + errors.py + __init__.py) ‖ `06-03` (config.yaml.j2 + cli/check.py) — disjoint ✓
+- Wave 3: `06-04` (slurm.py only) ‖ `06-05` (ray.py only) — disjoint ✓
+- Wave 6: `06-08` (test_contract.py) ‖ `06-09` (test_node_0176_smoke.py + _smoke_helpers.py) — disjoint ✓
 
 ---
 
@@ -42,7 +42,7 @@
 | `06-09-node-0176-smoke.md` | 5 | `tests/backends/_smoke_helpers.py`, `tests/backends/test_node_0176_smoke.py` | BCK-05, BCK-06 |
 | `06-10-acceptance-gate.md` | 6 | `tests/backends/test_phase6_acceptance.py`, `CHANGELOG.md` | BCK-05, BCK-06 |
 
-**File-disjointness audit:** Wave 1 (06-02 vs 06-03) is disjoint *except* both touch `pyproject.toml` is FALSE — only 06-02 touches pyproject.toml. (06-01 also touches pyproject.toml but Wave 0 runs alone.) Wave 5 (06-08 vs 06-09) — disjoint ✓. Wave 2 (06-04 vs 06-05) — disjoint ✓. No multi-plan-per-wave file conflicts detected.
+**File-disjointness audit:** Wave 2 (06-02 vs 06-03) is disjoint *except* both touch `pyproject.toml` is FALSE — only 06-02 touches pyproject.toml. (06-01 also touches pyproject.toml but Wave 1 runs alone.) Wave 6 (06-08 vs 06-09) — disjoint ✓. Wave 3 (06-04 vs 06-05) — disjoint ✓. No multi-plan-per-wave file conflicts detected.
 
 ---
 
@@ -84,37 +84,37 @@ The planner integrated all 5 API corrections from `06-RESEARCH.md` § Open Quest
 ## Dependency Graph
 
 ```
-06-01 (Wave 0: scaffolding)
+06-01 (Wave 1: scaffolding)
    │
-   ├─► 06-02 (Wave 1: extras + errors) ─┐
+   ├─► 06-02 (Wave 2: extras + errors) ─┐
    │                                    │
-   ├─► 06-03 (Wave 1: config + check) ──┤
+   ├─► 06-03 (Wave 2: config + check) ──┤
    │                                    │
-   │      ┌─► 06-04 (Wave 2: SLURM) ───┐│
+   │      ┌─► 06-04 (Wave 3: SLURM) ───┐│
    │      │                            ││
-   │      └─► 06-05 (Wave 2: Ray) ─────┤│
+   │      └─► 06-05 (Wave 3: Ray) ─────┤│
    │                                   │ │
-   │      ┌─► 06-06 (Wave 3: namespace migration) ─┐
+   │      ┌─► 06-06 (Wave 4: namespace migration) ─┐
    │      │                                        │
-   │      ├─► 06-07 (Wave 4: log unification) ─────┤
+   │      ├─► 06-07 (Wave 5: log unification) ─────┤
    │      │                                        │
-   │      ├─► 06-08 (Wave 5: contract test) ───────┤
-   │      └─► 06-09 (Wave 5: node_0176 smoke) ─────┤
+   │      ├─► 06-08 (Wave 6: contract test) ───────┤
+   │      └─► 06-09 (Wave 6: node_0176 smoke) ─────┤
    │                                               │
-   └────────────────► 06-10 (Wave 6: acceptance) ─┘
+   └────────────────► 06-10 (Wave 7: acceptance) ─┘
 ```
 
 ---
 
 ## Estimated Execution Cadence
 
-- **Wave 0** (scaffolding): ~30 min — single mechanical plan, RED stubs
-- **Wave 1** (foundations, parallel ‖): ~25 min wall — 06-02 ‖ 06-03 in worktrees
-- **Wave 2** (backends, parallel ‖): ~45 min wall — 06-04 ‖ 06-05 in worktrees (heaviest plans by line count)
-- **Wave 3** (namespace migration): ~30 min — 7-file refactor with guardrail
-- **Wave 4** (log unification): ~25 min — single-file _orchestrator_daemon.py extension
-- **Wave 5** (test extensions, parallel ‖): ~25 min wall — 06-08 ‖ 06-09 in worktrees
-- **Wave 6** (acceptance): ~20 min — single test file aggregating clause checks
+- **Wave 1** (scaffolding): ~30 min — single mechanical plan, RED stubs
+- **Wave 2** (foundations, parallel ‖): ~25 min wall — 06-02 ‖ 06-03 in worktrees
+- **Wave 3** (backends, parallel ‖): ~45 min wall — 06-04 ‖ 06-05 in worktrees (heaviest plans by line count)
+- **Wave 4** (namespace migration): ~30 min — 7-file refactor with guardrail
+- **Wave 5** (log unification): ~25 min — single-file _orchestrator_daemon.py extension
+- **Wave 6** (test extensions, parallel ‖): ~25 min wall — 06-08 ‖ 06-09 in worktrees
+- **Wave 7** (acceptance): ~20 min — single test file aggregating clause checks
 - **Total estimated wall-clock:** ~3.0 hours of focused execution
 - **Total plans:** 10
 - **Wave-execute parallelism savings:** ~30% (3 of 7 waves run 2 plans in parallel)
@@ -134,7 +134,7 @@ The planner integrated all 5 API corrections from `06-RESEARCH.md` § Open Quest
 **Anti-shallow execution defenses:**
 - ✓ API corrections applied inline (not deferred to executors)
 - ✓ Memory-aligned patterns enforced (atomic-write rollback uses `path.unlink`, never git checkout; framework purity grep gates; BCK-04 lint clean)
-- ✓ Wave 0 RED-stubs ensure every implementation task has a failing test it can flip
+- ✓ Wave 1 RED-stubs ensure every implementation task has a failing test it can flip
 - ✓ Clause-by-clause D-179 cross-reference in 06-10 makes acceptance gate programmatic, not subjective
 
 **Ready for plan-checker verification.**
