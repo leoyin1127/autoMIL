@@ -27,6 +27,8 @@ ml = [
     "scipy>=1.11",
     "h5py>=3.9",
 ]
+slurm = ["submitit>=1.5.3"]   # BCK-05 — opt-in SLURM backend
+ray   = ["ray>=2.55.1"]       # BCK-06 — opt-in Ray backend
 
 [project.scripts]
 automil = "automil.cli:main"
