@@ -89,7 +89,7 @@ def test_rank_filters_held_out_by_default(rank_project):
 def test_rank_include_held_out_shows_held_out(rank_project):
     """automil rank --include-held-out must show all three nodes including node_0002."""
     runner = CliRunner()
-    result = runner.invoke(main, ["rank", "--n", "10", "--include-held-out"])
+    result = runner.invoke(main, ["rank", "--n", "10", "--max-per-branch", "10", "--include-held-out"])
     assert result.exit_code == 0, result.output
     assert "node_0001" in result.output
     assert "node_0002" in result.output
@@ -102,7 +102,7 @@ def test_rank_include_held_out_logs_warning(rank_project, caplog):
     """--include-held-out must emit a WARNING log message containing 'held-out' AND 'D-139'."""
     runner = CliRunner()
     with caplog.at_level(logging.WARNING):
-        result = runner.invoke(main, ["rank", "--n", "10", "--include-held-out"])
+        result = runner.invoke(main, ["rank", "--n", "10", "--max-per-branch", "10", "--include-held-out"])
     assert result.exit_code == 0, result.output
     warning_messages = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
     assert any("held-out" in m or "held_out" in m for m in warning_messages), (

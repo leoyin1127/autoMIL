@@ -1,16 +1,29 @@
 """propose + rank commands: paired by lifecycle (D-01)."""
 from __future__ import annotations
 
+import logging
+
 import click
 
 from automil.cli import main
 from automil.cli._helpers import _find_automil_dir
 
+logger = logging.getLogger(__name__)
+
 
 @main.command()
 @click.option("--n", default=6, help="Number of proposals to return")
 @click.option("--max-per-branch", default=2, help="Max proposals per branch")
-def rank(n: int, max_per_branch: int):
+@click.option(
+    "--include-held-out",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include held-out gate-eval nodes (D-139; logs WARNING; "
+        "do NOT use during the agent search loop)."
+    ),
+)
+def rank(n: int, max_per_branch: int, include_held_out: bool):
     """Show top-ranked proposals from the experiment graph."""
     adir = _find_automil_dir()
     graph_path = adir / "graph.json"
@@ -21,6 +34,23 @@ def rank(n: int, max_per_branch: int):
 
     from automil.graph import ExperimentGraph
     graph = ExperimentGraph(path=str(graph_path))
+
+    # D-139: held-out isolation — filter unless operator explicitly opts in.
+    if include_held_out:
+        logger.warning(
+            "rank --include-held-out: held-out cell composites now visible; "
+            "this MUST NOT be used during the agent search loop (D-139)."
+        )
+    else:
+        graph._data["nodes"] = {
+            k: v
+            for k, v in graph.nodes.items()
+            if not (
+                isinstance(v, dict)
+                and v.get("metadata", {}).get("held_out", False)
+            )
+        }
+
     graph.recalculate_scores()
     proposals = graph.rank_proposals(n=n, max_per_branch=max_per_branch)
 
