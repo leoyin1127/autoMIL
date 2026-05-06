@@ -16,7 +16,12 @@ from __future__ import annotations
 import logging
 
 from automil.backends.base import Backend, JobHandle, JobSpec, JobState
-from automil.backends.errors import BackendError
+from automil.backends.errors import (
+    BackendError,
+    BackendNotInstalledError,
+    SlurmDirectivesIncompleteError,
+    RayClusterUnreachableError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +78,21 @@ from automil.backends import local as _local_backend  # noqa: F401  # D-68: auto
 from automil.backends.local import LocalBackend  # noqa: F401  # re-export for public surface
 # mock_slurm NOT auto-imported here — tests import it explicitly (D-69)
 
+# Opt-in distributed backends (Phase 6 / D-153): guarded imports so
+# `pip install -e .` (no extras) never fails. When the extra is missing the
+# backend is simply unavailable at runtime; callers attempting to dispatch
+# through an unavailable backend get BackendNotInstalledError (raised by the
+# config-resolution path, not by import).
+try:
+    from automil.backends import slurm as _slurm_backend  # noqa: F401  # registers SLURMBackend
+except ImportError:
+    pass  # [slurm] extra not installed — backend unavailable
+
+try:
+    from automil.backends import ray as _ray_backend  # noqa: F401  # registers RayBackend
+except ImportError:
+    pass  # [ray] extra not installed — backend unavailable
+
 __all__ = [
     # Plan 02-01 surface
     "Backend",
@@ -80,6 +100,10 @@ __all__ = [
     "JobSpec",
     "JobState",
     "BackendError",
+    # Plan 06-02: Phase 6 typed error subclasses (D-178)
+    "BackendNotInstalledError",
+    "RayClusterUnreachableError",
+    "SlurmDirectivesIncompleteError",
     # Plan 02-02 registry surface (D-68)
     "BACKENDS",
     "register",
