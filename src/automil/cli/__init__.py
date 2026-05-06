@@ -21,6 +21,7 @@ from automil.cli import cancel  # noqa: E402,F401
 from automil.cli import cell    # noqa: E402,F401  (CAP-06 / D-125)
 from automil.cli import check  # noqa: E402,F401
 from automil.cli import control  # noqa: E402,F401
+from automil.cli import gate    # noqa: E402,F401  (GTE-01..06 / D-145)
 from automil.cli import init  # noqa: E402,F401
 from automil.cli import lifecycle  # noqa: E402,F401
 from automil.cli import orchestrator  # noqa: E402,F401
