@@ -284,7 +284,15 @@ class ExperimentOrchestrator:
         self.project_root = project_root or _find_git_root()
         self.orch_dir = self.automil_dir / "orchestrator"
         self.queue_dir = self.orch_dir / "queue"
-        self.running_dir = self.orch_dir / "running"
+        # D-169: running_dir is no longer a single flat attribute — resolved per-backend
+        # via _backend_running_dir(name). The base running root remains for the
+        # startup guardrail check (D-168) and log unification (D-170).
+        self.running_root = self.orch_dir / "running"
+        # Backward alias: points at running/local/ so all existing internal
+        # LocalBackend dispatch paths (lines 709, 771, 816, 852, 857, 917, 980)
+        # resolve to the correct namespaced directory without further modification.
+        # New code MUST call self._backend_running_dir(backend_name) instead.
+        self.running_dir = self.running_root / "local"
         self.archive_dir = self.orch_dir / "archive"
         self.completed_dir = self.orch_dir / "completed"
         self.results_tsv = self.automil_dir / "results.tsv"
@@ -365,12 +373,33 @@ class ExperimentOrchestrator:
         # (worktrees don't contain .env since it's typically gitignored)
         self._load_dotenv()
 
-        # Ensure directories
-        for d in (self.queue_dir, self.running_dir, self.archive_dir, self.completed_dir):
+        # Ensure directories.
+        # NOTE: we create running_root (the parent running/ dir) but NOT the
+        # per-backend running/local/ subdirectory here. The _backend_running_dir
+        # helper creates backend subdirs on demand, and the D-168 guardrail in
+        # run() checks whether running/local/ (or /slurm/ or /ray/) EXISTS as a
+        # signal that this installation is already on the 6.x namespaced layout.
+        # Creating running/local/ in __init__ would defeat that guardrail by
+        # making every fresh daemon startup look "already migrated".
+        for d in (self.queue_dir, self.running_root, self.archive_dir, self.completed_dir):
             d.mkdir(parents=True, exist_ok=True)
 
         # Load persisted state (don't recover orphans until run() is called)
         self._load_state(recover=False)
+
+    def _backend_running_dir(self, backend_name: str) -> Path:
+        """Return orch_dir / 'running' / <backend_name>; create on demand (D-169).
+
+        Per-backend namespacing was introduced in Phase 6 (BCK-05/06). Default
+        fallback is 'local' for legacy nodes without metadata.backend (Phase 2 D-76).
+        New code (cancel.py, reconcile.py, cell.py, log unification) MUST call
+        this helper instead of accessing self.running_dir directly.
+        """
+        if not backend_name:
+            backend_name = "local"
+        path = self.running_root / backend_name
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
     @staticmethod
     def _parse_yaml_fallback(config_path: Path) -> dict:
@@ -704,9 +733,11 @@ class ExperimentOrchestrator:
         )
         self.gpu_allocations.setdefault(gpu_id, []).append(node_id)
 
-        # Copy spec to running dir for orphan recovery
+        # Copy spec to running dir for orphan recovery.
+        # Use _backend_running_dir to ensure running/local/ exists (created on demand
+        # per D-169; __init__ no longer pre-creates the backend subdir).
         import shutil
-        running_spec = self.running_dir / f"{node_id}.json"
+        running_spec = self._backend_running_dir("local") / f"{node_id}.json"
         shutil.copy2(archive / "spec.json", running_spec)
 
         logger.info(
@@ -1175,6 +1206,27 @@ class ExperimentOrchestrator:
 
     def run(self):
         """Main daemon loop."""
+        # D-168 (BREAKING in 6.0.0): refuse to start if flat running/*.json files
+        # exist AND no namespaced subdirectory exists. autoMIL 6.x does NOT
+        # auto-migrate; operators must drain via `automil orchestrator stop` and
+        # confirm running/ is empty before upgrading. See CHANGELOG.md 6.0.0.
+        if self.running_root.exists():
+            flat_jsons = list(self.running_root.glob("*.json"))  # top-level only
+            namespaced = [
+                name for name in ("local", "slurm", "ray")
+                if (self.running_root / name).is_dir()
+            ]
+            if flat_jsons and not namespaced:
+                raise SystemExit(
+                    "BREAKING CHANGE: flat orchestrator/running/*.json files detected. "
+                    "autoMIL 6.x uses per-backend namespacing "
+                    "(running/<backend>/<id>.json). "
+                    f"Found {len(flat_jsons)} flat file(s) in {self.running_root}. "
+                    "Drain in-flight runs with `automil orchestrator stop`, confirm "
+                    "orchestrator/running/ contains no top-level *.json files, then "
+                    "restart the daemon. See CHANGELOG.md 6.0.0 for full recovery steps."
+                )
+
         self.runner.prune_stale_worktrees()
         self._recover_orphans()
 
