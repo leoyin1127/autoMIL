@@ -36,6 +36,10 @@ packages = ["src/automil"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "requires_slurm: requires SLURM cluster (skip in CI; nightly only)",
+    "requires_ray: requires real Ray cluster (skip in CI; nightly only)",
+]
 
 [dependency-groups]
 dev = [

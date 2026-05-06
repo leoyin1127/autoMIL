@@ -1,11 +1,23 @@
-"""Shared fixtures and helpers for automil.backends contract tests (BCK-01..04).
+"""Shared fixtures and helpers for automil.backends contract tests (BCK-01..06).
 
 Provides:
 - ``wait_for_state`` polling helper (used by Plans 02-07 contract scenarios)
 - ``make_spec`` factory helper (builds minimal valid ``JobSpec`` from ``tmp_path``)
-- ``backend`` fixture — parameterised over LocalBackend + MockSLURMBackend (Plan 02-07)
+- ``backend`` fixture — parameterised over LocalBackend, MockSLURMBackend,
+  SLURMBackend (submitit DebugExecutor), and RayBackend (local cluster) (Plan 02-09)
 - ``_isolated_backends`` autouse fixture — clears BACKENDS registry before/after
   each test (per PATTERNS.md §11 registry-singleton-isolation pattern)
+
+Note on the 4-branch if/elif/elif/else chain (Phase 6 W-9 requirement):
+  The dispatch is explicit so "ray" never accidentally falls through to MockSLURMBackend.
+  - "local"      → LocalBackend (structural scenarios only; daemon-execution skipped)
+  - "mock_slurm" → MockSLURMBackend (poll_lag=0.05s; full execution scenarios run)
+  - "slurm"      → SLURMBackend(debug_in_process=True) using submitit cluster="debug"
+                   SKIPPED if submitit extra not installed (pytest.importorskip)
+  - "ray"        → RayBackend with local ray.init() (NOT local_mode=True — deprecated
+                   in Ray 2.55+; see RESEARCH.md Pitfall 5)
+                   SKIPPED if ray extra not installed (pytest.importorskip)
+                   Teardown: ray.shutdown() only if RayBackend._we_started_ray
 """
 from __future__ import annotations
 
@@ -94,22 +106,14 @@ def make_spec(
 
 
 # ---------------------------------------------------------------------------
-# Backend fixture — parameterised over both implementations (T-02-07-01)
+# Backend fixture — parameterised over all 4 implementations (T-02-09-01)
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(params=["local", "mock_slurm"])
-def backend(request, tmp_path):
-    """Parameterised fixture: yields LocalBackend or MockSLURMBackend.
+@pytest.fixture(params=["local", "mock_slurm", "slurm", "ray"])
+def backend(request, tmp_path, _isolated_backends):
+    """Parameterised fixture: yields LocalBackend, MockSLURMBackend, SLURMBackend, or RayBackend.
 
-    ``local`` — builds a minimal project directory tree so LocalBackend can
-    construct without a running daemon.  The LocalBackend fixture is suitable
-    for structural scenarios (submit writes queue file, poll reads it, cancel
-    removes it, list_running scans running/) but not for job-execution scenarios
-    that require the daemon to be alive (those are skipped via
-    ``pytest.mark.skipif`` in test_contract.py).
-
-    ``mock_slurm`` — uses ``poll_lag_seconds=0.05`` so the full contract suite
-    runs in <10s wall-clock (D-63 / RESEARCH.md §3 flakiness prevention rule 2).
+    See module docstring for per-branch semantics and skip conditions.
     """
     if request.param == "local":
         from automil.backends.local import LocalBackend  # explicit per D-69
@@ -123,13 +127,53 @@ def backend(request, tmp_path):
         # Minimal fake git repo (LocalBackend auto-detects project_root via .git).
         (tmp_path / ".git").mkdir()
         yield LocalBackend(project_root=tmp_path, automil_dir=automil_dir)
-    else:
+    elif request.param == "mock_slurm":
         from automil.backends.mock_slurm import MockSLURMBackend  # explicit per D-69
 
         yield MockSLURMBackend(
             poll_lag_seconds=0.05,
             state_file=tmp_path / "mock_state.json",
         )
+    elif request.param == "slurm":
+        pytest.importorskip("submitit")
+        from automil.backends.slurm import SLURMBackend  # noqa: PLC0415
+
+        automil_dir = tmp_path / "automil"
+        (automil_dir / "orchestrator" / "running" / "slurm").mkdir(parents=True)
+        (automil_dir / "orchestrator" / "archive").mkdir(parents=True)
+        config = {
+            "backend": {
+                "name": "slurm",
+                "slurm": {
+                    "debug_in_process": True,  # uses submitit cluster="debug"
+                    "walltime_seconds": 300,
+                    "directives": {
+                        "partition": "debug",
+                        "account": "test",
+                        "cpus_per_task": 1,
+                        "mem_gb": 4,
+                    },
+                },
+            },
+        }
+        yield SLURMBackend(automil_dir=automil_dir, config=config)
+    else:  # request.param == "ray"
+        pytest.importorskip("ray")
+        import ray  # noqa: PLC0415
+        from automil.backends.ray import RayBackend  # noqa: PLC0415
+
+        if not ray.is_initialized():
+            ray.init(ignore_reinit_error=True, log_to_driver=False)  # NOT local_mode=True (deprecated; RESEARCH.md Pitfall 5)
+        automil_dir = tmp_path / "automil"
+        (automil_dir / "orchestrator" / "running" / "ray").mkdir(parents=True)
+        (automil_dir / "orchestrator" / "archive").mkdir(parents=True)
+        backend_instance = RayBackend(
+            automil_dir=automil_dir,
+            config={"backend": {"name": "ray", "ray": {"allow_local_fallback": True}}},
+        )
+        yield backend_instance
+        if backend_instance._we_started_ray and ray.is_initialized():
+            ray.shutdown()
 
 
 # ---------------------------------------------------------------------------
