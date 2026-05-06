@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-last_updated: "2026-05-06T20:12:42.616Z"
+status: completed
+last_updated: "2026-05-06T20:30:00.000Z"
 progress:
   total_phases: 9
   completed_phases: 7
@@ -30,19 +30,25 @@ progress:
 - `CLAUDE.md` — project instructions and Leo's standing directives
 - `~/.claude/projects/-home-jma-Documents-yinshuol-autoMIL/memory/MEMORY.md` — Leo's standing memory (saturate GPUs, research before submit, never blind-checkout, architectural-not-hyperparam, never ask continue autonomously)
 
-**Current focus:** Phase 06 — slurm-backend-submitit-ray-backend-raw-ray-remote
+**Current focus:** Phase 07 — Hardware autodetect + /automil-setup skill (next, depends on Phase 6 framework shape stable)
 
 ## Current Position
 
-Phase: 06 (slurm-backend-submitit-ray-backend-raw-ray-remote) — EXECUTING
+Phase: 06 (slurm-backend-submitit-ray-backend-raw-ray-remote) — COMPLETE
 Plan: 10 of 10
 
 - **Phase:** 06 — SLURM backend (submitit) + Ray backend (raw ray.remote)
-- **Plans:** 10 across 7 waves (Wave 0–6) — committed at `2e0a886` post-iter-1 fixes
-- **Status:** Ready to execute
-- **Wave map:** W0 (06-01 scaffolding) → W1 (06-02 extras+errors ‖ 06-03 config+check) → W2 (06-04 SLURM ‖ 06-05 Ray) → W3 (06-06 namespace migration) → W4 (06-07 log unification) → W5 (06-08 contract-test ‖ 06-09 node_0176 smoke) → W6 (06-10 acceptance gate).
-- **Progress (milestone):** [██████░░░░] 67% (6/9 phases shipped; Phase 06 plans ready, execution pending)
-- **Next:** `/gsd-execute-phase 6` — wave-based parallel execution via worktrees; estimated ~3.0h focused execution (~30% parallelism savings from W1/W2/W5 parallel pairs).
+- **Plans:** 10 across 7 waves shipped (head `822a146`)
+- **Status:** Phase 06 complete (798 passed + 47 skipped + 3 pre-existing tick_cells failures unrelated to BCK-05/06; +19 passing from 779 Phase 5 baseline; D-179 11-clause acceptance gate green: 9 passed + 2 skipped (clauses 5/6 require `[slurm]`/`[ray]` extras); all 5 RESEARCH.md API corrections applied inline (timeout_min/slurm_additional_parameters/job.paths.stdout/WorkerCrashedError/ignore_reinit_error); BCK-04 lint clean (no process-control in slurm.py/ray.py — submitit + ray APIs sufficient); framework purity preserved (zero autobench refs in src/automil/backends/); CHANGELOG.md 6.0.0 BREAKING entry shipped with operator-recovery instructions for `running/` namespace migration; daemon refuses to start with flat layout — verified via `test_daemon_refuses_flat_running`)
+- **Wave execution:** W1 (06-01 scaffolding 6m) → W2 (06-02‖06-03 ~20m wall) → W3 (06-04‖06-05 ~22m wall, both ~420 lines) → W4 (06-06 namespace migration 21m) → W5 (06-07 log unification 15m) → W6 (06-08‖06-09 ~8m wall) → W7 (06-10 acceptance gate 15m). Total wall-clock ~2.0h with parallelism savings from W2/W3/W6.
+- **Progress (milestone):** [███████░░░] 78% (7/9 phases shipped, 70/70 plans complete)
+- **Next:** `/gsd-verify-work 6` — Phase 6 UAT (autonomous-mode bash-verifiable surfaces).
+
+## Phase 6 follow-ups (deferred — not Phase 6 blockers)
+
+1. **Pre-existing tick_cells failures** (3 tests in `tests/test_tick_cells.py`): `test_tick_cells_active_to_refusing_new`, `test_tick_cells_terminating_fires_cancel_with_cap_reason`, `test_tick_cells_finalized_when_running_empty`. Origin: Phase 4 `_orchestrator_daemon.py:_tick_cells` — the test mocks expect `cells_dir = tmp_path / "automil" / "cells"` but the daemon's actual cells directory resolution may have shifted. Pre-existing at start of Phase 6 session (verified via `git checkout cca0bc0 -- src/automil/backends/_orchestrator_daemon.py` bisection). Not caused by namespace migration. Recommended fix: either (a) Phase 8 cleanup audits Phase 4 wiring, or (b) Leo runs targeted `/gsd-debug` on these 3 specific tests.
+
+2. **Real-cluster verification (BCK-05/06 success criterion 5)**: D-180/D-181 deferred. CCRCC `node_0176`-equivalent end-to-end on a real SLURM cluster + multi-node Ray cluster. Behind `@pytest.mark.requires_slurm`/`requires_ray` markers in `test_contract_real_slurm.py` / `test_contract_real_ray.py` — runs nightly only, not CI.
 
 ## Phase 5 Leo Follow-up (deferred — not a blocker for Phase 6)
 
