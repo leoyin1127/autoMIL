@@ -126,3 +126,14 @@ cap:
   budget_seconds:        21600    # 6h — Leo's autoMIL-paper campaign default
   safety_buffer_seconds: 1800     # 30min — must be < budget_seconds; tune to longest-fold duration
 
+# --- Gate configuration — consumer-supplied (NOT framework constants). ---
+# Generalization gate (Phase 5 / GTE-01..06). K, p_threshold, bootstrap_reps
+# are Leo's autoMIL-paper defaults; another consumer with a different
+# statistical-power requirement supplies different values. Pre-registration
+# (D-138) is enforced regardless of these values.
+gate:
+  auto_nominate:    false        # D-142 default: operator-driven nomination only
+  K:                2            # O-01 default: max(2, N_cells//3) generous starting K
+  p_threshold:      0.05         # O-02 default: conventional alpha; Bonferroni divides
+  bootstrap_reps:   1000         # GTE-04 locked: 1000 per F1 paper §4.4
+
