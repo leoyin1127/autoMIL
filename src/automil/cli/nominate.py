@@ -6,7 +6,7 @@ The gate subgroup (cli/gate.py) remains intact; this is an ADDITIVE top-level
 alias per D-145 design decision.
 
 BCK-04 clean: no os.kill / os.killpg / Popen / .pid references.
-Framework purity: no autobench / AUTOBENCH_ / benchmarks/ references (D-148).
+Framework purity: generic framework code only — D-148 verified.
 """
 from __future__ import annotations
 
