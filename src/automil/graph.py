@@ -499,9 +499,12 @@ class ExperimentGraph:
         archive_path = Path(archive_dir)
 
         orch_ids = set()
-        for d in (queue_path, running_path):
+        # queue/ is flat (no subdirs); running/ is namespaced per D-169 (Phase 6):
+        # running/local/*.json, running/slurm/*.json, running/ray/*.json.
+        # Use rglob for running_path to find entries across all backend subdirs.
+        for d, glob_fn in ((queue_path, "glob"), (running_path, "rglob")):
             if d.exists():
-                for f in d.glob("*.json"):
+                for f in getattr(d, glob_fn)("*.json"):
                     try:
                         spec = json.loads(f.read_text())
                         orch_ids.add(spec.get("id", f.stem))

@@ -31,7 +31,8 @@ def _count_running_in_cell(cell_id: str) -> int:
     if not running_dir.exists():
         return 0
     n = 0
-    for f in running_dir.glob("*.json"):
+    # D-169: rglob to traverse all backend subdirs (running/local/, running/slurm/, etc.)
+    for f in running_dir.rglob("*.json"):
         try:
             spec = json.loads(f.read_text())
             if spec.get("metadata", {}).get("cell_id") == cell_id:

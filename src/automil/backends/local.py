@@ -79,7 +79,9 @@ class LocalBackend(Backend):
         # Convenience shortcuts to the daemon's directory layout.
         self._orch_dir: Path = self._daemon.orch_dir
         self._queue_dir: Path = self._daemon.queue_dir
-        self._running_dir: Path = self._daemon.running_dir
+        # D-169: explicit namespaced path; was self._daemon.running_dir (flat).
+        # running/local/ is the LocalBackend's exclusive namespace (Phase 6 BCK-05/06).
+        self._running_dir: Path = self._orch_dir / "running" / "local"
         self._archive_dir: Path = self._daemon.archive_dir
 
     # ------------------------------------------------------------------
