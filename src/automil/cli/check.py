@@ -11,6 +11,88 @@ import yaml
 from automil.cli import main
 from automil.cli._helpers import _find_automil_dir, _find_git_root
 
+# D-172 — required SLURM directives. `signal` is framework-mandated (Phase 4 D-115)
+# and rejected if operator tries to override.
+_REQUIRED_SLURM_DIRECTIVES: list[str] = [
+    "partition", "account", "cpus_per_task", "mem_gb",
+]
+_FORBIDDEN_SLURM_DIRECTIVE_KEYS: list[str] = ["signal"]
+_TODO_SENTINEL: str = "TODO_FILL_IN"
+
+
+def _validate_slurm_directives(config: dict) -> None:
+    """Raise SlurmDirectivesIncompleteError if SLURM config is incomplete (D-172).
+
+    Checks:
+      1. backend.slurm.walltime_seconds is a positive integer.
+      2. All keys in _REQUIRED_SLURM_DIRECTIVES present and not equal to _TODO_SENTINEL.
+      3. No keys in _FORBIDDEN_SLURM_DIRECTIVE_KEYS present (signal is framework-mandated).
+
+    Pure function: no I/O, no Click. Wave-0 unit tests exercise it directly.
+    """
+    from automil.backends.errors import SlurmDirectivesIncompleteError  # noqa: PLC0415
+
+    backend_cfg = config.get("backend", {}) or {}
+    slurm_cfg = backend_cfg.get("slurm", {}) or {}
+    directives = slurm_cfg.get("directives", {}) or {}
+
+    walltime = slurm_cfg.get("walltime_seconds")
+    missing: list[str] = []
+    if not isinstance(walltime, int) or walltime <= 0:
+        missing.append("walltime_seconds")
+
+    for key in _REQUIRED_SLURM_DIRECTIVES:
+        val = directives.get(key)
+        if val is None:
+            missing.append(key)
+        elif isinstance(val, str) and val == _TODO_SENTINEL:
+            missing.append(key)
+
+    for forbidden in _FORBIDDEN_SLURM_DIRECTIVE_KEYS:
+        if forbidden in directives:
+            # D-172: framework-mandated signal cannot be overridden.
+            missing.append(forbidden)
+
+    if missing:
+        raise SlurmDirectivesIncompleteError(missing)
+
+
+def _validate_ray_backend(config: dict, issues: list[str], warnings: list[str]) -> None:
+    """Append issues/warnings for Ray backend selection (D-173 advisory).
+
+    - Missing [ray] extra → issues.
+    - RAY_ADDRESS set + connection fails → warnings (advisory, non-blocking).
+    - RAY_ADDRESS set + connection ok → echo "Ray cluster reachable".
+    """
+    backend_cfg = config.get("backend", {}) or {}
+    if backend_cfg.get("name") != "ray":
+        return
+
+    try:
+        import ray  # noqa: PLC0415, F401
+    except ImportError:
+        issues.append(
+            "backend.name is 'ray' but the [ray] extra is not installed. "
+            "Run: pip install -e '.[ray]'"
+        )
+        return
+
+    ray_address = os.environ.get("RAY_ADDRESS")
+    if not ray_address:
+        return  # operator may be deferring to local fallback; non-issue.
+
+    # Advisory connect-test (1s).
+    import ray as _ray  # noqa: PLC0415
+    try:
+        if not _ray.is_initialized():
+            _ray.init(address=ray_address, ignore_reinit_error=True, log_to_driver=False)
+        click.echo(f"Ray cluster at {ray_address!r}: reachable.")
+    except ConnectionError:
+        warnings.append(
+            f"RAY_ADDRESS={ray_address!r} set but cluster unreachable "
+            f"(ConnectionError). Advisory only — operator may be intentionally pre-init."
+        )
+
 
 @main.command()
 def check():
@@ -79,6 +161,28 @@ def check():
     for d in ["queue", "running", "archive", "completed"]:
         if not (adir / "orchestrator" / d).exists():
             issues.append(f"automil/orchestrator/{d}/ missing. Run 'automil init'.")
+
+    # D-172/D-173: Phase 6 backend validation (only when a non-local backend is selected).
+    backend_name = (config.get("backend", {}) or {}).get("name", "local")
+    if backend_name == "slurm":
+        try:
+            _validate_slurm_directives(config)
+        except Exception as exc:  # SlurmDirectivesIncompleteError or any other issue
+            from automil.backends.errors import SlurmDirectivesIncompleteError  # noqa: PLC0415
+            if isinstance(exc, SlurmDirectivesIncompleteError):
+                issues.append(
+                    f"backend.slurm directives incomplete — missing or "
+                    f"sentinel-valued: {exc.missing_keys}. "
+                    f"Edit automil/config.yaml: backend.slurm."
+                )
+            else:
+                raise
+    elif backend_name == "ray":
+        _validate_ray_backend(config, issues, warnings)
+    elif backend_name != "local":
+        warnings.append(
+            f"backend.name={backend_name!r} is unknown. Expected one of: local, slurm, ray."
+        )
 
     # CLN-05: report the resolved nvidia-smi path so operators can see whether
     # path pinning is in effect (D-18). The constant is set at orchestrator.py
