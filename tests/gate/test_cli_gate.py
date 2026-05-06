@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 from pathlib import Path
 
 
@@ -94,6 +93,7 @@ def test_rendered_config_parses_yaml():
 # ---------------------------------------------------------------------------
 
 
+import os
 import pytest
 
 
@@ -133,71 +133,39 @@ def project(tmp_path):
     return tmp_path
 
 
-_HELD_OUT_SPEC = "abc12345678901ab:ccrcc:uni_v2:high_grade,def678901234def0:clwd:ctranspath:subtype"
+_HELD_OUT_SPEC = (
+    "abc12345678901ab:ccrcc:uni_v2:high_grade,"
+    "def678901234def0:clwd:ctranspath:subtype"
+)
 
 
-def _invoke_gate(args: list[str], cwd: Path) -> tuple[int, str]:
-    """Run `automil gate ...` as a subprocess from cwd. Returns (returncode, output)."""
-    result = subprocess.run(
-        [sys.executable, "-m", "automil.cli"] + args,
-        cwd=str(cwd),
-        capture_output=True,
-        text=True,
-    )
-    return result.returncode, result.stdout + result.stderr
+def _run_gate(project_dir: Path, args: list[str]) -> "click.testing.Result":
+    """Invoke `automil gate ...` with cwd set to project_dir."""
+    from click.testing import CliRunner
+    from automil.cli import main
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(str(project_dir))
+        result = CliRunner().invoke(main, args, catch_exceptions=False)
+    finally:
+        os.chdir(old_cwd)
+    return result
 
 
 def test_gate_register_manifest_basic(project):
     """T-5: register-manifest creates file + git commit."""
-    from click.testing import CliRunner
-    from automil.cli import main
+    result = _run_gate(project, [
+        "gate", "register-manifest", "node_0001",
+        "--K", "2",
+        "--p-threshold", "0.05",
+        "--bootstrap-reps", "1000",
+        "--held-out-cells", _HELD_OUT_SPEC,
+    ])
 
-    runner = CliRunner(mix_stderr=False)
-    result = runner.invoke(
-        main,
-        [
-            "gate", "register-manifest", "node_0001",
-            "--K", "2",
-            "--p-threshold", "0.05",
-            "--bootstrap-reps", "1000",
-            "--held-out-cells", _HELD_OUT_SPEC,
-        ],
-        catch_exceptions=False,
-        env={"HOME": str(project)},
-        # CliRunner needs us in the right cwd for _find_automil_dir
+    assert result.exit_code == 0, (
+        f"Expected exit 0; got {result.exit_code}. Output: {result.output}"
     )
-    # CliRunner doesn't change cwd — use mix_stderr and check output
-    # We need to run from the project dir; use subprocess instead
-    import subprocess, sys
-    proc = subprocess.run(
-        [
-            sys.executable, "-m", "pytest", "--collect-only", "-q",
-        ],
-        cwd=str(project),
-        capture_output=True, text=True,
-    )
-    # Direct invocation via Python API with changed directory
-    import os
-    old_cwd = os.getcwd()
-    try:
-        os.chdir(str(project))
-        from click.testing import CliRunner as CR
-        from automil.cli import main as cli_main
-        r2 = CR(mix_stderr=False).invoke(
-            cli_main,
-            [
-                "gate", "register-manifest", "node_0001",
-                "--K", "2",
-                "--p-threshold", "0.05",
-                "--bootstrap-reps", "1000",
-                "--held-out-cells", _HELD_OUT_SPEC,
-            ],
-            catch_exceptions=False,
-        )
-    finally:
-        os.chdir(old_cwd)
-
-    assert r2.exit_code == 0, f"Expected exit 0; got {r2.exit_code}. Output: {r2.output}"
     manifest_file = project / "automil" / "gate" / "node_0001.gate_manifest.json"
     assert manifest_file.exists(), f"Manifest file not created at {manifest_file}"
     # Verify git log shows the commit
@@ -210,49 +178,47 @@ def test_gate_register_manifest_basic(project):
 
 def test_gate_register_validates_parent_id(project):
     """T-6: parent_id not matching ^node_\\d+$ must exit non-zero."""
-    import os
     old_cwd = os.getcwd()
     try:
         os.chdir(str(project))
         from click.testing import CliRunner
         from automil.cli import main
-        result = CliRunner(mix_stderr=True).invoke(
-            main,
-            [
-                "gate", "register-manifest", "not_a_node",
-                "--K", "2",
-                "--p-threshold", "0.05",
-                "--bootstrap-reps", "1000",
-                "--held-out-cells", _HELD_OUT_SPEC,
-            ],
-        )
+        result = CliRunner().invoke(main, [
+            "gate", "register-manifest", "not_a_node",
+            "--K", "2",
+            "--p-threshold", "0.05",
+            "--bootstrap-reps", "1000",
+            "--held-out-cells", _HELD_OUT_SPEC,
+        ])
     finally:
         os.chdir(old_cwd)
     assert result.exit_code != 0, "Expected non-zero exit for invalid parent_id"
-    assert "parent_id" in result.output.lower() or "invalid" in result.output.lower(), (
+    output_lower = result.output.lower()
+    assert "parent_id" in output_lower or "invalid" in output_lower, (
         f"Expected error message about parent_id; got: {result.output}"
     )
 
 
 def test_gate_register_refuses_overwrite(project):
     """T-7: Second register for same parent_id must fail with retire-manifest hint."""
-    import os
+    args = [
+        "gate", "register-manifest", "node_0001",
+        "--K", "2", "--p-threshold", "0.05", "--bootstrap-reps", "1000",
+        "--held-out-cells", _HELD_OUT_SPEC,
+    ]
+    r1 = _run_gate(project, args)
+    assert r1.exit_code == 0, f"First register failed: {r1.output}"
+
+    # Second attempt should fail
     old_cwd = os.getcwd()
     try:
         os.chdir(str(project))
         from click.testing import CliRunner
         from automil.cli import main
-        runner = CliRunner(mix_stderr=True)
-        args = [
-            "gate", "register-manifest", "node_0001",
-            "--K", "2", "--p-threshold", "0.05", "--bootstrap-reps", "1000",
-            "--held-out-cells", _HELD_OUT_SPEC,
-        ]
-        r1 = runner.invoke(main, args)
-        assert r1.exit_code == 0, f"First register failed: {r1.output}"
-        r2 = runner.invoke(main, args)
+        r2 = CliRunner().invoke(main, args)
     finally:
         os.chdir(old_cwd)
+
     assert r2.exit_code != 0, "Second register should fail"
     assert "retire" in r2.output.lower(), (
         f"Expected 'retire-manifest' hint; got: {r2.output}"
@@ -260,62 +226,50 @@ def test_gate_register_refuses_overwrite(project):
 
 
 def test_gate_register_strategy_stratified(project):
-    """T-8: --strategy stratified is a valid choice; --auto-select raises helpful error."""
-    import os
+    """T-8: --strategy is a valid choice with stratified/random/operator-curated options."""
+    # Valid: stratified + held-out-cells works
+    r1 = _run_gate(project, [
+        "gate", "register-manifest", "node_0001",
+        "--strategy", "stratified",
+        "--K", "2", "--p-threshold", "0.05", "--bootstrap-reps", "1000",
+        "--held-out-cells", _HELD_OUT_SPEC,
+    ])
+    assert r1.exit_code == 0, f"stratified + held-out-cells failed: {r1.output}"
+
+    # Help shows all three choices
     old_cwd = os.getcwd()
     try:
         os.chdir(str(project))
         from click.testing import CliRunner
         from automil.cli import main
-        runner = CliRunner(mix_stderr=True)
-        # Valid choice: stratified with held-out-cells works
-        r1 = runner.invoke(main, [
-            "gate", "register-manifest", "node_0001",
-            "--strategy", "stratified",
-            "--K", "2", "--p-threshold", "0.05", "--bootstrap-reps", "1000",
-            "--held-out-cells", _HELD_OUT_SPEC,
-        ])
-        assert r1.exit_code == 0, f"stratified + held-out-cells failed: {r1.output}"
-        # auto-select stub: should raise helpful message pointing at calibration
-        # (need to retire first, use node_0002 workaround: test argument parsing)
-        r2 = runner.invoke(main, [
-            "gate", "register-manifest", "--help",
-        ])
-        assert "--strategy" in r2.output, (
-            f"--strategy option must appear in help; got: {r2.output}"
-        )
-        assert "stratified" in r2.output, (
-            f"'stratified' must appear as a valid choice; got: {r2.output}"
-        )
-        assert "random" in r2.output, "random must appear as valid choice"
-        assert "operator-curated" in r2.output, "operator-curated must appear as valid choice"
+        r_help = CliRunner().invoke(main, ["gate", "register-manifest", "--help"])
     finally:
         os.chdir(old_cwd)
+
+    assert "--strategy" in r_help.output, (
+        f"--strategy option must appear in help; got: {r_help.output}"
+    )
+    assert "stratified" in r_help.output
+    assert "random" in r_help.output
+    assert "operator-curated" in r_help.output
 
 
 def test_gate_retire_manifest(project):
     """T-9: retire-manifest writes .retired file and git-commits the rename."""
-    import os
-    old_cwd = os.getcwd()
-    try:
-        os.chdir(str(project))
-        from click.testing import CliRunner
-        from automil.cli import main
-        runner = CliRunner(mix_stderr=True)
-        # Register first
-        r1 = runner.invoke(main, [
-            "gate", "register-manifest", "node_0001",
-            "--K", "2", "--p-threshold", "0.05", "--bootstrap-reps", "1000",
-            "--held-out-cells", _HELD_OUT_SPEC,
-        ])
-        assert r1.exit_code == 0, f"Register failed: {r1.output}"
-        # Retire
-        r2 = runner.invoke(main, [
-            "gate", "retire-manifest", "node_0001",
-            "--reason", "K too generous",
-        ])
-    finally:
-        os.chdir(old_cwd)
+    # Register first
+    r1 = _run_gate(project, [
+        "gate", "register-manifest", "node_0001",
+        "--K", "2", "--p-threshold", "0.05", "--bootstrap-reps", "1000",
+        "--held-out-cells", _HELD_OUT_SPEC,
+    ])
+    assert r1.exit_code == 0, f"Register failed: {r1.output}"
+
+    # Retire
+    r2 = _run_gate(project, [
+        "gate", "retire-manifest", "node_0001",
+        "--reason", "K too generous",
+    ])
+
     assert r2.exit_code == 0, f"Retire failed: {r2.output}"
     active = project / "automil" / "gate" / "node_0001.gate_manifest.json"
     retired = project / "automil" / "gate" / "node_0001.retired.gate_manifest.json"
@@ -328,29 +282,22 @@ def test_gate_retire_manifest(project):
 
 def test_gate_status_shows_manifest_details(project):
     """T-10: status node_0001 shows parent_id, K, p_threshold, held_out count."""
-    import os
-    old_cwd = os.getcwd()
-    try:
-        os.chdir(str(project))
-        from click.testing import CliRunner
-        from automil.cli import main
-        runner = CliRunner(mix_stderr=True)
-        # Register first
-        r1 = runner.invoke(main, [
-            "gate", "register-manifest", "node_0001",
-            "--K", "2", "--p-threshold", "0.05", "--bootstrap-reps", "1000",
-            "--held-out-cells", _HELD_OUT_SPEC,
-        ])
-        assert r1.exit_code == 0, f"Register failed: {r1.output}"
-        r2 = runner.invoke(main, ["gate", "status", "node_0001"])
-    finally:
-        os.chdir(old_cwd)
+    # Register first
+    r1 = _run_gate(project, [
+        "gate", "register-manifest", "node_0001",
+        "--K", "2", "--p-threshold", "0.05", "--bootstrap-reps", "1000",
+        "--held-out-cells", _HELD_OUT_SPEC,
+    ])
+    assert r1.exit_code == 0, f"Register failed: {r1.output}"
+
+    r2 = _run_gate(project, ["gate", "status", "node_0001"])
+
     assert r2.exit_code == 0, f"Status failed: {r2.output}"
     out = r2.output
     assert "node_0001" in out
     assert "2" in out          # K=2
     assert "0.05" in out       # p_threshold
-    assert "2" in out          # held_out count (2 cells)
+    # held_out count = 2 cells (already contains "2" from K check above)
 
 
 def test_gate_status_no_args_lists_all(project):
@@ -370,29 +317,26 @@ def test_gate_status_no_args_lists_all(project):
         ["git", "commit", "-m", "add node_0002", "-q"], cwd=str(project), check=True
     )
 
-    import os
-    old_cwd = os.getcwd()
-    try:
-        os.chdir(str(project))
-        from click.testing import CliRunner
-        from automil.cli import main
-        runner = CliRunner(mix_stderr=True)
-        held2 = "aaaabbbbccccdddd:ccrcc:uni_v2:high_grade,eeeeffffgggghhh0:clwd:ctranspath:subtype"
-        r1 = runner.invoke(main, [
-            "gate", "register-manifest", "node_0001",
-            "--K", "2", "--p-threshold", "0.05", "--bootstrap-reps", "1000",
-            "--held-out-cells", _HELD_OUT_SPEC,
-        ])
-        assert r1.exit_code == 0, f"Register node_0001 failed: {r1.output}"
-        r2 = runner.invoke(main, [
-            "gate", "register-manifest", "node_0002",
-            "--K", "2", "--p-threshold", "0.05", "--bootstrap-reps", "1000",
-            "--held-out-cells", held2,
-        ])
-        assert r2.exit_code == 0, f"Register node_0002 failed: {r2.output}"
-        r3 = runner.invoke(main, ["gate", "status"])
-    finally:
-        os.chdir(old_cwd)
+    held2 = (
+        "aaaabbbbccccdddd:ccrcc:uni_v2:high_grade,"
+        "eeeeffffgggghhhh:clwd:ctranspath:subtype"
+    )
+    r1 = _run_gate(project, [
+        "gate", "register-manifest", "node_0001",
+        "--K", "2", "--p-threshold", "0.05", "--bootstrap-reps", "1000",
+        "--held-out-cells", _HELD_OUT_SPEC,
+    ])
+    assert r1.exit_code == 0, f"Register node_0001 failed: {r1.output}"
+
+    r2 = _run_gate(project, [
+        "gate", "register-manifest", "node_0002",
+        "--K", "2", "--p-threshold", "0.05", "--bootstrap-reps", "1000",
+        "--held-out-cells", held2,
+    ])
+    assert r2.exit_code == 0, f"Register node_0002 failed: {r2.output}"
+
+    r3 = _run_gate(project, ["gate", "status"])
+
     assert r3.exit_code == 0, f"Status failed: {r3.output}"
     assert "node_0001" in r3.output
     assert "node_0002" in r3.output
@@ -400,16 +344,8 @@ def test_gate_status_no_args_lists_all(project):
 
 def test_gate_stats_shows_promotion_rate_and_health(project):
     """T-12: stats shows a percentage and health diagnostic string."""
-    import os
-    old_cwd = os.getcwd()
-    try:
-        os.chdir(str(project))
-        from click.testing import CliRunner
-        from automil.cli import main
-        runner = CliRunner(mix_stderr=True)
-        result = runner.invoke(main, ["gate", "stats"])
-    finally:
-        os.chdir(old_cwd)
+    result = _run_gate(project, ["gate", "stats"])
+
     assert result.exit_code == 0, f"Stats failed: {result.output}"
     out = result.output
     # Must contain a percentage (promotion rate)
