@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-last_updated: "2026-05-06T03:30:00.000Z"
+last_updated: "2026-05-06T04:00:00.000Z"
 progress:
   total_phases: 9
   completed_phases: 6
@@ -30,18 +30,18 @@ progress:
 - `CLAUDE.md` — project instructions and Leo's standing directives
 - `~/.claude/projects/-home-jma-Documents-yinshuol-autoMIL/memory/MEMORY.md` — Leo's standing memory (saturate GPUs, research before submit, never blind-checkout, architectural-not-hyperparam, never ask continue autonomously)
 
-**Current focus:** Phase 06 — SLURM + Ray backends (next, depends on Phase 02 ABC + Phase 04 cap contract)
+**Current focus:** Phase 06 — SLURM + Ray backends (CONTEXT bootstrapped autonomously 2026-05-06; ready for `/gsd-plan-phase 6`)
 
 ## Current Position
 
-Phase: 05 — COMPLETE
-Plan: 12 of 12
+Phase: 06 — CONTEXT bootstrapped (D-152..D-188 locked autonomously)
+Plan: 0 of TBD
 
-- **Phase:** 05 — Generalization gate
-- **Plans:** 12 across 9 waves shipped
-- **Status:** Phase 05 complete (779 tests + 9 skipped, +113 from 666 Phase-4-end baseline; Pitfall-6 anti-acceptance gate green with all 9 D-149 assertions in single file; gate package fully wired — manifest + stats + nominate + evaluate + promote + 4 CLI subcommands + 2 top-level commands + viz/status promotion_rate metric; framework purity preserved; BCK-04 lint extended to gate/; scipy promoted to core deps; calibration pilot scaffold awaits Leo's follow-up to lock empirical K threshold)
-- **Progress (milestone):** [██████░░░░] 67% (6/9 phases shipped, 60/60 known plans complete)
-- **Next:** `/gsd-discuss-phase 6` (BCK-05/06 — SLURM + Ray backends; depends on Phase 02 backend ABC + Phase 04 cap contract; parallel-friendly with Phase 7)
+- **Phase:** 06 — SLURM backend (submitit) + Ray backend (raw ray.remote)
+- **Plans:** TBD (target ~9–11 across 6–7 waves)
+- **Status:** Phase 06 CONTEXT.md committed at `fd3bd6b` — 37 engineering decisions (D-152..D-188) locked autonomously per Leo's `feedback_decide_engineering_ask_features` directive; all 4 candidate gray areas (SLURM directive source, Ray init lifecycle, running/ namespace migration, test infra scope) resolved by production-pattern reasoning + prior-phase contract continuity. Acceptance gate is the 11-clause conjunction in D-179: contract test parametrised over `[Local, MockSLURM, SLURM-DebugExecutor, Ray-local_mode]`, BCK-04 lint clean, extras gating intact, `running/` namespaced (breaking change with daemon-refusal-to-start guardrail), log unification orchestrator-owned, framework purity preserved, `node_0176`-equivalent smoke within ±0.005 across all CI-runnable backends. Ready for `/gsd-plan-phase 6`.
+- **Progress (milestone):** [██████░░░░] 67% (6/9 phases shipped, 60/60 plans complete; Phase 06 CONTEXT next gate is plan-phase)
+- **Next:** `/gsd-plan-phase 6` — phase-researcher fetches submitit + ray API surface; planner decomposes D-152..D-188 into wave-cadence plan files; plan-checker verifies plans achieve Phase 6 success criteria 1–5.
 
 ## Phase 5 Leo Follow-up (deferred — not a blocker for Phase 6)
 
@@ -108,9 +108,11 @@ None at roadmap-creation time. All inputs in place; Leo can review the roadmap a
 
 ## Session Continuity
 
-**Last action:** Phase 05 fully shipped 2026-05-05/06. Executed 12 plans across 9 waves. Wave 1 parallel (05-01 stats.py + 05-03 JobSpec.metadata extension). Wave 2 (05-02 GateManifest persistence + atomic-write-plus-git-commit). Wave 3 parallel (05-04 nominate + graph helpers + 05-05 held-out isolation in trajectory redactor + rank). Wave 4 (05-06 evaluate_candidate via Backend.submit). Wave 5 (05-07 promote two-stage gate). Wave 6 (05-08 automil gate CLI group + scipy lifted to core deps + config.yaml.j2 gate: section). Wave 7 parallel (05-09 nominate/promote top-level CLI + 05-10 viz/status promotion_rate). Wave 8 (05-11 Pitfall-6 anti-acceptance gate — 9 D-149 assertions in single file: synthetic 3-cell graph, manifest registered, search loop, agent-blind verification, nominate, promote, status transitions, gate_eval submit metadata, post-promote trajectory leak verification). Wave 9 (05-12 calibration pilot scaffold + Leo follow-up). Notable: scipy 1.17.1 was already transitively installed; promoted to core deps. JobSpec.metadata kw-only frozen-dataclass field extension was non-breaking. atomic-write-plus-git-commit pattern rollback uses path.unlink + cached-payload restore (NOT git checkout per Leo memory feedback_never_blind_checkout). Bonferroni applied as alpha/K (DIVIDE direction enforced via grep-acceptance + AST guard). 779 tests + 9 skipped (+113 from Phase 4's 666 baseline). Framework purity preserved: zero autobench/AUTOBENCH_/benchmarks/ refs in src/automil/gate/. BCK-04 lint extended to cover gate/ subdirectory. test_pitfall6_held_out_isolation.py is the load-bearing acceptance gate; 35 Pitfall-6 assertion citations in 3 test functions all green.
+**Last action:** Phase 06 CONTEXT bootstrapped autonomously 2026-05-06 (commit `fd3bd6b`). Leo's `/gsd-discuss-phase 6` invocation; presented 4 gray areas via AskUserQuestion (SLURM directives source, Ray init lifecycle, `running/` namespace migration, cross-backend test infra). Leo response: "no need to discuss the engineering/coding level question with me, only feature and user level question needed. You may decide based on best practice and production level experiences." Bootstrapped CONTEXT.md with 37 locked engineering decisions (D-152..D-188). Key resolutions: SLURM directives = framework-mandated (`time` from cap budget, `signal=B:TERM@30` matching Phase 4 D-115) + consumer-supplied (cluster-specific via `automil/config.yaml: backend.slurm.directives` with `automil check` enforcing TODO-sentinel removal); Ray init = hybrid (try `RAY_ADDRESS`, fall back to local) matching FSDP/accelerate pattern; `running/` namespacing = breaking change (CLAUDE.md "no BC hacks" + refactor milestone) with daemon-refusal-to-start guardrail; test infra = parametrised over `[Local, MockSLURM, SLURM-DebugExecutor, Ray-local_mode]` in CI + `requires_slurm`/`requires_ray` markers for nightly real-cluster; one-actor-per-submit on Ray (no multi-fold placement groups) matching Local + SLURM semantics; log unification = orchestrator-owned (drains `backend.log_iter()` into `archive/<id>/run.log` via Phase 0 atomic-write pattern); submitit `Checkpointable` NOT used (D-122 framework-doesn't-inject precludes). Phase 5's prior action notes follow below for continuity.
 
-**Next action:** `/gsd-discuss-phase 6` to begin Phase 6 (BCK-05/06 SLURM backend (submitit) + Ray backend (raw ray.remote)). Phase 6 depends on Phase 2 (Backend ABC) + Phase 4 (cap contract). SLURM `--signal=B:TERM@30` honors the wall-clock contract; Ray `ray.cancel(force=True)` does the same. Both opt-in via pip extras. Parallel-friendly with Phase 7 hardware autodetect.
+**Phase 05 prior:** Phase 05 fully shipped 2026-05-05/06. Executed 12 plans across 9 waves. Wave 1 parallel (05-01 stats.py + 05-03 JobSpec.metadata extension). Wave 2 (05-02 GateManifest persistence + atomic-write-plus-git-commit). Wave 3 parallel (05-04 nominate + graph helpers + 05-05 held-out isolation in trajectory redactor + rank). Wave 4 (05-06 evaluate_candidate via Backend.submit). Wave 5 (05-07 promote two-stage gate). Wave 6 (05-08 automil gate CLI group + scipy lifted to core deps + config.yaml.j2 gate: section). Wave 7 parallel (05-09 nominate/promote top-level CLI + 05-10 viz/status promotion_rate). Wave 8 (05-11 Pitfall-6 anti-acceptance gate — 9 D-149 assertions in single file: synthetic 3-cell graph, manifest registered, search loop, agent-blind verification, nominate, promote, status transitions, gate_eval submit metadata, post-promote trajectory leak verification). Wave 9 (05-12 calibration pilot scaffold + Leo follow-up). Notable: scipy 1.17.1 was already transitively installed; promoted to core deps. JobSpec.metadata kw-only frozen-dataclass field extension was non-breaking. atomic-write-plus-git-commit pattern rollback uses path.unlink + cached-payload restore (NOT git checkout per Leo memory feedback_never_blind_checkout). Bonferroni applied as alpha/K (DIVIDE direction enforced via grep-acceptance + AST guard). 779 tests + 9 skipped (+113 from Phase 4's 666 baseline). Framework purity preserved: zero autobench/AUTOBENCH_/benchmarks/ refs in src/automil/gate/. BCK-04 lint extended to cover gate/ subdirectory. test_pitfall6_held_out_isolation.py is the load-bearing acceptance gate; 35 Pitfall-6 assertion citations in 3 test functions all green.
+
+**Next action:** `/gsd-plan-phase 6`. Phase 06 CONTEXT is committed; ready for phase-researcher (submitit + ray API surface fetch via `mcp__context7__*` or web), planner (decomposition of D-152..D-188 into wave-cadence plan files; target ~9–11 plans across 6–7 waves), and plan-checker (verify plans achieve Phase 6 success criteria 1–5).
 
 **Resume file:** None
 
