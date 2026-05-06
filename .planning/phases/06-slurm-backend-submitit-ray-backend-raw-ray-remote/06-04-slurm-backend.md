@@ -239,10 +239,14 @@ def _run_experiment_subprocess(spec: JobSpec, worktree_path: Path) -> int:
     import os as _os    # noqa: PLC0415
 
     target_dir = worktree_path / spec.working_subdir if spec.working_subdir else worktree_path
-    _os.chdir(str(target_dir))
+    # Build subprocess env without mutating os.environ (DebugExecutor runs in-process
+    # under pytest; mutating shared state pollutes subsequent tests).
+    sub_env = dict(_os.environ)
     for k, v in spec.env:
-        _os.environ[k] = v
-    completed = subprocess.run(list(spec.command), check=False)
+        sub_env[k] = v
+    # cwd= passes the chdir down to the child only — does NOT mutate the parent CWD
+    # (avoids cross-test contamination under DebugExecutor / Ray local cluster).
+    completed = subprocess.run(list(spec.command), cwd=str(target_dir), env=sub_env, check=False)
     return completed.returncode
 ```
 
@@ -308,12 +312,15 @@ class SLURMBackend(Backend):
         """Dispatch via submitit. Creates worktree first; passes path to remote function (RESEARCH.md OQ-4)."""
         from automil.runner import Runner  # noqa: PLC0415; lazy to avoid cycles
         runner = Runner(self._project_root)
-        worktree_path = runner.create_worktree(
-            node_id=spec.node_id,
-            base_commit=spec.base_commit,
-            overlay_dir=spec.overlay_dir,
-            overlay_files=list(spec.overlay_files),
-        )
+        # Real Runner API: 2-positional create_worktree, then separate apply_overlay
+        # (mirrors _orchestrator_daemon.py:629–642 — the canonical two-step pattern)
+        worktree_path = runner.create_worktree(spec.base_commit, spec.node_id)
+        if spec.overlay_dir:
+            runner.apply_overlay(
+                worktree_path,
+                spec.overlay_dir,
+                deletions=getattr(spec, "deletions", None),
+            )
         try:
             job = self._executor.submit(_run_experiment_subprocess, spec, worktree_path)
         except FileNotFoundError as exc:
@@ -463,10 +470,10 @@ class SLURMBackend(Backend):
             time.sleep(1.0)  # 1s tick (vs 0.1s for local — SLURM polling is slower)
 ```
 
-DO NOT add slurm.py to `scripts/check_backend_isolation.py` allowlist. The implementation above uses NO `os.kill`, NO `Popen`, NO `.pid` — only `subprocess.run` (allowed), `submitit` library calls, filesystem, and `os.replace`/`os.unlink`/`os.fdopen`/`os.environ`/`os.chdir` (none of which are flagged).
+DO NOT add slurm.py to `scripts/check_backend_isolation.py` allowlist. The implementation above uses NO `os.kill`, NO `Popen`, NO `.pid` — only `subprocess.run(cwd=..., env=...)` (allowed; cwd kwarg avoids mutating parent CWD), `submitit` library calls, filesystem, and `os.replace`/`os.unlink`/`os.fdopen`/`os.environ` reads (none of which are flagged).
   </action>
   <verify>
-    <automated>uv run pytest tests/backends/test_slurm_directives.py::test_walltime_seconds_to_timeout_min -x -v &amp;&amp; python scripts/check_backend_isolation.py src/automil/ &amp;&amp; ! grep -rn "autobench\|AUTOBENCH_\|benchmarks/" src/automil/backends/slurm.py &amp;&amp; uv run python -c "from automil.backends.slurm import SLURMBackend, _walltime_to_timeout_min, _SLURM_STATE_MAP; print('ok')"</automated>
+    <automated>uv run pytest tests/backends/test_slurm_directives.py::test_walltime_seconds_to_timeout_min -x -v && python scripts/check_backend_isolation.py src/automil/ && ! grep -rn "autobench\|AUTOBENCH_\|benchmarks/" src/automil/backends/slurm.py && uv run python -c "from automil.backends.slurm import SLURMBackend, _walltime_to_timeout_min, _SLURM_STATE_MAP; print('ok')"</automated>
   </verify>
   <done>
     `src/automil/backends/slurm.py` exists with the structure described above (≥250 lines). `_walltime_to_timeout_min` Wave-0 stub flips green. `BACKENDS["slurm"]` is `SLURMBackend` after `from automil.backends.slurm import SLURMBackend` (in environments with submitit installed). BCK-04 lint passes (slurm.py NOT in allowlist). Zero autobench/AUTOBENCH_/benchmarks/ refs. The contract test parametrised on `slurm` (Wave 5 plan 06-08) is the next gate; this plan does NOT itself run the contract suite — its own Wave-0 stub is the only test it flips.

@@ -197,7 +197,7 @@ def run(self) -> None:
 In particular, the `_recover_orphans` method (~line 472) iterates `self.running_dir.glob("*.json")` to recover crashed nodes from a previous daemon. Post-migration, this only recovers LocalBackend orphans — SLURM and Ray orphans are recovered via `SLURMBackend.list_running()` / `RayBackend.list_running()` invoked separately. This is the intended Phase 6 semantics: the daemon only manages local processes; remote backends manage their own running/.
   </action>
   <verify>
-    <automated>uv run pytest tests/backends/test_running_namespace.py::test_running_dir_per_backend tests/backends/test_running_namespace.py::test_daemon_refuses_flat_running -x -v &amp;&amp; uv run pytest tests/ -x -q --ignore=tests/backends/test_node_0176_smoke.py --ignore=tests/backends/test_log_unification.py</automated>
+    <automated>uv run pytest tests/backends/test_running_namespace.py::test_running_dir_per_backend tests/backends/test_running_namespace.py::test_daemon_refuses_flat_running -x -v && uv run pytest tests/ -x -q --ignore=tests/backends/test_node_0176_smoke.py --ignore=tests/backends/test_log_unification.py</automated>
   </verify>
   <done>
     `_backend_running_dir(name)` returns `orch_dir/running/<name>` for any name (defaulting to `local` on empty). `daemon.run()` raises `SystemExit("BREAKING CHANGE...")` when flat *.json present without namespaced subdirs. `self.running_dir` (backward alias) now points at `running/local/`. Phase 5 779-test baseline still green. Two of three Wave-0 namespace stubs flip green.
@@ -258,7 +258,7 @@ Single-character change (g → rg). This makes the count traverse `running/local
 **Step F — Verify all five files**: run `grep -nE "running\".*\.glob\(\"\\*\\.json\"\)" src/automil/` after the changes — should return ZERO matches in cli/cell.py, cli/reconcile.py callers, and graph.py for traversal sites (the helper for namespace isolation in `_orchestrator_daemon._recover_orphans` is intentional — it ONLY recovers local-backend orphans by design per Task 1 Step D). Backend-specific `list_running()` methods use direct `running/<backend>/*.json` paths and are unaffected.
   </action>
   <verify>
-    <automated>uv run pytest tests/backends/test_running_namespace.py -x -v &amp;&amp; uv run pytest tests/ -x -q --ignore=tests/backends/test_node_0176_smoke.py --ignore=tests/backends/test_log_unification.py</automated>
+    <automated>uv run pytest tests/backends/test_running_namespace.py -x -v && uv run pytest tests/ -x -q --ignore=tests/backends/test_node_0176_smoke.py --ignore=tests/backends/test_log_unification.py</automated>
   </verify>
   <done>
     All three Wave-0 namespace stubs flip green. `cli/cell.py` uses `rglob`. `cli/cancel.py` resolves backend before reading running spec. `LocalBackend._running_dir` explicitly points at `running/local/`. Phase 5 779-test baseline preserved. `grep -nE 'running.*glob\\("\\*\\.json"\\)' src/automil/cli/cell.py src/automil/cli/reconcile.py` returns 0 (only rglob remains).
@@ -334,7 +334,7 @@ corrupting live runs.
 Do NOT modify any other doc file. Do NOT add a `CHANGELOG.md` to the `.gitignore` (it should be tracked).
   </action>
   <verify>
-    <automated>test -f CHANGELOG.md &amp;&amp; grep -E "^## 6\.0\.0" CHANGELOG.md &amp;&amp; grep -E "BREAKING" CHANGELOG.md &amp;&amp; grep -E "automil orchestrator stop" CHANGELOG.md</automated>
+    <automated>test -f CHANGELOG.md && grep -E "^## 6\.0\.0" CHANGELOG.md && grep -E "BREAKING" CHANGELOG.md && grep -E "automil orchestrator stop" CHANGELOG.md</automated>
   </verify>
   <done>
     `CHANGELOG.md` exists at the repo root with a `## 6.0.0` heading containing the BREAKING entry. The entry includes the operator recovery steps verbatim. The `Added` section lists SLURMBackend, RayBackend, the three error types, the `automil check` extensions, the log unification, and the pytest markers. The `Compatibility` section calls out that no-extras install still works.

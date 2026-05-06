@@ -223,13 +223,20 @@ def _run_experiment_ray(spec: JobSpec, worktree_path: Path, log_path: Path) -> i
 
     log_path.parent.mkdir(parents=True, exist_ok=True)
     target_dir = worktree_path / spec.working_subdir if spec.working_subdir else worktree_path
-    _os.chdir(str(target_dir))
+    # Build subprocess env without mutating os.environ — Ray local-cluster runs
+    # in-process under pytest; mutating shared state pollutes subsequent tests.
+    sub_env = dict(_os.environ)
     for k, v in spec.env:
-        _os.environ[k] = v
-
+        sub_env[k] = v
     with open(log_path, "w") as logf:
+        # cwd= passes chdir to child only — parent process CWD untouched.
         completed = subprocess.run(
-            list(spec.command), stdout=logf, stderr=subprocess.STDOUT, check=False,
+            list(spec.command),
+            cwd=str(target_dir),
+            env=sub_env,
+            stdout=logf,
+            stderr=subprocess.STDOUT,
+            check=False,
         )
     return completed.returncode
 ```
@@ -280,12 +287,15 @@ class RayBackend(Backend):
         """Dispatch via @ray.remote function. Creates worktree first."""
         from automil.runner import Runner  # noqa: PLC0415
         runner = Runner(self._project_root)
-        worktree_path = runner.create_worktree(
-            node_id=spec.node_id,
-            base_commit=spec.base_commit,
-            overlay_dir=spec.overlay_dir,
-            overlay_files=list(spec.overlay_files),
-        )
+        # Real Runner API: 2-positional create_worktree, then separate apply_overlay
+        # (mirrors _orchestrator_daemon.py:629–642 — the canonical two-step pattern)
+        worktree_path = runner.create_worktree(spec.base_commit, spec.node_id)
+        if spec.overlay_dir:
+            runner.apply_overlay(
+                worktree_path,
+                spec.overlay_dir,
+                deletions=getattr(spec, "deletions", None),
+            )
         log_path = self._running_dir / f"{spec.node_id}.log"
 
         # D-162: fractional GPU reservation. num_gpus from spec.gpu_estimate_gb.
@@ -466,7 +476,7 @@ class RayBackend(Backend):
 DO NOT add `ray.py` to the BCK-04 allowlist. The implementation above uses NO `os.kill`, NO `Popen`, NO `.pid` — only `subprocess.run`, Ray library calls, filesystem, and `os.replace`/`os.unlink`/`os.environ`.
   </action>
   <verify>
-    <automated>python scripts/check_backend_isolation.py src/automil/ &amp;&amp; ! grep -rn "autobench\|AUTOBENCH_\|benchmarks/" src/automil/backends/ray.py &amp;&amp; ! grep -nE "local_mode\s*=\s*True" src/automil/backends/ray.py &amp;&amp; grep -E "ray\.exceptions\.WorkerCrashedError" src/automil/backends/ray.py</automated>
+    <automated>python scripts/check_backend_isolation.py src/automil/ && ! grep -rn "autobench\|AUTOBENCH_\|benchmarks/" src/automil/backends/ray.py && ! grep -nE "local_mode\s*=\s*True" src/automil/backends/ray.py && grep -E "ray\.exceptions\.WorkerCrashedError" src/automil/backends/ray.py</automated>
   </verify>
   <done>
     `src/automil/backends/ray.py` exists, ≥250 lines. `BACKENDS["ray"]` is `RayBackend` after `from automil.backends.ray import RayBackend` (in environments with ray installed). NO `local_mode=True` in the file. `WorkerCrashedError` IS caught explicitly. BCK-04 lint passes (ray.py NOT in allowlist). Zero autobench/AUTOBENCH_/benchmarks/ refs. `_we_started_ray` attribute is public. `close()` method is defined and calls `ray.shutdown()` only when the flag is True.

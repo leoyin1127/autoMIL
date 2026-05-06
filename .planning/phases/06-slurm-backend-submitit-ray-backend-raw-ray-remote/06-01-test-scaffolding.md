@@ -148,60 +148,65 @@ markers = [
 ```
 Do NOT add submitit/ray to dependencies; extras land in plan 06-02.
 
-**Step B — tests/backends/conftest.py**: Extend the existing `backend` fixture (line 100). Replace the `params=["local", "mock_slurm"]` decorator with `params=["local", "mock_slurm", "slurm", "ray"]` and add two new branches AFTER the existing `else` (mock_slurm) branch. Convert the existing if/else structure into an explicit if/elif/elif/else chain so each backend branch is unambiguous.
+**Step B — tests/backends/conftest.py**: Extend the existing `backend` fixture (line 100). Replace the `params=["local", "mock_slurm"]` decorator with `params=["local", "mock_slurm", "slurm", "ray"]` and rewrite the dispatch as an explicit if/elif/elif/else chain. The post-edit fixture body MUST be exactly the four-branch structure shown below (do NOT leave the old `else: MockSLURM` branch in place — that would cause `request.param == "ray"` to fall through to MockSLURM):
 
-For `request.param == "slurm"`:
 ```python
-elif request.param == "slurm":
-    pytest.importorskip("submitit")
-    from automil.backends.slurm import SLURMBackend  # noqa: PLC0415
+@pytest.fixture(params=["local", "mock_slurm", "slurm", "ray"])
+def backend(request, tmp_path, _isolated_backends):
+    if request.param == "local":
+        # ... existing LocalBackend body unchanged ...
+        yield LocalBackend(...)
+    elif request.param == "mock_slurm":
+        # ... existing MockSLURMBackend body unchanged (formerly the `else` branch) ...
+        yield MockSLURMBackend(...)
+    elif request.param == "slurm":
+        pytest.importorskip("submitit")
+        from automil.backends.slurm import SLURMBackend  # noqa: PLC0415
 
-    automil_dir = tmp_path / "automil"
-    (automil_dir / "orchestrator" / "running" / "slurm").mkdir(parents=True)
-    (automil_dir / "orchestrator" / "archive").mkdir(parents=True)
-    config = {
-        "backend": {
-            "name": "slurm",
-            "slurm": {
-                "debug_in_process": True,  # uses submitit cluster="debug"
-                "walltime_seconds": 300,
-                "directives": {
-                    "partition": "debug",
-                    "account": "test",
-                    "cpus_per_task": 1,
-                    "mem_gb": 4,
+        automil_dir = tmp_path / "automil"
+        (automil_dir / "orchestrator" / "running" / "slurm").mkdir(parents=True)
+        (automil_dir / "orchestrator" / "archive").mkdir(parents=True)
+        config = {
+            "backend": {
+                "name": "slurm",
+                "slurm": {
+                    "debug_in_process": True,  # uses submitit cluster="debug"
+                    "walltime_seconds": 300,
+                    "directives": {
+                        "partition": "debug",
+                        "account": "test",
+                        "cpus_per_task": 1,
+                        "mem_gb": 4,
+                    },
                 },
             },
-        },
-    }
-    yield SLURMBackend(automil_dir=automil_dir, config=config)
+        }
+        yield SLURMBackend(automil_dir=automil_dir, config=config)
+    else:  # request.param == "ray"
+        pytest.importorskip("ray")
+        import ray  # noqa: PLC0415
+        from automil.backends.ray import RayBackend  # noqa: PLC0415
+
+        if not ray.is_initialized():
+            ray.init(ignore_reinit_error=True, log_to_driver=False)  # NOT local_mode=True (deprecated; RESEARCH.md Pitfall 5)
+        automil_dir = tmp_path / "automil"
+        (automil_dir / "orchestrator" / "running" / "ray").mkdir(parents=True)
+        (automil_dir / "orchestrator" / "archive").mkdir(parents=True)
+        backend_instance = RayBackend(
+            automil_dir=automil_dir,
+            config={"backend": {"name": "ray", "ray": {"allow_local_fallback": True}}},
+        )
+        yield backend_instance
+        if backend_instance._we_started_ray and ray.is_initialized():
+            ray.shutdown()
 ```
 
-For `request.param == "ray"`:
-```python
-else:  # request.param == "ray"
-    pytest.importorskip("ray")
-    import ray  # noqa: PLC0415
-    from automil.backends.ray import RayBackend  # noqa: PLC0415
-
-    if not ray.is_initialized():
-        ray.init(ignore_reinit_error=True, log_to_driver=False)  # NOT local_mode=True (deprecated, RESEARCH.md Pitfall 5)
-    automil_dir = tmp_path / "automil"
-    (automil_dir / "orchestrator" / "running" / "ray").mkdir(parents=True)
-    (automil_dir / "orchestrator" / "archive").mkdir(parents=True)
-    backend_instance = RayBackend(
-        automil_dir=automil_dir,
-        config={"backend": {"name": "ray", "ray": {"allow_local_fallback": True}}},
-    )
-    yield backend_instance
-    if backend_instance._we_started_ray and ray.is_initialized():
-        ray.shutdown()
-```
+**Critical:** the existing `else: MockSLURMBackend` branch becomes `elif request.param == "mock_slurm":` — moved up in the chain. The new `else:` branch matches ONLY `"ray"`. Verify by greppping after the edit: `grep -c "elif request.param ==" tests/backends/conftest.py` must return `2` (one for `mock_slurm`, one for `slurm`); `grep -c "else:  # request.param == \"ray\"" tests/backends/conftest.py` must return `1`.
 
 The `_isolated_backends` autouse fixture (lines 139-152) is unchanged.
   </action>
   <verify>
-    <automated>uv run pytest tests/backends/ --collect-only -q 2>&1 | tail -20 &amp;&amp; uv run pytest --markers 2>&amp;1 | grep -E "requires_slurm|requires_ray"</automated>
+    <automated>uv run pytest tests/backends/ --collect-only -q 2>&1 | tail -20 && uv run pytest --markers 2>&1 | grep -E "requires_slurm|requires_ray"</automated>
   </verify>
   <done>
     `pyproject.toml` shows `markers = [...]` with both `requires_slurm` and `requires_ray` lines (grep `^\s*"requires_slurm:` and `^\s*"requires_ray:` each return 1 line). conftest.py params list now contains all 4 backend names (grep `params=\["local", "mock_slurm", "slurm", "ray"\]` returns 1 line). `uv run pytest --markers` lists both markers. `uv run pytest tests/backends/ --collect-only` succeeds (no collection errors); existing `local`/`mock_slurm` parametrised tests still appear; new `slurm`/`ray` parametrisations appear with `SKIPPED` markers (because submitit/ray extras are not installed yet — `pytest.importorskip` triggers).
@@ -650,7 +655,7 @@ def test_real_ray_submit_completes(real_ray_backend, tmp_path):
 ```
   </action>
   <verify>
-    <automated>uv run pytest tests/backends/test_contract_real_slurm.py tests/backends/test_contract_real_ray.py --collect-only -q &amp;&amp; uv run pytest tests/backends/test_contract_real_slurm.py tests/backends/test_contract_real_ray.py 2>&amp;1 | grep -E "skipped|deselected"</automated>
+    <automated>uv run pytest tests/backends/test_contract_real_slurm.py tests/backends/test_contract_real_ray.py --collect-only -q && uv run pytest tests/backends/test_contract_real_slurm.py tests/backends/test_contract_real_ray.py 2>&1 | grep -E "skipped|deselected"</automated>
   </verify>
   <done>
     Both files collect under `pytest --collect-only` (no syntax/import errors at module level). Default `pytest tests/backends/test_contract_real_slurm.py` reports the test as SKIPPED (because `requires_slurm` marker not selected, OR `sbatch` not on PATH). Same for the Ray file. No real cluster is contacted.

@@ -143,7 +143,7 @@ DO NOT add a `signal:` key to slurm.directives.
 DO use `walltime_seconds` as the integer config key (NOT `time`).
   </action>
   <verify>
-    <automated>grep -E '^backend:$' src/automil/templates/config.yaml.j2 &amp;&amp; grep -E 'walltime_seconds: 21600' src/automil/templates/config.yaml.j2 &amp;&amp; grep -E 'allow_local_fallback: true' src/automil/templates/config.yaml.j2 &amp;&amp; ! grep -E '^\s*signal:' src/automil/templates/config.yaml.j2</automated>
+    <automated>grep -E '^backend:$' src/automil/templates/config.yaml.j2 && grep -E 'walltime_seconds: 21600' src/automil/templates/config.yaml.j2 && grep -E 'allow_local_fallback: true' src/automil/templates/config.yaml.j2 && ! grep -E '^\s*signal:' src/automil/templates/config.yaml.j2</automated>
   </verify>
   <done>
     Template contains the new `backend:` block at the top level; required slurm directive keys present with TODO_FILL_IN sentinels for partition + account; `walltime_seconds` (not `time`) is the framework-side timing key; `signal:` is absent; ray block has `allow_local_fallback: true`. Existing blocks unchanged (verify by `git diff src/automil/templates/config.yaml.j2` — only an added section, no modifications above the appended region).

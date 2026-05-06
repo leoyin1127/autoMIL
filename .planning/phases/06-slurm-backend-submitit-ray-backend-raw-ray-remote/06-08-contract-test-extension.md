@@ -182,7 +182,7 @@ def test_ray_poll_catches_worker_crashed_error():
 DO NOT add new scenarios to the parametrised body that would break LocalBackend (the skip pattern handles this). DO NOT remove any existing scenarios.
   </action>
   <verify>
-    <automated>uv run pytest tests/backends/test_contract.py -x -v 2>&amp;1 | tail -50 &amp;&amp; uv run pytest tests/backends/test_contract.py 2>&amp;1 | grep -E "passed|skipped" | tail -2</automated>
+    <automated>uv run pytest tests/backends/test_contract.py -x -v 2>&1 | tail -50 && uv run pytest tests/backends/test_contract.py 2>&1 | grep -E "passed|skipped" | tail -2</automated>
   </verify>
   <done>
     `pytest tests/backends/test_contract.py` parametrises over 4 backends. ≥30 test rows pass (3 dispatch-capable backends × ≥10 scenarios). LocalBackend rows still SKIP on daemon-required scenarios (existing behavior preserved). New SLURM-specific tests `test_slurm_signal_directive_set` and `test_slurm_state_map_covers_phase4_terminal_states` pass when submitit installed (skip otherwise). New Ray-specific test `test_ray_poll_catches_worker_crashed_error` passes when ray installed (skip otherwise). Phase 5 baseline preserved.

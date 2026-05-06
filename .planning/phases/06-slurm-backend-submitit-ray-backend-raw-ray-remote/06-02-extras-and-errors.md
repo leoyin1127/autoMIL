@@ -135,7 +135,7 @@ Do NOT add submitit or ray to `[project.dependencies]` (line 12-21) or `[depende
 Do NOT modify the `[tool.pytest.ini_options]` block — markers were already registered in plan 06-01.
   </action>
   <verify>
-    <automated>grep -E '^slurm = \["submitit&gt;=1\.5\.3"\]$' pyproject.toml &amp;&amp; grep -E '^ray\s+= \["ray&gt;=2\.55\.1"\]$' pyproject.toml &amp;&amp; ! grep -E "submitit|^ray\b" pyproject.toml | grep -v "optional-dependencies\|^slurm\|^ray\s"</automated>
+    <automated>grep -E '^slurm = \["submitit>=1\.5\.3"\]$' pyproject.toml && grep -E '^ray\s+= \["ray>=2\.55\.1"\]$' pyproject.toml && ! grep -E "submitit|^ray\b" pyproject.toml | grep -v "optional-dependencies\|^slurm\|^ray\s"</automated>
   </verify>
   <done>
     `[project.optional-dependencies]` block contains exactly three entries: `ml`, `slurm`, `ray`. `slurm = ["submitit>=1.5.3"]` and `ray = ["ray>=2.55.1"]` lines present (grep returns 1 each). No submitit/ray reference in `[project.dependencies]` (grep returns 0). `pip install -e .` in this checkout still succeeds (sanity-check; do not actually rebuild a venv — `python -c "import automil"` is sufficient).
@@ -329,7 +329,7 @@ def test_three_phase6_errors_in_public_namespace():
 ```
   </action>
   <verify>
-    <automated>uv run pytest tests/backends/test_extras_gate.py -x -v &amp;&amp; uv run python -c "import automil.backends; print('ok')" &amp;&amp; uv run python -c "from automil.backends import BackendNotInstalledError, SlurmDirectivesIncompleteError, RayClusterUnreachableError; print('ok')"</automated>
+    <automated>uv run pytest tests/backends/test_extras_gate.py -x -v && uv run python -c "import automil.backends; print('ok')" && uv run python -c "from automil.backends import BackendNotInstalledError, SlurmDirectivesIncompleteError, RayClusterUnreachableError; print('ok')"</automated>
   </verify>
   <done>
     `tests/backends/test_extras_gate.py` 2 tests green. `import automil.backends` succeeds in the current checkout (no submitit/ray installed); `BACKENDS` dict does NOT contain `"slurm"` or `"ray"` keys. The three new error names are reachable via `from automil.backends import ...`. The existing 779-test Phase 5 baseline still passes (`uv run pytest tests/ -x -q --co --quiet | tail -5` shows ≥781 collected).
