@@ -137,8 +137,15 @@ class LocalBackend(Backend):
             # Per-spec env additions (D-54 / T-02-01-S01).
             "env": {k: v for k, v in spec.env},
         }
+        # Phase 5 (D-140): merge spec.metadata tuple-of-tuples into queue_spec
+        # metadata dict FIRST.  This is how gate/evaluate.py stamps gate_eval flags
+        # through the SAME submit path (GTE-03: Backend.submit, NOT a parallel
+        # mechanism).
+        for k, v in spec.metadata:
+            queue_spec.setdefault("metadata", {})[k] = v
         # D-76: mark backend so cancel.py / resubmit.py know which BACKENDS[name]
-        # to dispatch to.
+        # to dispatch to.  Backend stamp is written LAST so it wins over any
+        # caller-provided "backend" key (T-05-03-01 tamper mitigation).
         queue_spec.setdefault("metadata", {})["backend"] = "local"
 
         # Ensure queue directory exists (may not exist in fresh project dirs).

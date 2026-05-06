@@ -92,6 +92,23 @@ class JobSpec:
     walltime_seconds: int
     """Framework wall-clock contract; backends may enforce or ignore."""
 
+    metadata: tuple[tuple[str, str], ...] = ()
+    """Arbitrary backend-agnostic metadata — passes through Backend.submit unchanged.
+
+    Tuple-of-tuples (NOT dict) so the frozen dataclass stays hashable. Convert
+    to dict via ``dict(spec.metadata)``. Default ``()`` = no metadata.
+
+    Used by gate/evaluate.py (D-140) to stamp gate-eval flags::
+
+        metadata=(
+            ("gate_eval", "true"),
+            ("held_out", "true"),
+            ("gate_parent_node", "node_0212"),
+            ("cell_id", "abc12345"),
+            ("edge_type", "gate_eval"),
+        )
+    """
+
 
 class Backend(ABC):
     """Abstract base class for autoMIL job backends (BCK-01 / D-51..D-58).

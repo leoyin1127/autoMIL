@@ -136,6 +136,10 @@ class MockSLURMBackend(Backend):
         self._counter = 0
         self._lock = threading.Lock()
         self._state_file = Path(state_file) if state_file is not None else None
+        # Phase 5 (D-140 / GTE-03): metadata side-table keyed by node_id so
+        # gate tests can assert metadata passthrough via:
+        #   mock_backend._metadata_by_node_id[handle.node_id]["gate_eval"]
+        self._metadata_by_node_id: dict[str, dict[str, str]] = {}
         if self._state_file is not None and self._state_file.exists():
             self._load_state()
 
@@ -156,6 +160,10 @@ class MockSLURMBackend(Backend):
             submitted_at=time.time(),
         )
         job = _MockJob(handle=handle, state=JobState.PENDING)
+
+        # Phase 5 (D-140): store spec.metadata for gate test introspection.
+        # Keyed by node_id (framework-owned) not opaque_id (backend-internal).
+        self._metadata_by_node_id[handle.node_id] = dict(spec.metadata)
 
         with self._lock:
             self._jobs[opaque_id] = job
