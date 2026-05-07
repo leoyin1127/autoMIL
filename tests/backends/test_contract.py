@@ -52,7 +52,7 @@ import time
 
 import pytest
 
-from automil.backends.base import JobHandle, JobState
+from automil.backends.base import HealthReport, JobHandle, JobState
 from automil.backends.local import LocalBackend
 from tests.backends.conftest import make_spec, wait_for_state
 
@@ -535,3 +535,47 @@ def test_ray_poll_catches_worker_crashed_error():
     )
     assert "TaskCancelledError" in src
     assert "RayTaskError" in src
+
+
+# ---------------------------------------------------------------------------
+# Phase 7 BCK-01: Backend.healthcheck contract (D-189 / STP-01)
+# ---------------------------------------------------------------------------
+# F-05 fix: PATTERNS.md prescribes a parametrised healthcheck contract case in
+# this file (mirroring S-01..S-12). LocalBackend returns a HealthReport;
+# distributed backends raise NotImplementedError with the locked D-189 message.
+
+
+def test_healthcheck_returns_health_report(backend):
+    """D-189 / STP-01: LocalBackend returns HealthReport; distributed backends defer.
+
+    Parametrised across all 4 BCK-01 backends via the conftest `backend` fixture:
+      - LocalBackend: returns HealthReport with frozen-dataclass fields per D-189.
+      - MockSLURMBackend / SLURMBackend / RayBackend: raise NotImplementedError
+        with the D-189 locked message.
+    """
+    locked_prefix = r"healthcheck deferred to Phase 7\+ for distributed backends"
+
+    if isinstance(backend, LocalBackend):
+        report = backend.healthcheck()
+        assert isinstance(report, HealthReport), (
+            f"LocalBackend.healthcheck() must return HealthReport; got {type(report).__name__}"
+        )
+        # Frozen-dataclass field shape per D-189 (must match the ABC contract).
+        expected_fields = {
+            "gpu_count", "gpu_vram_gb", "accelerator", "python_version",
+            "automil_version", "detection_status", "detection_warnings", "detected_at",
+        }
+        assert set(report.__dataclass_fields__) == expected_fields, (
+            f"HealthReport field shape drift: {set(report.__dataclass_fields__)} "
+            f"vs expected {expected_fields}"
+        )
+        # Reasonableness on a fixture host (no real GPU; nvidia-smi may be absent).
+        assert report.accelerator in {"cuda", "rocm", "cpu"}
+        assert report.detection_status in {"ok", "partial", "failed"}
+        assert isinstance(report.gpu_vram_gb, tuple)
+        assert isinstance(report.detection_warnings, tuple)
+        return
+
+    # Distributed branch: SLURMBackend, RayBackend, or MockSLURMBackend.
+    with pytest.raises(NotImplementedError, match=locked_prefix):
+        backend.healthcheck()
