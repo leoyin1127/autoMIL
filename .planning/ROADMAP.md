@@ -12,8 +12,8 @@ An agent can autonomously discover model improvements for any user's training co
 
 ## Phases
 
-- [ ] **Phase 0: Tier 2 cleanup + CLI split + compat shim** — close CONCERNS HIGH-severity items, split monolithic `cli.py`, add `compat.py` re-export so all 48 tests stay green
-- [ ] **Phase 1: Variant registry + config-driven train + reproduction sanity** — keystone phase; ports CCRCC dirty edits to registered variants, validates with ±0.005 reproduction of `node_0176`
+- [x] **Phase 0: Tier 2 cleanup + CLI split + compat shim** — close CONCERNS HIGH-severity items, split monolithic `cli.py`, add `compat.py` re-export so all 48 tests stay green (completed 2026-05-01)
+- [x] **Phase 1: Variant registry + config-driven train + reproduction sanity** — keystone phase; ports CCRCC dirty edits to registered variants, validates with ±0.005 reproduction of `node_0176` (completed 2026-05-02)
 - [x] **Phase 2: Backend ABC + LocalBackend re-export + MockSLURM fixture** — design backend interface against ≥2 implementations before locking; ABC bounds Phase 6 (completed 2026-05-03)
 - [x] **Phase 3: Trajectory recorder + multi-runtime asset reorg** — JSONL trajectories with OTel `gen_ai.*` keys + redaction; `agent_assets/_shared/` + per-runtime overlays; ≥2 runtimes validated end-to-end
 - [x] **Phase 4: 6h per-cell hard cap + cell-concept formalization** — first-class `cell_id`, two-tier cap (refuse-new at T-buffer, terminate at T), per-fold checkpoint protocol, partial-result reconciliation (completed 2026-05-05)
