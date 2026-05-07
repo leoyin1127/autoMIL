@@ -107,7 +107,7 @@ Scope of this milestone. Each maps to exactly one roadmap phase (filled in durin
 <!-- One-shot bootstrap skill; hardware autodetection feeds setup defaults. -->
 
 - [x] **STP-01**: `LocalBackend.healthcheck()` reports detected GPU count, VRAM per GPU, accelerator type (CUDA / ROCm / CPU), Python version, autoMIL version
-- [ ] **STP-02**: `automil init` consumes healthcheck output and pre-fills `automil/config.yaml` defaults (max_concurrent_per_gpu, default_vram_estimate_gb derived from quantile_95 of empirical `results.tsv` if available, else conservative defaults)
+- [x] **STP-02**: `automil init` consumes healthcheck output and pre-fills `automil/config.yaml` defaults (max_concurrent_per_gpu, default_vram_estimate_gb derived from quantile_95 of empirical `results.tsv` if available, else conservative defaults)
 - [x] **STP-03**: Hardware-detect produces a *report*, not a *decision*: if detection fails, `automil init` prints the detected values and prompts override; never silently uses wrong defaults
 - [ ] **STP-04**: `/automil-setup` skill (Claude format `.claude/skills/automil-setup/SKILL.md`) inspects an arbitrary user repo, identifies the training entry point, drafts `automil/config.yaml` + `program.md`, scaffolds a starter `variants/` skeleton, picks defaults from healthcheck
 - [ ] **STP-05**: `/automil-setup` skill is idempotent — re-running on an already-initialised project diffs and updates rather than overwriting
@@ -229,7 +229,7 @@ Mapped 2026-05-01 by `gsd-roadmapper` against `.planning/ROADMAP.md` (9 phases).
 | CLI-08 | Phase 1 | Pending |
 | CLI-09 | Phase 1 | Pending |
 | STP-01 | Phase 7 | Complete |
-| STP-02 | Phase 7 | Pending |
+| STP-02 | Phase 7 | Complete |
 | STP-03 | Phase 7 | Complete |
 | STP-04 | Phase 7 | Pending |
 | STP-05 | Phase 7 | Pending |
