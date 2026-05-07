@@ -10,9 +10,10 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Iterator, Literal, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -110,11 +111,60 @@ class JobSpec:
     """
 
 
+@dataclass(frozen=True)
+class HealthReport:
+    """Immutable hardware-detection report (D-189 / STP-01).
+
+    Detection branching (detection_status):
+      - ``ok``: probe succeeded, all fields populated.
+      - ``partial``: probe partially succeeded (e.g. CUDA found but some GPUs'
+        VRAM strings were unparseable). gpu_count counts detected GPUs;
+        gpu_vram_gb only contains the parseable subset.
+      - ``failed``: all probes failed AND user has env signal that GPU expected
+        (e.g. CUDA_VISIBLE_DEVICES set but probe returned 0).
+
+    DO NOT serialize this dataclass into trajectory output until the redaction
+    policy review completes (see 07-CONTEXT.md deferred block; combined
+    fields constitute a hardware fingerprint).
+
+    Frozen + tuple sequence fields per D-53 immutability convention; safe to use
+    as a dict key or set member, JSON-serialisable via dataclasses.asdict
+    after converting detected_at via .isoformat().
+    """
+
+    gpu_count: int
+    """Number of GPUs detected; 0 when accelerator == 'cpu'."""
+
+    gpu_vram_gb: tuple[float, ...]
+    """Per-GPU VRAM in GB; () when no GPUs. May be shorter than gpu_count when
+    detection_status == 'partial' (some GPUs unparseable)."""
+
+    accelerator: Literal["cuda", "rocm", "cpu"]
+    """Detected accelerator family. CPU is the terminal fallback (always succeeds)."""
+
+    python_version: str
+    """e.g. '3.11.9'; used for stamping config defaults that depend on minor version."""
+
+    automil_version: str
+    """importlib.metadata.version('automil') at probe time."""
+
+    detection_status: Literal["ok", "partial", "failed"]
+    """Probe outcome. CLI consumers branch: 'failed' prompts override, 'partial'
+    prints warnings + accepts, 'ok' uses silently."""
+
+    detection_warnings: tuple[str, ...]
+    """Human-readable warnings; never decisions. Empty when status == 'ok'."""
+
+    detected_at: datetime
+    """UTC timestamp at probe time. datetime is hashable, so frozen=True holds."""
+
+
 class Backend(ABC):
     """Abstract base class for autoMIL job backends (BCK-01 / D-51..D-58).
 
     All five methods are abstract; subclasses must implement them.  Phase 7
-    will add an optional ``healthcheck()`` method.  Phase 2 ships `LocalBackend`
+    adds the abstract ``healthcheck()`` method (D-189; subclasses without an
+    implementation are uninstantiable).  Phase 2 ships `LocalBackend`
     (wrapping the existing orchestrator daemon) and `MockSLURMBackend` (fixture
     + docs example).
     """
@@ -164,4 +214,19 @@ class Backend(ABC):
         may block briefly but MUST surface lines within ~1s of appearance.
         LocalBackend tails the live log file; MockSLURM returns the full
         collected buffer once the job reaches a terminal state.
+        """
+
+    @abstractmethod
+    def healthcheck(self) -> HealthReport:
+        """Probe hardware and return a HealthReport (D-189 / STP-01).
+
+        LocalBackend implements via NVIDIA_SMI_PATH subprocess + ROCm fallback +
+        CPU terminal fallback (plan 07-03). Distributed backends (SLURM, Ray)
+        MUST raise NotImplementedError with the message:
+          "healthcheck deferred to Phase 7+ for distributed backends "
+          "(use salloc/ray status directly)"
+        See 07-CONTEXT.md D-189 + D-196.
+
+        Output is a report, not a decision (STP-03). Callers (automil init,
+        automil check) decide what to do with detection_status == 'failed'.
         """
