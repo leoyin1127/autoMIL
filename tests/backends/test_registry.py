@@ -38,6 +38,8 @@ def _make_backend_class(name: str = "TestBackend") -> type:
     """Return a new concrete Backend subclass with stub implementations."""
 
     class _Stub(Backend):
+        def healthcheck(self):
+            raise NotImplementedError("test stub")
         def submit(self, spec: JobSpec) -> JobHandle:  # type: ignore[override]
             raise NotImplementedError
 

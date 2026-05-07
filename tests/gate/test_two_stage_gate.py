@@ -159,6 +159,9 @@ class RecordingBackend(Backend):
 # Test 1: full keep -> nominate -> promote (pass) -> registered trail
 # ---------------------------------------------------------------------------
 
+    def healthcheck(self) -> "HealthReport":
+        raise NotImplementedError("healthcheck deferred for test-fixture backend")
+
 def test_two_stage_gate_keep_then_candidate_then_registered(tmp_path, monkeypatch):
     """Full D-143 two-stage trail: keep -> nominated -> registered.
 

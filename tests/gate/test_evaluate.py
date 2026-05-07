@@ -189,6 +189,9 @@ class RecordingBackend(Backend):
 # Shared fixture
 # ---------------------------------------------------------------------------
 
+    def healthcheck(self) -> "HealthReport":
+        raise NotImplementedError("healthcheck deferred for test-fixture backend")
+
 @pytest.fixture
 def graph() -> ExperimentGraph:
     return _make_graph()

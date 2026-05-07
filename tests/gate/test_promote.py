@@ -189,6 +189,9 @@ class RecordingBackend(Backend):
 # Common monkeypatches
 # ---------------------------------------------------------------------------
 
+    def healthcheck(self) -> "HealthReport":
+        raise NotImplementedError("healthcheck deferred for test-fixture backend")
+
 def _patch_no_cells(monkeypatch) -> None:
     """Patch get_cell so no cells are cap-exhausted."""
     monkeypatch.setattr("automil.gate.evaluate.get_cell", lambda cid: None)
