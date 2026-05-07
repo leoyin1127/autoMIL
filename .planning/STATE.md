@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-last_updated: "2026-05-06T20:30:00.000Z"
+status: verifying
+last_updated: "2026-05-07T22:24:10.572Z"
 progress:
   total_phases: 9
   completed_phases: 7
-  total_plans: 70
-  completed_plans: 71
-  percent: 100
+  total_plans: 82
+  completed_plans: 74
+  percent: 90
 ---
 
 # State: autoMIL — F2-readiness framework refactor
@@ -39,7 +39,7 @@ Plan: 10 of 10
 
 - **Phase:** 06 — SLURM backend (submitit) + Ray backend (raw ray.remote)
 - **Plans:** 10 across 7 waves shipped (head `822a146`)
-- **Status:** Phase 06 complete (798 passed + 47 skipped + 3 pre-existing tick_cells failures unrelated to BCK-05/06; +19 passing from 779 Phase 5 baseline; D-179 11-clause acceptance gate green: 9 passed + 2 skipped (clauses 5/6 require `[slurm]`/`[ray]` extras); all 5 RESEARCH.md API corrections applied inline (timeout_min/slurm_additional_parameters/job.paths.stdout/WorkerCrashedError/ignore_reinit_error); BCK-04 lint clean (no process-control in slurm.py/ray.py — submitit + ray APIs sufficient); framework purity preserved (zero autobench refs in src/automil/backends/); CHANGELOG.md 6.0.0 BREAKING entry shipped with operator-recovery instructions for `running/` namespace migration; daemon refuses to start with flat layout — verified via `test_daemon_refuses_flat_running`)
+- **Status:** Phase complete — ready for verification
 - **Wave execution:** W1 (06-01 scaffolding 6m) → W2 (06-02‖06-03 ~20m wall) → W3 (06-04‖06-05 ~22m wall, both ~420 lines) → W4 (06-06 namespace migration 21m) → W5 (06-07 log unification 15m) → W6 (06-08‖06-09 ~8m wall) → W7 (06-10 acceptance gate 15m). Total wall-clock ~2.0h with parallelism savings from W2/W3/W6.
 - **Progress (milestone):** [███████░░░] 78% (7/9 phases shipped, 70/70 plans complete)
 - **Next:** `/gsd-verify-work 6` — Phase 6 UAT (autonomous-mode bash-verifiable surfaces).
