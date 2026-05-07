@@ -246,7 +246,7 @@ Phase 5 (generalization gate)
 | 4. 6h per-cell cap + cell formalisation | 0/0 | Not started | - |
 | 5. Generalization gate | 0/0 | Not started | - |
 | 6. SLURM + Ray backends | 11/10 | Complete   | 2026-05-06 |
-| 7. Hardware autodetect + /automil-setup | 8/12 | In Progress|  |
+| 7. Hardware autodetect + /automil-setup | 9/12 | In Progress|  |
 | 8. Decoupling audit + acceptance | 0/0 | Not started | - |
 
 ## Coverage
