@@ -178,7 +178,7 @@ Hardcoded allowlist of comment-only references; ANY new functional ref breaks th
 
 Phase 5 D-149 BCK-04 lint allowlist + Phase 6 extension (slurm.py / ray.py). Phase 8 extends to:
 
-- `src/automil/schemas/` (NEW) — pure JSON schemas, no process-control needed; allowlist as PURE
+- `src/automil/schemas/` (NEW), pure JSON schemas, no process-control needed; allowlist as PURE
 - Any new graph.py composite-handling additions: existing graph.py is already in the allowlist; no change needed
 
 ### D-208, acceptance gate (Phase 8 success)
@@ -213,8 +213,8 @@ Phase 8 ships when ALL of these are TRUE:
 - `jsonschema` library: already a transitive dep (Phase 5 gate_manifest.json validation)
 
 **Reusable assets:**
-- Schema validation pattern from `src/automil/gate/manifest.py` (Phase 5) — model JSON-Schema validate-on-load on result.json
-- env-passthrough idea from Phase 0 CLN-02 (env whitelist for subprocess) — extend with consumer-config-driven keys
+- Schema validation pattern from `src/automil/gate/manifest.py` (Phase 5), model JSON-Schema validate-on-load on result.json
+- env-passthrough idea from Phase 0 CLN-02 (env whitelist for subprocess), extend with consumer-config-driven keys
 - Acceptance-gate single-file test pattern from `tests/skills/test_phase7_acceptance.py` (Phase 7 D-198) and `tests/backends/test_phase6_acceptance.py` (Phase 6 D-179)
 
 **Integration points:**
@@ -239,13 +239,13 @@ Phase 8 ships when ALL of these are TRUE:
 <deferred>
 ## Deferred Ideas
 
-- **Composite formula DSL** (e.g., `scoring.formula: "0.4 * val_auc + 0.6 * val_bacc"`) — explicit non-goal per D-200; framework does not evaluate
-- **JSON-Schema entry_point support** (Python module that returns a schema dynamically) — out of scope; static `result.schema.json` is sufficient
-- **Per-fold result.json validation** — only top-level result.json is validated; fold_results array is opaque-pass-through
-- **AutoML metric selection** (e.g., choose between accuracy vs F1 based on dataset balance) — out of scope; consumer's job
-- **Multi-language consumer support** (R, Julia) — out of scope per CONTEXT
-- **CCRCC dataset re-curation** — out of scope; v1 milestone uses existing CCRCC layout
-- **viz dashboard generic-metric rendering** (auto-detect available metric keys for sparkline display) — Phase 8 keeps viz showing existing autobench keys via `node["metrics"]` access; full dashboard rewrite for generic metric rendering deferred to post-v1
-- **Migration tool**: `automil migrate-config-yaml` CLI helper that scans existing config.yaml + adds env.required defaults — operator runs manually following CHANGELOG instructions; tooling deferred
+- **Composite formula DSL** (e.g., `scoring.formula: "0.4 * val_auc + 0.6 * val_bacc"`), explicit non-goal per D-200; framework does not evaluate
+- **JSON-Schema entry_point support** (Python module that returns a schema dynamically), out of scope; static `result.schema.json` is sufficient
+- **Per-fold result.json validation**, only top-level result.json is validated; fold_results array is opaque-pass-through
+- **AutoML metric selection** (e.g., choose between accuracy vs F1 based on dataset balance), out of scope; consumer's job
+- **Multi-language consumer support** (R, Julia), out of scope per CONTEXT
+- **CCRCC dataset re-curation**, out of scope; v1 milestone uses existing CCRCC layout
+- **viz dashboard generic-metric rendering** (auto-detect available metric keys for sparkline display), Phase 8 keeps viz showing existing autobench keys via `node["metrics"]` access; full dashboard rewrite for generic metric rendering deferred to post-v1
+- **Migration tool**: `automil migrate-config-yaml` CLI helper that scans existing config.yaml + adds env.required defaults, operator runs manually following CHANGELOG instructions; tooling deferred
 
 </deferred>
