@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator, Optional
 
-from automil.backends.base import Backend, JobHandle, JobSpec, JobState
+from automil.backends.base import Backend, HealthReport, JobHandle, JobSpec, JobState
 from automil.backends import register
 
 logger = logging.getLogger(__name__)
@@ -270,6 +270,17 @@ class MockSLURMBackend(Backend):
         while job.state not in _TERMINAL_STATES:
             time.sleep(0.05)
         yield from job.log_buffer
+
+    def healthcheck(self) -> HealthReport:
+        """MockSLURMBackend mirrors SLURMBackend's deferred-contract behavior (D-189).
+
+        Test fixture parity: contract-test parametrisation treats MockSLURM identically
+        to the real SLURMBackend for healthcheck dispatch.
+        """
+        raise NotImplementedError(
+            "healthcheck deferred to Phase 7+ for distributed backends "
+            "(use `salloc`/`ray status` directly)"
+        )
 
     # ------------------------------------------------------------------
     # State persistence helpers

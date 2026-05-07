@@ -28,7 +28,7 @@ import ray
 import ray.exceptions
 
 from automil.backends import register
-from automil.backends.base import Backend, JobHandle, JobSpec, JobState
+from automil.backends.base import Backend, HealthReport, JobHandle, JobSpec, JobState
 from automil.backends.errors import BackendError, RayClusterUnreachableError
 
 logger = logging.getLogger(__name__)
@@ -427,3 +427,19 @@ class RayBackend(Backend):
                 logger.warning(
                     "RayBackend.close: ray.shutdown raised: %s", exc
                 )
+
+    # ------------------------------------------------------------------
+    # Backend ABC: healthcheck (D-189)
+    # ------------------------------------------------------------------
+
+    def healthcheck(self) -> HealthReport:
+        """Hardware probe deferred for distributed backends (D-189 / D-196).
+
+        Ray clusters surface resources via `ray status` cluster-resource map rather
+        than per-node nvidia-smi. The healthcheck contract for Ray-shaped backends
+        is deferred to a post-v1.0 phase; see 07-CONTEXT.md `<deferred>`.
+        """
+        raise NotImplementedError(
+            "healthcheck deferred to Phase 7+ for distributed backends "
+            "(use `salloc`/`ray status` directly)"
+        )

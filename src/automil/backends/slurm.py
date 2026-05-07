@@ -34,7 +34,7 @@ except ImportError:
     _SUBMITIT_AVAILABLE = False
 
 from automil.backends import register
-from automil.backends.base import Backend, JobHandle, JobSpec, JobState
+from automil.backends.base import Backend, HealthReport, JobHandle, JobSpec, JobState
 from automil.backends.errors import BackendError
 
 logger = logging.getLogger(__name__)
@@ -417,4 +417,20 @@ class SLURMBackend(Backend):
                             yield line
                 return
 
-            time.sleep(1.0)  # 1s tick (vs 0.1s for local — SLURM polling is slower)
+            time.sleep(1.0)  # 1s tick (vs 0.1s for local -- SLURM polling is slower)
+
+    # ------------------------------------------------------------------
+    # Backend ABC: healthcheck (D-189)
+    # ------------------------------------------------------------------
+
+    def healthcheck(self) -> HealthReport:
+        """Hardware probe deferred for distributed backends (D-189 / D-196).
+
+        SLURM clusters surface hardware via `salloc` and per-partition `sinfo` queries
+        rather than per-node nvidia-smi. The healthcheck contract for SLURM-shaped
+        backends is deferred to a post-v1.0 phase; see 07-CONTEXT.md `<deferred>`.
+        """
+        raise NotImplementedError(
+            "healthcheck deferred to Phase 7+ for distributed backends "
+            "(use `salloc`/`ray status` directly)"
+        )
