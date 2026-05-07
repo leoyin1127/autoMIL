@@ -109,10 +109,10 @@ Scope of this milestone. Each maps to exactly one roadmap phase (filled in durin
 - [x] **STP-01**: `LocalBackend.healthcheck()` reports detected GPU count, VRAM per GPU, accelerator type (CUDA / ROCm / CPU), Python version, autoMIL version
 - [x] **STP-02**: `automil init` consumes healthcheck output and pre-fills `automil/config.yaml` defaults (max_concurrent_per_gpu, default_vram_estimate_gb derived from quantile_95 of empirical `results.tsv` if available, else conservative defaults)
 - [x] **STP-03**: Hardware-detect produces a *report*, not a *decision*: if detection fails, `automil init` prints the detected values and prompts override; never silently uses wrong defaults
-- [ ] **STP-04**: `/automil-setup` skill (Claude format `.claude/skills/automil-setup/SKILL.md`) inspects an arbitrary user repo, identifies the training entry point, drafts `automil/config.yaml` + `program.md`, scaffolds a starter `variants/` skeleton, picks defaults from healthcheck
-- [ ] **STP-05**: `/automil-setup` skill is idempotent — re-running on an already-initialised project diffs and updates rather than overwriting
-- [ ] **STP-06**: After setup, mandatory `automil check` + 1-minute dry-run experiment; setup is not "done" until both pass
-- [ ] **STP-07**: Skill ships per-runtime overlays: `_shared/automil-setup/SKILL.md` canonical, `claude/automil-setup/`, `codex/automil-setup/`, `opencode/automil-setup/` overrides
+- [x] **STP-04**: `/automil-setup` skill (Claude format `.claude/skills/automil-setup/SKILL.md`) inspects an arbitrary user repo, identifies the training entry point, drafts `automil/config.yaml` + `program.md`, scaffolds a starter `variants/` skeleton, picks defaults from healthcheck
+- [x] **STP-05**: `/automil-setup` skill is idempotent — re-running on an already-initialised project diffs and updates rather than overwriting
+- [x] **STP-06**: After setup, mandatory `automil check` + 1-minute dry-run experiment; setup is not "done" until both pass
+- [x] **STP-07**: Skill ships per-runtime overlays: `_shared/automil-setup/SKILL.md` canonical, `claude/automil-setup/`, `codex/automil-setup/`, `opencode/automil-setup/` overrides
 
 ### Decouple (DEC)
 
@@ -231,10 +231,10 @@ Mapped 2026-05-01 by `gsd-roadmapper` against `.planning/ROADMAP.md` (9 phases).
 | STP-01 | Phase 7 | Complete |
 | STP-02 | Phase 7 | Complete |
 | STP-03 | Phase 7 | Complete |
-| STP-04 | Phase 7 | Pending |
-| STP-05 | Phase 7 | Pending |
-| STP-06 | Phase 7 | Pending |
-| STP-07 | Phase 7 | Pending |
+| STP-04 | Phase 7 | Complete |
+| STP-05 | Phase 7 | Complete |
+| STP-06 | Phase 7 | Complete |
+| STP-07 | Phase 7 | Complete |
 | DEC-01 | Phase 8 | Pending |
 | DEC-02 | Phase 8 | Pending |
 | DEC-03 | Phase 8 | Pending |
