@@ -108,6 +108,9 @@ class _RecordingBackend(Backend):
 # Shared fixture — pitfall6_project
 # ---------------------------------------------------------------------------
 
+    def healthcheck(self) -> "HealthReport":
+        raise NotImplementedError("healthcheck deferred for test-fixture backend")
+
 @pytest.fixture
 def pitfall6_project(tmp_path):
     """Build a synthetic 3-cell automil project with git repo.
