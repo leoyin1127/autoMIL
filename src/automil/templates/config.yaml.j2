@@ -74,9 +74,9 @@ registry:
   # Glob patterns the agent's overlay MUST NOT touch. Empty = no protection.
   # Add the shared library files / training-script entry points that should
   # only change via committed variant modules. Examples:
-  #   - "benchmarks/lib/CLAM/**"
+  #   - "lib/CLAM/**"
   #   - "src/models/clam/base.py"
-  # NOTE: autoMIL ships no defaults here — only YOU know which files are
+  # NOTE: autoMIL ships no defaults here. Only YOU know which files are
   # load-bearing for your project (D-33).
   protected: []
 
@@ -100,7 +100,7 @@ registry:
 env:
   passthrough:
     - AUTOMIL_*       # All automil framework variables (includes AUTOMIL_RUNTIME)
-    - AUTOMIL_RUNTIME # Runtime declaration — explicit, never inferred (D-87)
+    - AUTOMIL_RUNTIME # Runtime declaration: explicit, never inferred (D-87)
 
 # --- Variant selection (D-35, REG-07) ---
 # The framework resolves these via registry.resolve_model(parent, variant) etc.
@@ -113,7 +113,7 @@ loss:
 policy:
   variant: null    # e.g. "sam_lookahead"
 
-# --- Cap configuration — consumer-supplied, NOT framework-mandated. ---
+# Cap configuration: consumer-supplied, NOT framework-mandated.
 # autoMIL is generic; values below are example defaults Leo's autoMIL-paper
 # experiment campaign uses across all its datasets (CCRCC, CLWD, future
 # additions). A different consumer (sklearn-iris demo with K=1, an external
@@ -123,10 +123,17 @@ policy:
 # Per-cell override: automil submit --budget-seconds N --safety-buffer-seconds M
 # is honored ONLY on the submit that opens the cell (D-134).
 cap:
-  budget_seconds:        21600    # 6h — Leo's autoMIL-paper campaign default
-  safety_buffer_seconds: 1800     # 30min — must be < budget_seconds; tune to longest-fold duration
+  budget_seconds:        21600    # 6h, Leo's autoMIL-paper campaign default
+  safety_buffer_seconds: 1800     # 30min, must be < budget_seconds; tune to longest-fold duration
+  default_vram_estimate_gb: {{ default_vram_estimate_gb | default(8.0) }}
+  max_concurrent_per_gpu: {{ max_concurrent_per_gpu | default(4) }}
 
-# --- Gate configuration — consumer-supplied (NOT framework constants). ---
+hardware:
+  accelerator: {{ healthcheck_accelerator | default("cpu") }}
+  gpu_count: {{ healthcheck_gpu_count | default(0) }}
+  min_vram_gb: {{ healthcheck_vram_gb | default(0.0) }}
+
+# Gate configuration: consumer-supplied (NOT framework constants).
 # Generalization gate (Phase 5 / GTE-01..06). K, p_threshold, bootstrap_reps
 # are Leo's autoMIL-paper defaults; another consumer with a different
 # statistical-power requirement supplies different values. Pre-registration
@@ -150,12 +157,12 @@ backend:
     walltime_seconds: 21600       # 6h default; override per-campaign
     debug_in_process: false       # set true to use submitit cluster="debug" (CI/test only)
     directives:
-      partition: "TODO_FILL_IN"   # required — operator-supplied; e.g. "compute"
-      account: "TODO_FILL_IN"     # required — operator-supplied; e.g. "mylab"
-      qos: null                   # optional — null disables; e.g. "high"
-      cpus_per_task: 8            # required — integer
-      mem_gb: 48                  # required — integer
-      gpus_per_node: 1            # optional — defaults to 1 if omitted
+      partition: "TODO_FILL_IN"   # required, operator-supplied; e.g. "compute"
+      account: "TODO_FILL_IN"     # required, operator-supplied; e.g. "mylab"
+      qos: null                   # optional, null disables; e.g. "high"
+      cpus_per_task: 8            # required, integer
+      mem_gb: 48                  # required, integer
+      gpus_per_node: 1            # optional, defaults to 1 if omitted
       # NOTE: `signal` is framework-mandated as "B:TERM@30" (Phase 4 D-115 cap contract);
       # automil check rejects any operator override here.
 
