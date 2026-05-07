@@ -319,7 +319,7 @@ def init(path: str, task: str, encoder: str, runtime: str | None, update: bool, 
         click.echo("automil init: hardware probe skipped (--no-healthcheck).")
     else:
         from automil.backends.local import LocalBackend  # noqa: PLC0415
-        report = LocalBackend().healthcheck()
+        report = LocalBackend(project_root=project_root, automil_dir=automil_dir).healthcheck()
         click.echo(_format_health_report(report))
         if report.detection_status == "failed":
             if not click.confirm(
@@ -332,6 +332,16 @@ def init(path: str, task: str, encoder: str, runtime: str | None, update: bool, 
                     "GPU drivers and retry."
                 )
     healthcheck_context = _stamp_healthcheck_defaults(automil_dir, report)
+
+    # Prepare template environment and context (used for both first-time init and --update re-stamp).
+    templates_dir = Path(__file__).parent.parent / "templates"
+    env = Environment(loader=FileSystemLoader(str(templates_dir)))
+    context: dict = {
+        "task_type": task,
+        "encoder": encoder,
+        "project_name": project_root.name,
+    }
+    context.update(healthcheck_context)
 
     if not update:
         # Create directory structure
@@ -349,15 +359,6 @@ def init(path: str, task: str, encoder: str, runtime: str | None, update: bool, 
 
         # Render templates. Templates live alongside the package (not the cli/
         # subpackage), so resolve relative to ``automil/`` rather than ``cli/``.
-        templates_dir = Path(__file__).parent.parent / "templates"
-        env = Environment(loader=FileSystemLoader(str(templates_dir)))
-        context = {
-            "task_type": task,
-            "encoder": encoder,
-            "project_name": project_root.name,
-        }
-        context.update(healthcheck_context)
-
         for template_name, target_name in [
             ("config.yaml.j2", "config.yaml"),
             ("program.md.j2", "program.md"),
@@ -366,6 +367,12 @@ def init(path: str, task: str, encoder: str, runtime: str | None, update: bool, 
         ]:
             template = env.get_template(template_name)
             (automil_dir / target_name).write_text(template.render(**context))
+    elif not no_healthcheck:
+        # --update with healthcheck: re-render config.yaml to stamp fresh detected values (D-191).
+        # Note: this replaces the file; user edits in other sections are not preserved.
+        # Use --no-healthcheck with --update to preserve existing config.yaml verbatim.
+        config_template = env.get_template("config.yaml.j2")
+        (automil_dir / "config.yaml").write_text(config_template.render(**context))
 
     # D-91: auto-detect runtime from existing dirs if --runtime not specified
     if runtime is None:
