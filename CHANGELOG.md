@@ -2,6 +2,51 @@
 
 autoMIL — F2-readiness framework refactor
 
+## 7.0.0 - Phase 7 hardware autodetect + automil-setup skill (unreleased)
+
+### BREAKING: `Backend.healthcheck` is now an abstract method
+
+Subclasses without a concrete `healthcheck` implementation are uninstantiable
+(`TypeError: Can't instantiate abstract class ... with abstract method healthcheck`).
+
+- **`LocalBackend`** implements it (probes hardware via `nvidia-smi` /
+  `rocm-smi` / CPU-only fallback per D-190).
+- **`SLURMBackend`** and **`RayBackend`** raise `NotImplementedError` with the
+  locked message
+  `"healthcheck deferred to Phase 7+ for distributed backends (use salloc/ray status directly)"`
+  (D-189). Distributed-cluster healthcheck is deferred to a post-v1.0 phase.
+- **`MockSLURMBackend`** raises the same `NotImplementedError` for test-fixture parity.
+
+**Operator recovery:** if you maintain a custom Backend subclass outside this
+repo, add a `healthcheck` method that returns a `HealthReport` (or raises
+`NotImplementedError` with the locked message above for distributed backends).
+
+### Added
+
+- `Backend.healthcheck() -> HealthReport` method on the Backend ABC (D-189 / STP-01).
+  `LocalBackend` implements it via `nvidia-smi` (CUDA), `rocm-smi` (ROCm), or
+  CPU-only fallback. Detection failures surface via `detection_status='failed'`.
+- `automil init` calls `LocalBackend.healthcheck()` between the `--update` guard
+  and template render. Detected values flow into `automil/config.yaml`'s `cap:`
+  and `hardware:` sections (D-191 / STP-02).
+- `automil init --no-healthcheck` flag for CI / smoke-test paths.
+- `automil submit --max-time SECONDS` flag for seconds-precision timeouts (D-195).
+  `--timeout MINUTES` is preserved verbatim; when both are passed, `--max-time` wins.
+- `_shared/automil-setup/SKILL.md` expanded from the 122-line skeleton to ~250
+  lines covering Inspection Heuristics, Drafting Conventions, Idempotency
+  Protocol, Setup-Done Gate, and Failure Modes (D-192..D-196 / STP-04..06).
+- `agent_assets/codex/skills/automil-setup/SKILL.md` empty-frontmatter overlay
+  for Codex plain-markdown rendering (D-196 / STP-07 / Pitfall D).
+
+### Fixed
+
+- `automil init`'s template render now stamps detected hardware defaults
+  (`max_concurrent_per_gpu`, `default_vram_estimate_gb`) instead of the prior
+  hardcoded constants. Per the Pitfall 8 anti-acceptance, `default_vram_estimate_gb`
+  is computed from `numpy.quantile(.95)` of empirical `vram_gb` observations in
+  `automil/results.tsv` when at least 10 rows are present, and from
+  `max(8.0, min(gpu_vram_gb) / 8.0)` otherwise.
+
 ## 6.0.0 — Phase 6 SLURM + Ray backends (unreleased)
 
 ### BREAKING: Per-backend `running/` namespacing
