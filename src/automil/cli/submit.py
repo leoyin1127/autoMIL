@@ -22,6 +22,8 @@ from automil.cli._helpers import _find_automil_dir, _find_git_root, _matches_sco
 @click.option("--priority", default=1, help="Priority (lower = higher)")
 @click.option("--vram", default=0.5, help="Estimated VRAM in GB")
 @click.option("--timeout", default=150, help="Timeout in minutes")
+@click.option("--max-time", "max_time_seconds", type=int, default=None,
+              help="Override --timeout with seconds-precision (rounded up to 1 min minimum, D-195).")
 @click.option("--parent", default=None, help="Parent node ID")
 @click.option("--techniques", multiple=True, help="Technique tags")
 @click.option("--budget-seconds", default=None, type=int,
@@ -29,7 +31,7 @@ from automil.cli._helpers import _find_automil_dir, _find_git_root, _matches_sco
 @click.option("--safety-buffer-seconds", default=None, type=int,
               help="Override cap.safety_buffer_seconds for this cell (D-134; same scoping as --budget-seconds).")
 def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
-           timeout: int, parent: str | None, techniques: tuple,
+           timeout: int, max_time_seconds: int | None, parent: str | None, techniques: tuple,
            budget_seconds: int | None, safety_buffer_seconds: int | None):
     """Snapshot changed files and queue an experiment.
 
@@ -39,6 +41,20 @@ def submit(node: str, desc: str, files: tuple, priority: int, vram: float,
     matching ABC, required-method signatures match). Files matching
     ``registry.protected`` glob patterns are hard-rejected (D-34).
     """
+    # D-195 / RESEARCH.md OQ-5: --max-time SECONDS overrides --timeout MINUTES via ceil-div.
+    if max_time_seconds is not None:
+        if max_time_seconds < 0:
+            raise click.ClickException(
+                f"--max-time must be non-negative seconds, got {max_time_seconds}"
+            )
+        translated = max(1, (max_time_seconds + 59) // 60)
+        if timeout != 150:  # caller passed --timeout explicitly
+            click.echo(
+                f"submit: both --max-time {max_time_seconds}s and --timeout {timeout}m "
+                f"provided; --max-time wins (timeout_min={translated})."
+            )
+        timeout = translated
+
     import hashlib
 
     git_root = _find_git_root()
