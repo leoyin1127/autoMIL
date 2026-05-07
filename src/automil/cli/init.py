@@ -1,12 +1,14 @@
 """init command: scaffold autoMIL into an existing project."""
 from __future__ import annotations
 
+import csv
 import json
 import shutil
 from pathlib import Path
 
 import click
 
+from automil.backends.base import HealthReport  # noqa: F401
 from automil.cli import main
 from automil.cli._helpers import _find_git_root
 
@@ -17,7 +19,7 @@ def _scaffold_variants_skeleton(automil_dir: Path) -> None:
     Per D-25 + REG-04 + REG-08 (deferred portion): each kind subdirectory
     gets a .gitkeep so the empty directory commits cleanly. The per-parent
     <parent>/ subdirectory is created by `port-variant` on first use
-    (Plan 01-11) — no parent name to assume at init time.
+    (Plan 01-11), no parent name to assume at init time.
 
     Idempotent: re-running on an existing skeleton is a no-op (mkdir
     parents=True exist_ok=True; .gitkeep .touch is safe to repeat).
@@ -38,7 +40,7 @@ def _register_claude_hooks(
 ) -> None:
     """Register the stop hook in .claude/settings.json.
 
-    Extracted from the original init.py block (lines 120–144) to allow
+    Extracted from the original init.py block (lines 120-144) to allow
     reuse from _install_runtime_assets without duplication.
     """
     settings_path = project_claude / "settings.json"
@@ -119,23 +121,23 @@ def _install_runtime_assets(
                         if f.suffix == ".sh":
                             dst.chmod(dst.stat().st_mode | 0o111)
 
-        # .claude/CLAUDE.md — first line @AGENTS.md (D-90)
+        # .claude/CLAUDE.md: first line @AGENTS.md (D-90)
         claude_md = project_claude / "CLAUDE.md"
         if not claude_md.exists():
             claude_md.write_text(
-                "@AGENTS.md\n\n# Claude Code — autoMIL\n\nSee AGENTS.md above for universal instructions.\n",
+                "@AGENTS.md\n\n# Claude Code: autoMIL\n\nSee AGENTS.md above for universal instructions.\n",
                 encoding="utf-8",
             )
             click.echo("  Created: .claude/CLAUDE.md")
 
         # Register stop hook in settings.json
         _register_claude_hooks(project_root, project_claude, package_dir)
-        click.echo("  Runtime: claude — assets installed")
+        click.echo("  Runtime: claude, assets installed")
 
     elif rt == "opencode":
         opencode_dir = project_root / ".opencode"
         opencode_dir.mkdir(parents=True, exist_ok=True)
-        # .opencode/AGENTS.md — same universal content as project-root AGENTS.md
+        # .opencode/AGENTS.md: same universal content as project-root AGENTS.md
         agents_src = shared_dir / "AGENTS.md"
         if agents_src.exists():
             dst = opencode_dir / "AGENTS.md"
@@ -148,7 +150,7 @@ def _install_runtime_assets(
         if ts_src.exists():
             (plugins_dir / "automil-trajectory.ts").write_text(ts_src.read_text(encoding="utf-8"), encoding="utf-8")
             click.echo("  Plugin: .opencode/plugins/automil-trajectory.ts")
-        click.echo("  Runtime: opencode — assets installed (.opencode/AGENTS.md + plugin)")
+        click.echo("  Runtime: opencode, assets installed (.opencode/AGENTS.md + plugin)")
 
     elif rt == "codex":
         codex_dir = project_root / ".codex"
@@ -163,12 +165,101 @@ def _install_runtime_assets(
                 else "# autoMIL\n\nSee AGENTS.md.\n"
             )
             instructions.write_text(content, encoding="utf-8")
-        click.echo("  Runtime: codex — assets installed (.codex/instructions.md)")
+        click.echo("  Runtime: codex, assets installed (.codex/instructions.md)")
 
     elif rt in ("deepseek-via-opencode", "deepseek-via-codex"):
         base_rt = "opencode" if "opencode" in rt else "codex"
-        click.echo(f"  Runtime: {rt} — DeepSeek is a model; installing {base_rt} overlay")
+        click.echo(f"  Runtime: {rt}. DeepSeek is a model; installing {base_rt} overlay")
         _install_runtime_assets(base_rt, project_root, package_dir, merge_skill)
+
+
+def _format_health_report(report: "HealthReport") -> str:
+    """Render HealthReport as a human-readable stdout block (D-191)."""
+    vram_str = ", ".join(f"{v:.1f}" for v in report.gpu_vram_gb) or "(none)"
+    lines = [
+        "automil hardware probe:",
+        f"  accelerator:        {report.accelerator}",
+        f"  gpu_count:          {report.gpu_count}",
+        f"  gpu_vram_gb:        {vram_str}",
+        f"  python_version:     {report.python_version}",
+        f"  automil_version:    {report.automil_version}",
+        f"  detection_status:   {report.detection_status}",
+    ]
+    for w in report.detection_warnings:
+        lines.append(f"  warning: {w}")
+    return "\n".join(lines)
+
+
+def _stamp_healthcheck_defaults(
+    automil_dir: Path,
+    report: "HealthReport | None",
+) -> dict:
+    """Compute Jinja2 context for config.yaml.j2 stamping (D-191 / STP-02 / OQ-2).
+
+    Behavior matrix:
+      - report is None  (--no-healthcheck): conservative defaults.
+      - report.gpu_count == 0: conservative defaults; CPU shape.
+      - report.gpu_count > 0 + results.tsv missing or <10 rows: conservative
+        from min(gpu_vram_gb) / 8.0 floor 8.0.
+      - report.gpu_count > 0 + results.tsv >=10 rows: empirical
+        numpy.quantile(vram_gb_col, 0.95).
+
+    vram_gb is the column header in results.tsv per
+    src/automil/backends/_orchestrator_daemon.py:1289 (orchestrator converts
+    peak_vram_mb to vram_gb at write time).
+    """
+    if report is None or report.gpu_count == 0:
+        gpu_count = 0 if report is None else report.gpu_count
+        accelerator = "cpu" if report is None else report.accelerator
+        return {
+            "healthcheck_gpu_count": gpu_count,
+            "healthcheck_vram_gb": 0.0,
+            "healthcheck_accelerator": accelerator,
+            "max_concurrent_per_gpu": 4,
+            "default_vram_estimate_gb": 8.0,
+        }
+
+    min_vram = min(report.gpu_vram_gb) if report.gpu_vram_gb else 8.0
+    conservative_vram = max(8.0, min_vram / 8.0)
+    max_concurrent = max(1, int(min_vram // conservative_vram)) if min_vram >= conservative_vram else 1
+
+    results_tsv = automil_dir / "results.tsv"
+    empirical_vram: float | None = None
+    if results_tsv.exists():
+        try:
+            with open(results_tsv, "r") as f:
+                reader = csv.DictReader(f, delimiter="\t")
+                vram_values: list[float] = []
+                for row in reader:
+                    raw = row.get("vram_gb")
+                    if raw is None or raw == "":
+                        continue
+                    try:
+                        v = float(raw)
+                        if v > 0:
+                            vram_values.append(v)
+                    except ValueError:
+                        continue
+            if len(vram_values) >= 10:
+                try:
+                    import numpy  # noqa: PLC0415
+                    empirical_vram = float(numpy.quantile(vram_values, 0.95))
+                except ImportError:
+                    import statistics  # noqa: PLC0415
+                    qs = statistics.quantiles(vram_values, n=20)
+                    empirical_vram = qs[18] if len(qs) >= 19 else max(vram_values)
+        except (OSError, ValueError):
+            empirical_vram = None
+
+    default_vram = empirical_vram if empirical_vram is not None else conservative_vram
+
+    return {
+        "healthcheck_gpu_count": report.gpu_count,
+        "healthcheck_vram_gb": min_vram,
+        "healthcheck_accelerator": report.accelerator,
+        "max_concurrent_per_gpu": max_concurrent,
+        "default_vram_estimate_gb": float(default_vram),
+    }
 
 
 @main.command()
@@ -192,7 +283,13 @@ def _install_runtime_assets(
     default=False,
     help="Re-render skills/hooks/AGENTS.md for installed runtimes without re-scaffolding",
 )
-def init(path: str, task: str, encoder: str, runtime: str | None, update: bool) -> None:
+@click.option(
+    "--no-healthcheck",
+    is_flag=True,
+    default=False,
+    help="Skip hardware probe (CI / smoke-test path); use conservative defaults.",
+)
+def init(path: str, task: str, encoder: str, runtime: str | None, update: bool, no_healthcheck: bool) -> None:
     """Add autoMIL to an existing project."""
     from jinja2 import Environment, FileSystemLoader
 
@@ -212,6 +309,29 @@ def init(path: str, task: str, encoder: str, runtime: str | None, update: bool) 
         if not update:
             raise click.ClickException(f"autoMIL already initialized at {automil_dir}")
         # --update: skip scaffold, proceed to asset re-install
+
+    # D-191 / STP-02 / STP-03: hardware probe between --update guard and template render.
+    # The probe surfaces report values; CLI prompts user override on detection failure
+    # (NEVER silently uses wrong defaults).
+    report: "HealthReport | None"
+    if no_healthcheck:
+        report = None
+        click.echo("automil init: hardware probe skipped (--no-healthcheck).")
+    else:
+        from automil.backends.local import LocalBackend  # noqa: PLC0415
+        report = LocalBackend().healthcheck()
+        click.echo(_format_health_report(report))
+        if report.detection_status == "failed":
+            if not click.confirm(
+                "Detection failed; use conservative defaults?",
+                default=False,
+            ):
+                raise click.ClickException(
+                    "Healthcheck failed and operator declined conservative defaults. "
+                    "Run `automil init --no-healthcheck` to skip the probe, or fix "
+                    "GPU drivers and retry."
+                )
+    healthcheck_context = _stamp_healthcheck_defaults(automil_dir, report)
 
     if not update:
         # Create directory structure
@@ -236,6 +356,7 @@ def init(path: str, task: str, encoder: str, runtime: str | None, update: bool) 
             "encoder": encoder,
             "project_name": project_root.name,
         }
+        context.update(healthcheck_context)
 
         for template_name, target_name in [
             ("config.yaml.j2", "config.yaml"),
@@ -260,7 +381,7 @@ def init(path: str, task: str, encoder: str, runtime: str | None, update: bool) 
         else:
             runtimes_to_install = ["claude"]  # default: Claude Code
             click.echo(
-                "No runtime config detected — installing Claude Code overlay. "
+                "No runtime config detected; installing Claude Code overlay. "
                 "Use --runtime to override or --runtime all for full multi-runtime support."
             )
     elif runtime == "all":
