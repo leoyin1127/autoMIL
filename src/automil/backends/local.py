@@ -21,18 +21,29 @@ any CLI command without corrupting live-daemon state.
 """
 from __future__ import annotations
 
+import importlib.metadata
 import json
 import logging
+import subprocess
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator, Optional
 
-from automil.backends.base import Backend, JobHandle, JobSpec, JobState
+from automil.backends.base import Backend, HealthReport, JobHandle, JobSpec, JobState
 from automil.backends.errors import BackendError
 from automil.backends import register
 
 logger = logging.getLogger(__name__)
+
+
+def _get_automil_version() -> str:
+    """importlib.metadata.version with fallback for editable installs."""
+    try:
+        return importlib.metadata.version("automil")
+    except importlib.metadata.PackageNotFoundError:
+        return "0.0.0+unknown"
 
 
 @register("local")
@@ -433,3 +444,177 @@ class LocalBackend(Backend):
                 return
 
             time.sleep(0.1)
+
+    # ------------------------------------------------------------------
+    # Backend.healthcheck  (D-189 / STP-01 / D-190)
+    # ------------------------------------------------------------------
+
+    def healthcheck(self) -> HealthReport:
+        """Probe hardware and return a HealthReport (D-189 / STP-01 / D-190).
+
+        Probe order: CUDA, then ROCm, then CPU. CUDA is reachable on Leo's
+        workstation via NVIDIA_SMI_PATH. ROCm is best-effort, returns None on
+        any error (Leo's environment is CUDA-only). CPU is the terminal
+        fallback and always succeeds.
+
+        detection_status branching (D-190):
+          - 'ok': probe succeeded, all GPUs parsed, no warnings.
+          - 'partial': some GPUs detected and others unparseable
+            (e.g. '[Not Supported]', MIG slice memory).
+          - 'failed': all probes failed AND user has env signal (CUDA_VISIBLE_DEVICES
+            set) implying a GPU was expected. CLI consumers prompt operator override.
+        """
+        import os  # noqa: PLC0415
+
+        warnings: list[str] = []
+        accelerator: str = "cpu"
+        gpu_count: int = 0
+        gpu_vram_gb: tuple[float, ...] = ()
+        status: str = "ok"
+
+        cuda = self._healthcheck_cuda()
+        if cuda is not None:
+            gpu_count, gpu_vram_gb, cuda_warnings = cuda
+            warnings.extend(cuda_warnings)
+            accelerator = "cuda"
+            if cuda_warnings or gpu_count != len(gpu_vram_gb):
+                status = "partial"
+        else:
+            rocm = self._healthcheck_rocm()
+            if rocm is not None:
+                gpu_count, gpu_vram_gb, rocm_warnings = rocm
+                warnings.extend(rocm_warnings)
+                accelerator = "rocm"
+                if rocm_warnings or gpu_count != len(gpu_vram_gb):
+                    status = "partial"
+            else:
+                # CPU terminal fallback. CUDA expected -> 'failed'; otherwise 'ok'.
+                if os.environ.get("CUDA_VISIBLE_DEVICES"):
+                    status = "failed"
+                    warnings.append(
+                        "CUDA_VISIBLE_DEVICES is set but no GPU probe succeeded. "
+                        "Verify nvidia-smi installation, driver, or unset the env var."
+                    )
+
+        return HealthReport(
+            gpu_count=gpu_count,
+            gpu_vram_gb=gpu_vram_gb,
+            accelerator=accelerator,  # type: ignore[arg-type]
+            python_version=f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+            automil_version=_get_automil_version(),
+            detection_status=status,  # type: ignore[arg-type]
+            detection_warnings=tuple(warnings),
+            detected_at=datetime.utcnow(),
+        )
+
+    def _healthcheck_cuda(
+        self,
+    ) -> Optional[tuple[int, tuple[float, ...], list[str]]]:
+        """CUDA probe via NVIDIA_SMI_PATH. Returns None on whole-probe failure.
+
+        Per RESEARCH.md OQ-1, reuses the path-pinned NVIDIA_SMI_PATH constant
+        (NEVER bare 'nvidia-smi'). Parses --query-gpu=index,memory.total with
+        --format=csv,noheader,nounits. Per-GPU parse failures surface in the
+        warnings list with detection_status='partial'.
+        """
+        from automil.backends._orchestrator_daemon import NVIDIA_SMI_PATH  # noqa: PLC0415
+
+        try:
+            result = subprocess.run(
+                [
+                    NVIDIA_SMI_PATH,
+                    "--query-gpu=index,memory.total",
+                    "--format=csv,noheader,nounits",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            return None
+
+        if result.returncode != 0 or not result.stdout.strip():
+            return None
+
+        warnings: list[str] = []
+        vram_gb: list[float] = []
+        gpu_count = 0
+        for line in result.stdout.strip().splitlines():
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) < 2:
+                continue
+            gpu_count += 1
+            try:
+                vram_mb = int(parts[1])
+                vram_gb.append(vram_mb / 1024.0)
+            except (ValueError, TypeError):
+                warnings.append(
+                    f"GPU index {parts[0]} memory.total unparseable ('{parts[1]}'); "
+                    f"may be MIG slice or [Not Supported]. Skipping VRAM record."
+                )
+
+        # Optional MIG warning. Best-effort; failure is silent.
+        try:
+            mig = subprocess.run(
+                [NVIDIA_SMI_PATH, "--query-gpu=mig.mode.current", "--format=csv,noheader"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if mig.returncode == 0 and "Enabled" in mig.stdout:
+                warnings.append(
+                    "MIG mode is Enabled on at least one GPU; reported memory.total "
+                    "is the slice memory, not parent device. Treat VRAM bin-packing as approximate."
+                )
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            pass
+
+        return gpu_count, tuple(vram_gb), warnings
+
+    def _healthcheck_rocm(
+        self,
+    ) -> Optional[tuple[int, tuple[float, ...], list[str]]]:
+        """ROCm best-effort probe via rocm-smi. Returns None on any error.
+
+        Per RESEARCH.md Pitfall F, the ROCm CSV format is unstable across
+        ROCm 5/6/7. Parse defensively, swallow any exception, return None.
+        Leo's CUDA-only environment never reaches this path; tests mock it.
+        """
+        try:
+            result = subprocess.run(
+                ["rocm-smi", "--showmeminfo", "vram", "--csv"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            return None
+
+        if result.returncode != 0 or not result.stdout.strip():
+            return None
+
+        warnings: list[str] = []
+        vram_gb: list[float] = []
+        gpu_count = 0
+        try:
+            lines = [l for l in result.stdout.strip().splitlines() if l and not l.startswith("device,")]
+            for line in lines:
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) < 2:
+                    continue
+                gpu_count += 1
+                # rocm-smi reports VRAM in bytes; column position varies.
+                # Try the largest numeric column as the total.
+                numeric_vals = []
+                for p in parts[1:]:
+                    try:
+                        numeric_vals.append(int(p))
+                    except ValueError:
+                        continue
+                if not numeric_vals:
+                    warnings.append(f"rocm-smi line {gpu_count} has no numeric VRAM value")
+                    continue
+                vram_bytes = max(numeric_vals)
+                vram_gb.append(vram_bytes / (1024 ** 3))
+        except (ValueError, KeyError, IndexError) as e:
+            return None
+
+        return gpu_count, tuple(vram_gb), warnings
