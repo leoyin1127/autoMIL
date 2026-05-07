@@ -146,17 +146,21 @@ def test_init_update_flag_bypasses_guard(
 def test_init_update_does_not_overwrite_config(
     project_dir: Path, cli_runner: CliRunner, monkeypatch
 ) -> None:
-    """--update re-renders assets but does NOT overwrite config.yaml with new content."""
+    """--update with --no-healthcheck re-renders assets but preserves config.yaml verbatim.
+
+    D-191: --update WITHOUT --no-healthcheck re-stamps config.yaml with detected values.
+    This test covers the --no-healthcheck path where config.yaml is preserved verbatim.
+    """
     monkeypatch.chdir(project_dir)
-    # First init
-    cli_runner.invoke(main, ["init", "--runtime", "claude"])
+    # First init (no healthcheck to avoid real nvidia-smi in CI)
+    cli_runner.invoke(main, ["init", "--runtime", "claude", "--no-healthcheck"])
     config_path = project_dir / "automil" / "config.yaml"
     # Modify config.yaml
     original_content = config_path.read_text()
     config_path.write_text(original_content + "\n# custom user note\n")
-    # Run --update
-    cli_runner.invoke(main, ["init", "--runtime", "claude", "--update"])
-    # Config should still have our custom note (not re-scaffolded)
+    # Run --update with --no-healthcheck: config.yaml should be preserved
+    cli_runner.invoke(main, ["init", "--runtime", "claude", "--update", "--no-healthcheck"])
+    # Config should still have our custom note (no re-stamp on --no-healthcheck path)
     updated_content = config_path.read_text()
     assert "# custom user note" in updated_content
 
