@@ -118,7 +118,7 @@ Scope of this milestone. Each maps to exactly one roadmap phase (filled in durin
 
 <!-- Framework genuinely consumer-agnostic — autobench is one of many possible users. -->
 
-- [ ] **DEC-01**: `grep -r "autobench\|AUTOBENCH_" src/automil/` returns zero matches; equivalent for any other autobench-specific identifier
+- [x] **DEC-01**: `grep -r "autobench\|AUTOBENCH_" src/automil/` returns zero matches; equivalent for any other autobench-specific identifier
 - [ ] **DEC-02**: A second consumer (sklearn-iris classifier as a minimal training script) plugs into autoMIL via documented contract and runs an experiment loop end-to-end
 - [x] **DEC-03**: `result.json` schema is JSON-Schema-validated at ingestion; orchestrator rejects malformed results with a clear error pointing to the schema location
 - [x] **DEC-04**: Composite scoring formula is config-driven (`automil/config.yaml: scoring.formula` or `scoring.entry_point`); not hardcoded to autobench's 4-key (val_auc + val_bacc + test_auc + test_bacc) recipe
@@ -235,7 +235,7 @@ Mapped 2026-05-01 by `gsd-roadmapper` against `.planning/ROADMAP.md` (9 phases).
 | STP-05 | Phase 7 | Complete |
 | STP-06 | Phase 7 | Complete |
 | STP-07 | Phase 7 | Complete |
-| DEC-01 | Phase 8 | Pending |
+| DEC-01 | Phase 8 | Complete |
 | DEC-02 | Phase 8 | Pending |
 | DEC-03 | Phase 8 | Complete |
 | DEC-04 | Phase 8 | Complete |
