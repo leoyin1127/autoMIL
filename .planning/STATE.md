@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-last_updated: "2026-05-08T03:30:09.945Z"
+last_updated: "2026-05-08T03:30:55.506Z"
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 92
-  completed_plans: 92
+  completed_plans: 93
   percent: 100
 ---
 
@@ -78,6 +78,7 @@ The calibration pilot (D-151, Plan 05-12) framework-side scaffold is committed a
 | Phase 06 P07 | 900 | 1 tasks | 1 files |
 | Phase 07 P05 | 55 | 3 tasks | 4 files |
 | Phase 08 P01 | 600 | 2 tasks | 6 files |
+| Phase 08-decoupling-completion-acceptance P06 | 8m | 3 tasks | 7 files |
 
 ## Accumulated Context
 
