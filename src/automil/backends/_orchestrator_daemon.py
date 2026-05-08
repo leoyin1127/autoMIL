@@ -1067,6 +1067,33 @@ class ExperimentOrchestrator:
         # Try to collect result.json from worktree
         result = self.runner.collect_result(wt_path, archive)
 
+        # D-201 / DEC-03: validate result.json against
+        # automil/schemas/result.schema.json. Malformed payloads transition
+        # the node to crashed with a schema-pointer error so the consumer
+        # can self-correct. The fall-through path (result is None) skips
+        # validation; the synthesised minimal payload below is constructed
+        # by the orchestrator and is contract-compliant by construction.
+        if result is not None:
+            try:
+                from automil.schemas import validate_result, ValidationError
+                validate_result(result)
+            except ValidationError as exc:
+                logger.warning(
+                    "result.json schema validation failed for %s: %s; "
+                    "see automil/schemas/result.schema.json",
+                    node_id, exc.message,
+                )
+                result = {
+                    "status": "crash",
+                    "composite": 0.0,
+                    "metrics": {},
+                    "error": (
+                        f"result.json failed schema validation: {exc.message} "
+                        f"(json_path={exc.json_path}); "
+                        f"see automil/schemas/result.schema.json"
+                    ),
+                }
+
         if result is None:
             log_text = (archive / "run.log").read_text() if (archive / "run.log").exists() else ""
             if "CUDA out of memory" in log_text or "OutOfMemoryError" in log_text:
