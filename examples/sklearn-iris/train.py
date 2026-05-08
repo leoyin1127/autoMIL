@@ -21,7 +21,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.model_selection import train_test_split
 
-RESULTS_DIR = Path(os.environ.get("AUTOMIL_RESULTS_DIR", os.getcwd()))
+RESULTS_DIR = Path(".")  # write to cwd (= worktree when launched by orchestrator)
 _state: dict[str, Any] = {"completed": False, "accuracy": 0.0, "f1": 0.0}
 
 
