@@ -479,8 +479,6 @@ def test_automil_fold_count_injected_into_subprocess_env(tmp_path: Path) -> None
         node_id="node_0001",
         archive=tmp_path / "archive" / "node_0001",
         spec={"description": "fold count test", "env": {}},
-        pythonpath="/tmp/wt/benchmarks/src",
-        worktree_benchmarks=tmp_path / "benchmarks",
     )
 
     assert "AUTOMIL_FOLD_COUNT" in env, "AUTOMIL_FOLD_COUNT must be injected into subprocess env"
