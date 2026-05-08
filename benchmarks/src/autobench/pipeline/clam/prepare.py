@@ -36,8 +36,18 @@ def convert_h5_to_pt(
         if not os.path.exists(h5_path):
             continue
 
-        with h5py.File(h5_path, "r") as f:
-            features = f["features"][:]
+        try:
+            with h5py.File(h5_path, "r") as f:
+                features = f["features"][:]
+        except (OSError, KeyError) as e:
+            raise RuntimeError(
+                f"Failed to read features from H5 file: {h5_path}\n"
+                f"  Encoder: {encoder_key}\n"
+                f"  Slide:   {slide_id}\n"
+                f"  Cause:   {type(e).__name__}: {e}\n"
+                f"  Likely corrupted/truncated. Re-extract this slide via "
+                f"benchmarks/scripts/run_feature_extraction.py --models {encoder_key} --skip_seg"
+            ) from e
 
         features = torch.from_numpy(features).float()
         torch.save(features, pt_path)
