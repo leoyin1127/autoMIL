@@ -695,9 +695,9 @@ class ExperimentOrchestrator:
           3. Orchestrator-injected fixed keys (always overrides 1 + 2).
           4. Per-spec ``spec.env`` (last-write-wins, except ``_SPEC_ENV_BLOCKED``).
         """
-        # D-199 / DEC-01: AUTOBENCH_ROOT and PYTHONPATH overlay (formerly
-        # injected here in Phase 0) are removed; consumers wire them via
-        # env.passthrough (D-202).
+        # D-199 / DEC-01: Consumer-specific env vars and PYTHONPATH overlay
+        # (formerly injected here in Phase 0) are removed; consumers wire
+        # them via env.passthrough in automil/config.yaml (D-202).
         env: dict[str, str] = {}
 
         # 1. System whitelist (literal + prefix-glob).
@@ -767,8 +767,8 @@ class ExperimentOrchestrator:
 
         # CLN-02 / D-04 + DEC-01 / D-199: build env from explicit whitelist +
         # config passthrough. Consumer-specific vars (formerly auto-injected
-        # AUTOBENCH_ROOT + PYTHONPATH overlay) are now opted in per project
-        # via automil/config.yaml: env.passthrough (D-202).
+        # by this block in Phase 0) are now opted in per project via
+        # automil/config.yaml: env.passthrough (D-202).
         env = self._build_subprocess_env(
             gpu_id=gpu_id,
             node_id=node_id,
