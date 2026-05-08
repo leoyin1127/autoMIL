@@ -1052,9 +1052,9 @@ class ExperimentOrchestrator:
                     gnode["type"] = "executed"
                     gnode["status"] = "keep"
                     gnode["composite"] = payload["composite"]
-                    for k in ("test_auc", "test_bacc", "val_auc", "val_bacc"):
-                        if k in payload.get("metrics", {}):
-                            gnode[k] = payload["metrics"][k]
+                    # D-200 / DEC-04: write metrics under node["metrics"], not top-level.
+                    if payload.get("metrics"):
+                        gnode["metrics"] = dict(payload["metrics"])
                     gnode.setdefault("metadata", {})["budget_killed"] = True
                     self.graph._reevaluate_descendants(node_id)
                     self.graph.save()
