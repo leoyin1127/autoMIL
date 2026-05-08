@@ -683,20 +683,21 @@ class ExperimentOrchestrator:
         node_id: str,
         archive: Path,
         spec: dict,
-        pythonpath: str,
-        worktree_benchmarks: Path,
     ) -> dict[str, str]:
         """Build the subprocess environment from a hardcoded whitelist + config passthrough.
 
         Replaces the previous ``env = {**os.environ, ...}`` leak (CLN-02 / D-04;
         see CONCERNS.md §"Subprocess `env` inherits the full operator environment").
 
-        Layering — highest precedence wins:
+        Layering (highest precedence wins):
           1. System whitelist (literal + prefix-glob match against ``os.environ``).
           2. Config passthrough (literal names from ``automil/config.yaml: env.passthrough``).
           3. Orchestrator-injected fixed keys (always overrides 1 + 2).
           4. Per-spec ``spec.env`` (last-write-wins, except ``_SPEC_ENV_BLOCKED``).
         """
+        # D-199 / DEC-01: AUTOBENCH_ROOT and PYTHONPATH overlay (formerly
+        # injected here in Phase 0) are removed; consumers wire them via
+        # env.passthrough (D-202).
         env: dict[str, str] = {}
 
         # 1. System whitelist (literal + prefix-glob).
@@ -715,11 +716,6 @@ class ExperimentOrchestrator:
         env["AUTOMIL_DESC"] = spec.get("description", "")
         env["AUTOMIL_NODE_ID"] = node_id
         env["AUTOMIL_RESULTS_DIR"] = str(archive.resolve())
-        # D-05: AUTOBENCH_ROOT injection stays in Phase 0; Phase 8/DEC-01
-        # owns its removal. Consumer configs declare it under env.passthrough
-        # to be wired correctly through the transition.
-        env["AUTOBENCH_ROOT"] = str(worktree_benchmarks.resolve())
-        env["PYTHONPATH"] = pythonpath
 
         # Phase 4 (D-120): inject fold count so SIGTERM handler in the training
         # script can read it via automil.runtime_helpers.get_fold_count().
@@ -769,31 +765,15 @@ class ExperimentOrchestrator:
                 wt_path, self.orch_dir / overlay_dir, deletions=deletions
             )
 
-        # CUDA_VISIBLE_DEVICES masks physical GPU; logical device is always 0
-        # AUTOMIL_RESULTS_DIR points to this experiment's archive dir so that
-        # training scripts write per-fold checkpoints/metrics there (not /tmp,
-        # not the shared benchmark_dir which would cache across experiments).
-        #
-        # AUTOBENCH_ROOT + PYTHONPATH force the `autobench` package (and its
-        # LIB_ROOT) to resolve inside the worktree. Without this the editable
-        # `pip install -e .` pointer in the parent env wins and overlays under
-        # benchmarks/src/autobench/ or benchmarks/lib/ are silently ignored.
-        worktree_benchmarks = wt_path / "benchmarks"
-        worktree_src = worktree_benchmarks / "src"
-        existing_pp = os.environ.get("PYTHONPATH", "")
-        pythonpath = (
-            f"{worktree_src}{os.pathsep}{existing_pp}" if existing_pp else str(worktree_src)
-        )
-        # CLN-02 / D-04: build env from explicit whitelist + config passthrough.
-        # The previous `{**os.environ, ...}` leaked operator secrets into every
-        # experiment subprocess.
+        # CLN-02 / D-04 + DEC-01 / D-199: build env from explicit whitelist +
+        # config passthrough. Consumer-specific vars (formerly auto-injected
+        # AUTOBENCH_ROOT + PYTHONPATH overlay) are now opted in per project
+        # via automil/config.yaml: env.passthrough (D-202).
         env = self._build_subprocess_env(
             gpu_id=gpu_id,
             node_id=node_id,
             archive=archive,
             spec=spec,
-            pythonpath=pythonpath,
-            worktree_benchmarks=worktree_benchmarks,
         )
 
         log_path = archive / "run.log"
