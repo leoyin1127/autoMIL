@@ -30,6 +30,7 @@ ml = [
 ]
 slurm = ["submitit>=1.5.3"]   # BCK-05 — opt-in SLURM backend
 ray   = ["ray>=2.55.1"]       # BCK-06 — opt-in Ray backend
+examples-iris = ["scikit-learn>=1.4", "pyyaml>=6.0"]  # D-203 sklearn-iris consumer demo
 
 [project.scripts]
 automil = "automil.cli:main"
