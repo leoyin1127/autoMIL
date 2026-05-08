@@ -261,8 +261,8 @@ class ExperimentGraph:
                     continue
                 c_comp = child.get("composite", 0)
                 # D-200 Option B: composite-only dominance. Framework no longer
-                # encodes autobench's 4-key monotonicity guard; the composite
-                # is consumer-computed and is the single dominance signal.
+                # encodes a named-key monotonicity guard; the composite is
+                # consumer-computed and is the single dominance signal.
                 keep = c_comp > p_comp
                 child["status"] = "keep" if keep else "discard"
                 child["parent_delta"] = c_comp - p_comp
