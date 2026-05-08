@@ -229,7 +229,8 @@ function renderDetailPanel() {
         ['val_auc', 'Val AUC'], ['val_bacc', 'Val BACC']
     ];
     metricFields.forEach(function (pair) {
-        var val = node[pair[0]];
+        // D-200 / DEC-04: metrics live under node.metrics post-Phase-8; defensive fallback for legacy graph.json returns {}.
+        var val = (node.metrics || {})[pair[0]];
         metricsHtml += '<div class="metric-item">' +
             '<div class="metric-label">' + pair[1] + '</div>' +
             '<div class="metric-value">' + (val !== undefined ? val.toFixed(4) : '-') + '</div>' +
