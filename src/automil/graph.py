@@ -126,13 +126,14 @@ class ExperimentGraph:
             "status": status,
             "description": description,
             "techniques": techniques,
+            # Framework-owned scalars (D-200): preserved at top level.
             "composite": composite,
             "global_delta": metrics.get("global_delta", metrics.get("delta", 0.0)),
             "parent_delta": composite - parent_composite,
-            "test_auc": metrics.get("test_auc", 0.0),
-            "test_bacc": metrics.get("test_bacc", 0.0),
-            "val_auc": metrics.get("val_auc", 0.0),
-            "val_bacc": metrics.get("val_bacc", 0.0),
+            # Consumer metrics stored as opaque dict (D-200 / DEC-04).
+            "metrics": dict(metrics),
+            # Orchestrator-measured scalars (kept top-level for ergonomics; read
+            # by init.py for empirical default_vram_estimate_gb).
             "vram_gb": metrics.get("vram_gb", 0.0),
             "elapsed_min": metrics.get("elapsed_min", 0.0),
             "gpu": metrics.get("gpu", -1),
@@ -207,10 +208,9 @@ class ExperimentGraph:
         node["composite"] = composite
         node["global_delta"] = metrics.get("global_delta", metrics.get("delta", 0.0))
         node["parent_delta"] = composite - parent_composite
-        node["test_auc"] = metrics.get("test_auc", 0.0)
-        node["test_bacc"] = metrics.get("test_bacc", 0.0)
-        node["val_auc"] = metrics.get("val_auc", 0.0)
-        node["val_bacc"] = metrics.get("val_bacc", 0.0)
+        # D-200: store consumer metrics as opaque dict.
+        node["metrics"] = dict(metrics)
+        # Orchestrator-measured scalars stay top-level.
         node["vram_gb"] = metrics.get("vram_gb", 0.0)
         node["elapsed_min"] = metrics.get("elapsed_min", 0.0)
         node["gpu"] = metrics.get("gpu", -1)
@@ -251,8 +251,6 @@ class ExperimentGraph:
             parent = self.nodes.get(pid)
             if not parent or parent.get("type") != "executed":
                 continue
-            p_auc = parent.get("test_auc", 0)
-            p_bacc = parent.get("test_bacc", 0)
             p_comp = parent.get("composite", 0)
             for child in self.nodes.values():
                 if child.get("parent_id") != pid:
@@ -261,10 +259,11 @@ class ExperimentGraph:
                     continue
                 if child.get("status") not in ("keep", "discard"):
                     continue
-                c_auc = child.get("test_auc", 0)
-                c_bacc = child.get("test_bacc", 0)
                 c_comp = child.get("composite", 0)
-                keep = (c_auc >= p_auc and c_bacc >= p_bacc and c_comp > p_comp)
+                # D-200 Option B: composite-only dominance. Framework no longer
+                # encodes autobench's 4-key monotonicity guard; the composite
+                # is consumer-computed and is the single dominance signal.
+                keep = c_comp > p_comp
                 child["status"] = "keep" if keep else "discard"
                 child["parent_delta"] = c_comp - p_comp
                 stack.append(child["id"])
@@ -544,12 +543,9 @@ class ExperimentGraph:
                         parent_id_check = node.get("parent_id")
                     parent_node = self.get_node(parent_id_check) if parent_id_check else None
                     if parent_node:
-                        p_auc = parent_node.get("test_auc", 0)
-                        p_bacc = parent_node.get("test_bacc", 0)
                         p_comp = parent_node.get("composite", 0)
-                        keep = (comp_metrics.get("test_auc", 0) >= p_auc and
-                                comp_metrics.get("test_bacc", 0) >= p_bacc and
-                                composite > p_comp)
+                        # D-200 Option B: composite-only dominance.
+                        keep = composite > p_comp
                         graph_status = "keep" if keep else "discard"
                     else:
                         graph_status = "keep" if composite > 0 else "discard"
@@ -557,18 +553,13 @@ class ExperimentGraph:
                     graph_status = "discard"
 
                 comp_metrics = completion.get("metrics", {})
-                metrics = {
-                    "composite": completion.get("composite", 0.0),
-                    "test_auc": comp_metrics.get("test_auc", 0.0),
-                    "test_bacc": comp_metrics.get("test_bacc", 0.0),
-                    "val_auc": comp_metrics.get("val_auc", 0.0),
-                    "val_bacc": comp_metrics.get("val_bacc", 0.0),
-                    "vram_gb": completion.get("peak_vram_mb", 0) / 1024,
-                    "elapsed_min": completion.get("elapsed_seconds", 0) / 60,
-                    "gpu": completion.get("gpu", -1),
-                    "status": graph_status,
-                    "global_delta": completion.get("composite", 0) - self.meta.get("best_composite", 0),
-                }
+                metrics = dict(comp_metrics)  # D-200: spread consumer metrics
+                metrics["composite"] = completion.get("composite", 0.0)
+                metrics["vram_gb"] = completion.get("peak_vram_mb", 0) / 1024
+                metrics["elapsed_min"] = completion.get("elapsed_seconds", 0) / 60
+                metrics["gpu"] = completion.get("gpu", -1)
+                metrics["status"] = graph_status
+                metrics["global_delta"] = completion.get("composite", 0) - self.meta.get("best_composite", 0)
 
                 config_hash = completion.get("config_hash")
                 if not config_hash:
@@ -614,10 +605,8 @@ class ExperimentGraph:
                         "composite": metrics["composite"],
                         "global_delta": metrics["global_delta"],
                         "parent_delta": 0.0,
-                        "test_auc": metrics["test_auc"],
-                        "test_bacc": metrics["test_bacc"],
-                        "val_auc": metrics["val_auc"],
-                        "val_bacc": metrics["val_bacc"],
+                        # D-200: consumer metrics opaque dict.
+                        "metrics": dict(comp_metrics),
                         "vram_gb": metrics["vram_gb"],
                         "elapsed_min": metrics["elapsed_min"],
                         "gpu": metrics["gpu"],
@@ -673,11 +662,9 @@ class ExperimentGraph:
                         raw_status = result.get("status", "completed")
                         if raw_status == "completed":
                             if parent:
-                                p_auc = parent.get("test_auc", 0)
-                                p_bacc = parent.get("test_bacc", 0)
-                                keep = (r_metrics.get("test_auc", 0) >= p_auc and
-                                        r_metrics.get("test_bacc", 0) >= p_bacc and
-                                        composite > parent_composite)
+                                p_comp = parent.get("composite", 0)
+                                # D-200 Option B: composite-only dominance.
+                                keep = composite > p_comp
                                 status = "keep" if keep else "discard"
                             else:
                                 status = "keep" if composite > 0 else "discard"
@@ -692,10 +679,8 @@ class ExperimentGraph:
                             "techniques": techniques, "composite": composite,
                             "global_delta": composite - self.meta.get("best_composite", 0),
                             "parent_delta": composite - parent_composite,
-                            "test_auc": r_metrics.get("test_auc", 0),
-                            "test_bacc": r_metrics.get("test_bacc", 0),
-                            "val_auc": r_metrics.get("val_auc", 0),
-                            "val_bacc": r_metrics.get("val_bacc", 0),
+                            # D-200: consumer metrics opaque dict.
+                            "metrics": dict(r_metrics),
                             "vram_gb": result.get("peak_vram_mb", 0) / 1024,
                             "elapsed_min": result.get("elapsed_seconds", 0) / 60,
                             "gpu": -1,
