@@ -247,7 +247,7 @@ Phase 5 (generalization gate)
 | 5. Generalization gate | 0/0 | Not started | - |
 | 6. SLURM + Ray backends | 11/10 | Complete   | 2026-05-06 |
 | 7. Hardware autodetect + /automil-setup | 13/12 | Complete   | 2026-05-07 |
-| 8. Decoupling audit + acceptance | 0/0 | Not started | - |
+| 8. Decoupling audit + acceptance | 2/10 | In Progress|  |
 
 ## Coverage
 
