@@ -39,14 +39,16 @@ def orch(tmp_path, monkeypatch):
 
 
 def _call_build(orch, **overrides):
-    """Helper to invoke _build_subprocess_env with sensible defaults."""
+    """Helper to invoke _build_subprocess_env with sensible defaults.
+
+    D-199 / DEC-01: pythonpath and worktree_benchmarks parameters are
+    removed from _build_subprocess_env. This helper no longer passes them.
+    """
     defaults = dict(
         gpu_id=0,
         node_id="node_0001",
         archive=Path("/tmp/archive_test"),
         spec={"description": "test", "env": {}},
-        pythonpath="/tmp/wt/benchmarks/src",
-        worktree_benchmarks=Path("/tmp/wt/benchmarks"),
     )
     defaults.update(overrides)
     return orch._build_subprocess_env(**defaults)
@@ -130,10 +132,20 @@ def test_orchestrator_injected_vars_always_set(orch):
     assert "AUTOMIL_DESC" in env
 
 
-def test_autobench_root_still_injected_phase0(orch):
-    """D-05: AUTOBENCH_ROOT injection stays in Phase 0; Phase 8 owns removal."""
-    env = _call_build(orch, worktree_benchmarks=Path("/tmp/wt/benchmarks"))
-    assert env.get("AUTOBENCH_ROOT") == "/tmp/wt/benchmarks"
+def test_autobench_root_not_auto_injected_phase8(orch):
+    """D-199 / DEC-01: AUTOBENCH_ROOT is NOT auto-injected post-Phase-8.
+
+    The daemon used to set env['AUTOBENCH_ROOT'] = str(worktree_benchmarks)
+    in _build_subprocess_env. Phase 8 removed that injection; consumers now
+    declare AUTOBENCH_ROOT (or any other consumer-specific var) under
+    automil/config.yaml: env.passthrough (D-202) which the same code path
+    forwards from the parent process.
+    """
+    env = _call_build(orch)
+    assert "AUTOBENCH_ROOT" not in env, (
+        "AUTOBENCH_ROOT must not be auto-injected after Phase 8 (D-199 / DEC-01). "
+        "Consumers declare AUTOBENCH_ROOT under env.passthrough in automil/config.yaml."
+    )
 
 
 def test_spec_env_overrides(orch):
@@ -163,8 +175,22 @@ def test_config_without_env_section(tmp_path, monkeypatch):
     assert o._env_passthrough == []
 
 
-def test_pythonpath_overrides_whitelist_value(orch, monkeypatch):
-    """The orchestrator-injected PYTHONPATH wins over the whitelisted os.environ['PYTHONPATH']."""
+def test_pythonpath_not_auto_injected_phase8(orch, monkeypatch):
+    """D-199 / DEC-01: PYTHONPATH is NOT auto-injected post-Phase-8.
+
+    The orchestrator no longer overlays a worktree-relative path onto
+    PYTHONPATH. If PYTHONPATH is in env.passthrough AND set in os.environ,
+    it forwards through unchanged. If absent from passthrough OR absent
+    from os.environ, it is not present in the subprocess env.
+    """
+    # Case 1: PYTHONPATH in os.environ but NOT in passthrough -> not forced to
+    # a worktree-relative path. The whitelist may still pass it through as a
+    # system literal, but the orchestrator does not OVERRIDE it with a
+    # worktree-relative value.
     monkeypatch.setenv("PYTHONPATH", "/some/parent/path")
-    env = _call_build(orch, pythonpath="/tmp/wt/benchmarks/src")
-    assert env["PYTHONPATH"] == "/tmp/wt/benchmarks/src"
+    env = _call_build(orch)
+    # The orchestrator must not force-set PYTHONPATH to a worktree-relative path.
+    assert env.get("PYTHONPATH") != "/tmp/wt/benchmarks/src", (
+        "Orchestrator must not auto-inject worktree-relative PYTHONPATH "
+        "post-Phase-8 (D-199 / DEC-01)."
+    )
