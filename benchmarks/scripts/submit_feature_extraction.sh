@@ -5,10 +5,11 @@
 # foundation models via TRIDENT. Runs all encoders sequentially on 1 GPU.
 #
 # Usage:
-#   sbatch benchmarks/scripts/submit_feature_extraction.sh <dataset>
+#   sbatch benchmarks/scripts/submit_feature_extraction.sh <dataset> [extra args...]
 #   sbatch benchmarks/scripts/submit_feature_extraction.sh clwd
 #   sbatch benchmarks/scripts/submit_feature_extraction.sh ccrcc
 #   sbatch benchmarks/scripts/submit_feature_extraction.sh hancock
+#   sbatch benchmarks/scripts/submit_feature_extraction.sh tcga_luad --models virchow2 --skip_seg
 
 #SBATCH --job-name=wsi_extract
 #SBATCH --account=def-wanglab
@@ -84,7 +85,8 @@ echo "================================================"
 
 python benchmarks/scripts/run_feature_extraction.py \
     --dataset "$DATASET" \
-    --gpu 0
+    --gpu 0 \
+    "${@:2}"
 
 EXIT_CODE=$?
 
