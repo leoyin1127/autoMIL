@@ -1,0 +1,45 @@
+# automil/config.yaml for sklearn-iris consumer (DEC-02 / D-203).
+# This file is the rendered output of `automil init` for a sklearn-only project.
+# The framework's config.yaml.j2 template renders this exact shape.
+
+run:
+  script: train.py
+
+data:
+  seed: 42
+
+# DEC-04 / D-200: scoring.formula is documentation-only; the framework does
+# not evaluate it. The consumer's train.py writes the composite scalar in
+# result.json directly. For sklearn-iris, composite == accuracy.
+scoring:
+  formula: "accuracy"
+
+# DEC-05 / D-202: env.required is empty; sklearn-iris reads no env vars.
+# env.passthrough is empty for the same reason.
+env:
+  required: []
+  passthrough: []
+
+# Baseline composite is updated by the agent after the first experiment.
+baseline:
+  composite: 0.0
+
+# Cap configuration: consumer-supplied. iris is CPU-only and fast.
+cap:
+  budget_seconds: 60
+  safety_buffer_seconds: 10
+
+# Hardware: CPU-only consumer.
+hardware:
+  accelerator: cpu
+  gpu_count: 0
+  min_vram_gb: 0.0
+
+# Files the agent's overlay may edit.
+files:
+  editable:
+    - automil/variants/
+
+# Backend: local for the demo.
+backend:
+  name: local
