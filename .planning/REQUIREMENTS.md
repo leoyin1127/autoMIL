@@ -124,7 +124,7 @@ Scope of this milestone. Each maps to exactly one roadmap phase (filled in durin
 - [x] **DEC-04**: Composite scoring formula is config-driven (`automil/config.yaml: scoring.formula` or `scoring.entry_point`); not hardcoded to autobench's 4-key (val_auc + val_bacc + test_auc + test_bacc) recipe
 - [x] **DEC-05**: Required env vars are declared in `automil/config.yaml: env.required` and validated by `automil check`; missing vars fail fast at startup, not deep inside training code
 - [x] **DEC-06**: `docs/training-script-contract.md` documents what a training script must do to be autoMIL-compatible: write `result.json`, accept `CUDA_VISIBLE_DEVICES`, exit cleanly on SIGTERM with partial-fold output, declared env vars
-- [ ] **DEC-07**: Final reproduction sanity (mirrors REG-09): clean checkout, registry path, fresh worktree, CCRCC `node_0176` reproduces ±0.005 — and the same harness runs the sklearn-iris consumer end-to-end as the decoupling proof
+- [x] **DEC-07**: Final reproduction sanity (mirrors REG-09): clean checkout, registry path, fresh worktree, CCRCC `node_0176` reproduces ±0.005 — and the same harness runs the sklearn-iris consumer end-to-end as the decoupling proof
 
 ## v2 Requirements
 
@@ -241,7 +241,7 @@ Mapped 2026-05-01 by `gsd-roadmapper` against `.planning/ROADMAP.md` (9 phases).
 | DEC-04 | Phase 8 | Complete |
 | DEC-05 | Phase 8 | Complete |
 | DEC-06 | Phase 8 | Complete |
-| DEC-07 | Phase 8 | Pending |
+| DEC-07 | Phase 8 | Complete |
 
 **Coverage:**
 - v1 requirements: 69 total (10 categories: CLN×7 + REG×9 + BCK×6 + TRJ×6 + MRT×6 + CAP×6 + GTE×6 + CLI×9 + STP×7 + DEC×7)

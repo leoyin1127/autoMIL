@@ -20,7 +20,7 @@ An agent can autonomously discover model improvements for any user's training co
 - [x] **Phase 5: Generalization gate** — `candidate` node status, pre-registered `gate_manifest.json`, paired Wilcoxon + bootstrap CI + Bonferroni, manual nomination default, promotion-rate metric (completed 2026-05-06; calibration pilot K-determination deferred to Leo follow-up)
 - [x] **Phase 6: SLURM backend (submitit) + Ray backend (raw ray.remote)** — opt-in extras; honor wall-clock contract via `--signal=B:TERM@30` (SLURM) and `ray.cancel(force=True)` (Ray); parallel-friendly with Phase 7 (completed 2026-05-06)
 - [x] **Phase 7: Hardware autodetect + /automil-setup skill** — `LocalBackend.healthcheck()` reports detected hardware (warn-not-decide); idempotent setup skill across runtimes; mandatory dry-run gate (completed 2026-05-07)
-- [ ] **Phase 8: Decoupling completion + acceptance** — `grep -r autobench src/automil/` returns zero; sklearn-iris consumer runs end-to-end; final CCRCC `node_0176` ±0.005 reproduction on registry path
+- [x] **Phase 8: Decoupling completion + acceptance** — `grep -r autobench src/automil/` returns zero; sklearn-iris consumer runs end-to-end; final CCRCC `node_0176` ±0.005 reproduction on registry path (completed 2026-05-08)
 
 ## Phase Details
 
@@ -247,7 +247,7 @@ Phase 5 (generalization gate)
 | 5. Generalization gate | 0/0 | Not started | - |
 | 6. SLURM + Ray backends | 11/10 | Complete   | 2026-05-06 |
 | 7. Hardware autodetect + /automil-setup | 13/12 | Complete   | 2026-05-07 |
-| 8. Decoupling audit + acceptance | 9/10 | In Progress|  |
+| 8. Decoupling audit + acceptance | 10/10 | Complete   | 2026-05-08 |
 
 ## Coverage
 
