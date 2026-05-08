@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://automil.dev/schemas/result.schema.json",
+  "title": "automil result.json contract (D-201, DEC-03)",
+  "description": "Contract every training script must honor. Validated at ingestion in src/automil/backends/_orchestrator_daemon.py. additionalProperties is intentional; consumers may extend.",
+  "type": "object",
+  "required": ["composite"],
+  "properties": {
+    "composite": {"type": "number"},
+    "metrics": {
+      "type": "object",
+      "additionalProperties": {"type": "number"}
+    },
+    "status": {
+      "type": "string",
+      "enum": ["completed", "crash", "budget_killed", "cancelled"]
+    },
+    "elapsed_seconds": {"type": "number", "minimum": 0},
+    "peak_vram_mb": {"type": "number", "minimum": 0},
+    "fold_results": {"type": "array"},
+    "partial": {"type": "boolean"}
+  },
+  "additionalProperties": true
+}
