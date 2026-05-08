@@ -57,6 +57,33 @@ def _validate_slurm_directives(config: dict) -> None:
         raise SlurmDirectivesIncompleteError(missing)
 
 
+def _validate_env_required(config: dict) -> list[str]:
+    """Return env vars declared in env.required but absent from os.environ (D-202 / DEC-05).
+
+    Pure function: no Click, no I/O, no exceptions. Wave-0 unit tests exercise
+    it directly. Caller appends one issue per missing var (per-name iteration
+    matches D-202's "for each missing var, emits a clear error" contract).
+
+    Sentinel semantics: env vars are presence-only. A var that is set to
+    'TODO_FILL_IN' (or any other value, including empty string) counts as
+    PRESENT. The TODO sentinel pattern from _validate_slurm_directives only
+    applies to YAML config values, not runtime env vars (PATTERNS.md
+    anti-pattern #6).
+
+    Returns:
+        Names of vars declared under env.required that are not in os.environ.
+        Empty list when all are set OR the env.required list is empty/missing/
+        wrong-typed (the type-mismatch case is surfaced via a warning at the
+        call site, not via the validator return value).
+    """
+    env_section = (config or {}).get("env") or {}
+    raw_required = env_section.get("required", []) or []
+    if not isinstance(raw_required, list):
+        return []  # type-mismatch surfaced as a warning at the call site
+    required = [str(k) for k in raw_required]
+    return [k for k in required if k not in os.environ]
+
+
 def _validate_ray_backend(config: dict, issues: list[str], warnings: list[str]) -> None:
     """Append issues/warnings for Ray backend selection (D-173 advisory).
 
@@ -225,6 +252,28 @@ def check():
             click.echo(f"  {key}: passthrough {present}")
     else:
         click.echo("env.passthrough: (none declared)")
+
+    # D-202 / DEC-05: env.required validation.
+    env_section_chk = (config or {}).get("env") or {}
+    raw_required = env_section_chk.get("required", [])
+    if raw_required and not isinstance(raw_required, list):
+        warnings.append(
+            f"config.yaml: env.required must be a list of var names; "
+            f"got {type(raw_required).__name__}, ignoring."
+        )
+
+    missing_required = _validate_env_required(config)
+    for name in missing_required:
+        issues.append(
+            f"Missing required env var: {name}; see automil/config.yaml: "
+            f"env.required. Set the variable before running 'automil submit' "
+            f"or 'automil orchestrator start'."
+        )
+
+    if not missing_required and isinstance(raw_required, list) and raw_required:
+        click.echo(f"env.required: {len(raw_required)} declared, all set OK.")
+    elif not raw_required:
+        click.echo("env.required: (none declared)")
 
     # --- Phase 1 registry checks (REG-04 / REG-05 / D-46) ---
     from automil.registry.config import load_registry_config
