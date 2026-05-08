@@ -293,8 +293,14 @@ def test_d208_clause_11_state_roadmap_complete():
     assert "passthrough" in changelog_text
 
     # 2. REQUIREMENTS.md DEC-XX rows transitioned Pending -> Complete.
+    # After milestone close, REQUIREMENTS.md is archived to milestones/v1.0-REQUIREMENTS.md
+    # per the standard /gsd-complete-milestone workflow. Honor either location.
     req_path = _REPO_ROOT / ".planning" / "REQUIREMENTS.md"
-    assert req_path.exists(), ".planning/REQUIREMENTS.md missing"
+    if not req_path.exists():
+        req_path = _REPO_ROOT / ".planning" / "milestones" / "v1.0-REQUIREMENTS.md"
+    assert req_path.exists(), (
+        "Neither .planning/REQUIREMENTS.md nor .planning/milestones/v1.0-REQUIREMENTS.md found"
+    )
     req_text = req_path.read_text()
 
     for dec_id in ("DEC-01", "DEC-02", "DEC-03", "DEC-04",
