@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: complete
-last_updated: "2026-05-08T03:54:11Z"
+status: completed
+last_updated: "2026-05-08T04:22:50.581Z"
 progress:
   total_phases: 9
   completed_phases: 9
   total_plans: 92
-  completed_plans: 92
+  completed_plans: 95
   percent: 100
 ---
 
@@ -39,7 +39,7 @@ Plan: 10 of 10
 
 - **Phase:** 08 , Decoupling completion + final acceptance
 - **Plans:** 10 across 4 waves shipped
-- **Status:** Phase complete , milestone v1.0 complete , ready to ship
+- **Status:** v1.0 milestone complete
 - **Wave execution:** W1 (08-01 || 08-02 || 08-03) -> W2 (08-04 || 08-05) -> W3 (08-06 || 08-07 || 08-08) -> W4 (08-09 -> 08-10)
 - **Progress (milestone):** [##########] 100% (9/9 phases shipped)
 - **Next:** `/gsd-verify-work 8` -> tag v1.0.0
@@ -143,3 +143,16 @@ Second consumer (sklearn-iris) runs end-to-end via documented contract (DEC-02/0
 *Phase 0 context gathered: 2026-05-01*
 *Mode: yolo, granularity: fine, parallelization: true*
 *milestone v1.0 complete: 2026-05-08*
+
+## Deferred Items
+
+Items acknowledged and deferred at milestone v1.0 close on 2026-05-08:
+
+| Category | Item | Status |
+|----------|------|--------|
+| verification_gap | 08-VERIFICATION.md sub-gate A (CCRCC reproduction, requires AUTOBENCH_CCRCC_ROOT) | human_needed |
+| verification_gap | 08-VERIFICATION.md sub-gate C (heterogeneous consumers in same project) | human_needed |
+| tech_debt | 3 pre-existing tick_cells failures (Phase 4-origin, documented as Phase 6 follow-up) | deferred |
+| tech_debt | Phase 5 calibration pilot K-determination (Leo runs with CCRCC + CLWD cells) | deferred |
+| tech_debt | Real SLURM/Ray cluster verification (BCK-05/06 success criterion 5) | deferred behind requires_slurm/requires_ray markers |
+| tech_debt | External hardware shapes (CPU-only, ROCm laptop) per Phase 7 D-197 MEDIUM portability | deferred |
