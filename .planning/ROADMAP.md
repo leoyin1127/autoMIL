@@ -190,17 +190,17 @@ An agent can autonomously discover model improvements for any user's training co
 **Estimated**: 4–5 days
 
 ### Phase 8: Decoupling completion + acceptance
-**Goal**: Audit the framework end-to-end for autobench leakage, prove genericity by plugging in a second consumer (sklearn-iris), and run the final acceptance gate — CCRCC `node_0176` reproduces ±0.005 on a clean checkout via the registry path with all phases composed together.
-**Depends on**: All prior phases (8 audits work threaded through 1–7).
+**Goal**: Audit the framework end-to-end for autobench leakage, prove genericity by plugging in a second consumer (sklearn-iris), and run the final acceptance gate -- CCRCC `node_0176` reproduces +-0.005 on a clean checkout via the registry path with all phases composed together.
+**Depends on**: All prior phases (8 audits work threaded through 1-7).
 **Requirements**: DEC-01, DEC-02, DEC-03, DEC-04, DEC-05, DEC-06, DEC-07
 **Success Criteria** (what must be TRUE):
-  1. `grep -r "autobench\|AUTOBENCH_" src/automil/` returns zero matches; equivalent for any other autobench-specific identifier (verified in CI).
-  2. A sklearn-iris training script (the second consumer) plugs into autoMIL via the documented contract and runs an experiment loop end-to-end; `result.json` is JSON-Schema-validated at ingestion and the orchestrator rejects malformed results with a clear pointer to the schema location.
-  3. Composite scoring is config-driven (`automil/config.yaml: scoring.formula` or `scoring.entry_point`); no hardcoded coupling to autobench's 4-key (val_auc + val_bacc + test_auc + test_bacc) recipe; required env vars are declared in `automil/config.yaml: env.required` and validated by `automil check` (missing vars fail fast at startup).
-  4. `docs/training-script-contract.md` documents the contract: write `result.json`, accept `CUDA_VISIBLE_DEVICES`, exit cleanly on SIGTERM with partial-fold output, declared env vars.
-  5. **Final acceptance**: clean checkout, registry path, fresh worktree, all phases composed — CCRCC `node_0176` reproduces composite within ±0.005 AND the same harness runs the sklearn-iris consumer end-to-end as the decoupling proof.
-**Plans**: TBD
-**Estimated**: 3–4 days
+  1. [x] `grep -r "autobench\|AUTOBENCH_" src/automil/` returns zero matches; equivalent for any other autobench-specific identifier (verified in CI). (VERIFIED by tests/acceptance/test_phase8_acceptance.py clause 1 + clause 7)
+  2. [x] A sklearn-iris training script (the second consumer) plugs into autoMIL via the documented contract and runs an experiment loop end-to-end; `result.json` is JSON-Schema-validated at ingestion and the orchestrator rejects malformed results with a clear pointer to the schema location. (VERIFIED by clause 2 + clause 5 + clause 8)
+  3. [x] Composite scoring is config-driven (`automil/config.yaml: scoring.formula` or `scoring.entry_point`); no hardcoded coupling to autobench's 4-key (val_auc + val_bacc + test_auc + test_bacc) recipe; required env vars are declared in `automil/config.yaml: env.required` and validated by `automil check` (missing vars fail fast at startup). (VERIFIED by clause 3 + clause 4)
+  4. [x] `docs/training-script-contract.md` documents the contract: write `result.json`, accept `CUDA_VISIBLE_DEVICES`, exit cleanly on SIGTERM with partial-fold output, declared env vars. (VERIFIED by clause 6)
+  5. [x] **Final acceptance**: clean checkout, registry path, fresh worktree, all phases composed -- CCRCC `node_0176` reproduces composite within +-0.005 AND the same harness runs the sklearn-iris consumer end-to-end as the decoupling proof. (VERIFIED by clause 8; CI: sub-gate B; workstation: A+C)
+**Plans**: 10 across 4 waves , see .planning/phases/08-decoupling-completion-acceptance/08-PLAN-SUMMARY.md
+**Estimated**: 3-4 days
 
 ## Phase Dependency Graph
 
