@@ -476,3 +476,112 @@ uv run python benchmarks/scripts/run_feature_extraction.py \
 ## Questions?
 
 Ask me directly :)
+
+---
+
+## Handling GDC UUID Rewrites (Stale GOLDMARK Manifests)
+
+> **TL;DR — when Step 3b returns 0 (or very few) matches, GDC has re-uploaded
+> the slides with new file UUIDs. The patient/slide mapping is still correct;
+> only the file UUIDs are stale. Fix it with
+> `benchmarks/scripts/refresh_goldmark_uuids.py`.**
+
+### Symptom
+
+After running Step 3b, you see something like:
+
+```
+GOLDMARK slides: 149
+Matched in GDC manifest: 0
+```
+
+Or your subsequent download produces 0 `.svs` files in `wsi/`.
+
+### Why this happens
+
+The matching code shown earlier in this tutorial filters by **exact filename
+equality**, including the file UUID embedded in the GDC filename:
+
+```
+TCGA-2G-AAEW-01Z-00-DX1.<UUID>.svs
+                        ^^^^^^^^
+                        this part can change
+```
+
+GDC sometimes re-uploads slides — same patient, same physical specimen, new
+file UUID. When that happens, GOLDMARK's `slide_name` column points at file
+UUIDs that no longer exist in GDC, and the exact-match filter returns 0.
+
+Confirmed in the wild for **TCGA-TGCT** (100% UUID rewrite rate at time of
+writing). Any future cohort can hit the same issue silently.
+
+### The fix
+
+Match on the **TCGA barcode prefix** (the part before the first `.`),
+which is the stable per-slide identifier. Verified unique per slide on
+both the GOLDMARK and GDC sides for every cohort tested.
+
+A helper script handles this end-to-end:
+
+```bash
+cd ~/scratch/autoMIL
+python benchmarks/scripts/refresh_goldmark_uuids.py datasets/{DATASET}
+```
+
+It expects `datasets/{DATASET}/` to contain:
+- `normalized_manifest.csv` — from GOLDMARK
+- `gdc_manifest.txt` — from the GDC portal
+
+It produces:
+- `gdc_manifest_matched.txt` — same purpose as before, but with **current**
+  GDC UUIDs (use this for the SLURM download in Step 3c)
+- `normalized_manifest.refreshed.csv` — GOLDMARK manifest with `slide_name`
+  rewritten to match GDC's current UUIDs (use this as `mapping_csv` in your
+  YAML)
+- `uuid_rewrites.tsv` — per-row audit log: `unchanged`, `rewritten`,
+  `not_found_in_gdc`, or `ambiguous`
+
+The script aborts if either input has a duplicate barcode (it never guesses)
+and exits non-zero if any row is unmatched or ambiguous so you cannot
+silently proceed with a partial dataset.
+
+### Things to change in the workflow
+
+When you suspect or confirm UUID rewrites, swap the following:
+
+1. **Replace the inline Python in Step 3b** with a single command:
+   ```bash
+   python benchmarks/scripts/refresh_goldmark_uuids.py datasets/{DATASET}
+   ```
+   (You no longer need to write the matching logic by hand.)
+
+2. **Step 3c (download) is unchanged** — it still reads
+   `gdc_manifest_matched.txt`, which now contains current UUIDs.
+
+3. **Step 5 (YAML config)** — point `mapping_csv` at the refreshed file:
+   ```yaml
+   paths:
+     mapping_csv: "${data_root}/normalized_manifest.refreshed.csv"
+     #                                          ^^^^^^^^^^^
+     # was: normalized_manifest.csv (only valid when no UUIDs were rewritten)
+   ```
+   This is required whenever the audit shows `rewritten` rows; otherwise
+   `validate_slides()` will look for files that no longer exist on disk.
+   For cohorts with zero rewrites, both files are semantically identical
+   so pointing at the refreshed one is always safe.
+
+### Sanity check
+
+After running the helper script, verify the audit:
+
+```bash
+cd datasets/{DATASET}
+echo "rewritten: $(awk -F'\t' 'NR>1 && $3==\"rewritten\"' uuid_rewrites.tsv | wc -l)"
+echo "unchanged: $(awk -F'\t' 'NR>1 && $3==\"unchanged\"' uuid_rewrites.tsv | wc -l)"
+echo "missing:   $(awk -F'\t' 'NR>1 && $3==\"not_found_in_gdc\"' uuid_rewrites.tsv | wc -l)"
+echo "ambiguous: $(awk -F'\t' 'NR>1 && $3==\"ambiguous\"' uuid_rewrites.tsv | wc -l)"
+```
+
+Healthy outcome: `missing == 0` and `ambiguous == 0`. Any non-zero value in
+those rows means the refreshed manifest is incomplete — review
+`uuid_rewrites.tsv` before proceeding.
