@@ -543,6 +543,10 @@ def _patch_multigpu_runtime(
                 exp_or_id.experiment_id if hasattr(exp_or_id, "experiment_id") else exp_or_id
             ),
         )
+        monkeypatch.setattr(
+            "autobench.pipeline.orchestrator.collect_all_summaries_on_disk",
+            lambda benchmark_dir: list(summaries_by_id.values()),
+        )
     monkeypatch.setattr(
         "autobench.pipeline.orchestrator._finalize",
         lambda benchmark_dir, summaries: summaries,
