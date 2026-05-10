@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import fcntl
 import gc
+import glob
 import json
 import multiprocessing
 import os
@@ -345,7 +346,6 @@ def run_benchmark(
     print(f"\nTotal experiments: {len(experiments)}  "
           f"(already completed: {len(completed)})")
 
-    all_summaries: list[dict] = []
     current_encoder: str | None = None
     n_skipped = sum(1 for e in experiments if e.experiment_id in completed)
 
@@ -354,12 +354,10 @@ def run_benchmark(
     for i, exp_cfg in enumerate(experiments):
         exp_id = exp_cfg.experiment_id
 
-        # Load cached summary if available
+        # Already-completed experiments produced summary.json on a previous run
+        # and will be picked up by the on-disk scan in _finalize.
         if exp_id in completed:
-            summary = _load_or_collect_summary(cfg.benchmark_dir, exp_cfg)
-            if summary is not None:
-                all_summaries.append(summary)
-                continue
+            continue
 
         # GPU cleanup on encoder switch
         if current_encoder is not None and current_encoder != exp_cfg.encoder_key:
@@ -368,15 +366,14 @@ def run_benchmark(
         current_encoder = exp_cfg.encoder_key
 
         pbar.set_postfix_str(exp_id)
-        summary = _run_single_experiment_dispatch(
+        _run_single_experiment_dispatch(
             exp_cfg, cfg.benchmark_dir, device, cfg.wandb_project,
         )
-        all_summaries.append(summary)
         mark_completed(cfg.benchmark_dir, exp_id)
         pbar.update(1)
     pbar.close()
 
-    return _finalize(cfg.benchmark_dir, all_summaries)
+    return _finalize(cfg.benchmark_dir, collect_all_summaries_on_disk(cfg.benchmark_dir))
 
 
 # ---------------------------------------------------------------------------
@@ -439,6 +436,45 @@ def _collect_all_summaries_or_raise(
             f"experiments ({preview}{suffix})"
         )
     return all_summaries
+
+
+def collect_all_summaries_on_disk(benchmark_dir: str) -> list[dict]:
+    """Collect every ``summary.json`` under ``results/<fw>/<strategy>/.../``.
+
+    Used by ``_finalize`` so the rolled-up CSVs reflect every experiment that
+    has ever completed for this benchmark dir, not just the subset selected by
+    the current run's ``--encoders``/``--models``/``--frameworks`` filters.
+    Without this, re-running with a narrower filter silently truncates the
+    aggregated CSV (and downstream consumers go stale).
+    """
+    results_root = os.path.join(benchmark_dir, "results")
+    if not os.path.isdir(results_root):
+        return []
+
+    summaries: list[dict] = []
+    seen_keys: set[tuple] = set()
+    # Layout: results/<fw>/<strategy>/<task>/<encoder>/<model>/summary.json
+    pattern = os.path.join(results_root, "*", "*", "*", "*", "*", "summary.json")
+    for path in sorted(glob.glob(pattern)):
+        try:
+            with open(path) as f:
+                s = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+        # Dedupe by (framework, strategy, task, encoder, model_type) — defensive
+        # in case both the new and legacy result paths happen to coexist.
+        key = (
+            s.get("framework", "clam"),
+            s.get("strategy"),
+            s.get("task"),
+            s.get("encoder"),
+            s.get("model_type"),
+        )
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        summaries.append(s)
+    return summaries
 
 
 def run_benchmark_multigpu(
@@ -521,8 +557,8 @@ def run_benchmark_multigpu(
 
     if not pending:
         _validate_expected_completed(cfg.benchmark_dir, expected_experiment_ids)
-        all_summaries = _collect_all_summaries_or_raise(cfg.benchmark_dir, experiments)
-        return _finalize(cfg.benchmark_dir, all_summaries)
+        _collect_all_summaries_or_raise(cfg.benchmark_dir, experiments)
+        return _finalize(cfg.benchmark_dir, collect_all_summaries_on_disk(cfg.benchmark_dir))
 
     pending_queue: list[ExperimentConfig] = sorted(
         pending,
@@ -720,8 +756,8 @@ def run_benchmark_multigpu(
         pbar.close()
 
     _validate_expected_completed(cfg.benchmark_dir, expected_experiment_ids)
-    all_summaries = _collect_all_summaries_or_raise(cfg.benchmark_dir, experiments)
-    return _finalize(cfg.benchmark_dir, all_summaries)
+    _collect_all_summaries_or_raise(cfg.benchmark_dir, experiments)
+    return _finalize(cfg.benchmark_dir, collect_all_summaries_on_disk(cfg.benchmark_dir))
 
 
 # ---------------------------------------------------------------------------
