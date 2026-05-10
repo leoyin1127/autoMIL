@@ -52,6 +52,7 @@ encoders:
 nnmil_models:
   - ab_mil
   - trans_mil
+  - simple_mil
 
 extraction:
   magnification: 20
