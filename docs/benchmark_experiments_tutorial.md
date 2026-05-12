@@ -5,17 +5,17 @@ End-to-end guide for running MIL benchmark experiments on TCGA (and other) datas
 ## Overview
 
 **Goal:** Train and evaluate Multiple Instance Learning (MIL) models across combinations of:
-- **Encoders** — foundation models used for feature extraction (Virchow2, H-optimus-1, UNI2-h)
-- **MIL architectures** — CLAM-MB (attention-based) and Simple MIL (baseline)
-- **Tasks** — biomarker prediction targets (e.g., EGFR mutation, KRAS mutation)
-- **Frameworks** — CLAM and nnMIL
+- **Encoders**, foundation models used for feature extraction (Virchow2, H-optimus-1, UNI2-h)
+- **MIL architectures**, CLAM-MB (attention-based) and Simple MIL (baseline)
+- **Tasks**, biomarker prediction targets (e.g., EGFR mutation, KRAS mutation)
+- **Frameworks**, CLAM and nnMIL
 
 **Recommended reference** (from `submit_3dataset_benchmark.sh`):
 - Encoders: `hoptimus1`, `uni_v2`, `virchow2`
 - CLAM model: `clam_mb`
 - nnMIL model: `simple_mil`
 
-This gives a focused benchmark grid of **tasks × 3 encoders × 2 models** — enough to compare encoder quality and establish baselines without burning excessive GPU hours.
+This gives a focused benchmark grid of **tasks × 3 encoders × 2 models**, enough to compare encoder quality and establish baselines without burning excessive GPU hours.
 
 **Pipeline:** Data preparation → Experiment grid generation → Multi-GPU training → Cross-fold aggregation → Results export
 
@@ -25,10 +25,10 @@ This gives a focused benchmark grid of **tasks × 3 encoders × 2 models** — e
 
 Before running benchmarks, you must have:
 
-1. **Completed feature extraction** — `.h5` feature files for each encoder in `{dataset_root}/trident_output/20x_224px_0px_overlap/features_{encoder}/`
-2. **Dataset YAML config** — in `benchmarks/datasets/` (created during the feature extraction tutorial)
-3. **Environment variables** — dataset root paths in `benchmarks/.env`
-4. **Repository set up** — `automil` and `autobench` packages installed
+1. **Completed feature extraction**, `.h5` feature files for each encoder in `{dataset_root}/trident_output/20x_224px_0px_overlap/features_{encoder}/`
+2. **Dataset YAML config**, in `benchmarks/datasets/` (created during the feature extraction tutorial)
+3. **Environment variables**, dataset root paths in `benchmarks/.env`
+4. **Repository set up**, `automil` and `autobench` packages installed
 
 If you haven't done these, follow the [feature extraction tutorial](tcga_feature_extraction_tutorial.md) first.
 
@@ -134,12 +134,12 @@ This is the same configuration used in `submit_3dataset_benchmark.sh` across all
 ### Metrics Computed
 
 For each fold, the pipeline computes:
-- **AUC-ROC** — area under receiver operating characteristic curve
-- **Accuracy** — standard classification accuracy
-- **Balanced accuracy** — per-class recall averaged (robust to class imbalance)
-- **F1 score** — binary F1 or weighted multiclass F1
-- **Sensitivity** — true positive rate (CLAM only)
-- **Specificity** — true negative rate (CLAM only)
+- **AUC-ROC**, area under receiver operating characteristic curve
+- **Accuracy**, standard classification accuracy
+- **Balanced accuracy**, per-class recall averaged (robust to class imbalance)
+- **F1 score**, binary F1 or weighted multiclass F1
+- **Sensitivity**, true positive rate (CLAM only)
+- **Specificity**, true negative rate (CLAM only)
 
 Cross-fold aggregation reports **mean**, **standard deviation**, and **95% confidence intervals** (via t-distribution) for each metric.
 
@@ -147,7 +147,7 @@ Cross-fold aggregation reports **mean**, **standard deviation**, and **95% confi
 
 ### Step 1: Run Benchmark Experiments
 
-> **Note:** Data preparation (task CSVs, stratified splits, H5→PT conversion) runs automatically as Phase 1 inside the SLURM job — no separate step needed. The pipeline is idempotent: re-running skips files that already exist.
+> **Note:** Data preparation (task CSVs, stratified splits, H5→PT conversion) runs automatically as Phase 1 inside the SLURM job, no separate step needed. The pipeline is idempotent: re-running skips files that already exist.
 
 #### Option A: Interactive (single GPU, small runs)
 
@@ -172,7 +172,7 @@ uv run python benchmarks/scripts/run_benchmark.py \
     --no_wandb
 ```
 
-This runs 1 experiment (5 folds) and takes ~10–30 minutes depending on dataset size.
+This runs 1 experiment (5 folds) and takes ~10-30 minutes depending on dataset size.
 
 #### Option B: SLURM Batch Job (recommended)
 
@@ -239,7 +239,7 @@ The SLURM script:
 1. Validates your dataset config and counts total experiments
 2. Runs data preparation (Phase 1)
 3. Distributes experiments across 4 H100 GPUs with memory-budget scheduling
-4. Auto-resubmits on time limit (idempotent — completed experiments are skipped)
+4. Auto-resubmits on time limit (idempotent, completed experiments are skipped)
 
 #### Option C: Multi-GPU Interactive
 
@@ -345,7 +345,7 @@ The SLURM script's Phase 1 creates:
         └── pt_files/
 ```
 
-#### Training Results (Phase 3–4)
+#### Training Results (Phase 3-4)
 
 After training completes, the results directory looks like:
 
@@ -465,7 +465,7 @@ if failed_path.exists():
     failed = json.loads(failed_path.read_text())
     print(f'Failed experiments: {len(failed)}')
     for exp_id, info in failed.items():
-        print(f'  {exp_id}: {info[\"reason\"]} — {info.get(\"detail\", \"\")[:80]}')
+        print(f'  {exp_id}: {info[\"reason\"]}, {info.get(\"detail\", \"\")[:80]}')
 else:
     print('No failures recorded.')
 "
@@ -606,7 +606,7 @@ DATASET=tcga_luad \
     FRAMEWORKS="clam" \
     sbatch benchmarks/scripts/submit_benchmark.sh
 
-# Extended benchmark (all models — longer run time)
+# Extended benchmark (all models, longer run time)
 DATASET=tcga_luad sbatch benchmarks/scripts/submit_benchmark.sh
 ```
 
@@ -616,14 +616,14 @@ These are rough estimates based on a single H100 GPU. Multi-GPU (4× H100) divid
 
 | Model | Time per fold | VRAM | Notes |
 |-------|--------------|------|-------|
-| `clam_mb` | 5–15 min | ~3–4 GB | Fast, recommended CLAM model |
-| `simple_mil` | 10–20 min | ~3 GB | Fast, recommended nnMIL baseline |
-| `ab_mil`, `ds_mil` | 10–30 min | ~3–4 GB | Extended benchmark |
-| `trans_mil`, `vision_transformer`, `rrt` | 30–90 min | ~8–16 GB | Extended benchmark, memory-intensive |
+| `clam_mb` | 5-15 min | ~3-4 GB | Fast, recommended CLAM model |
+| `simple_mil` | 10-20 min | ~3 GB | Fast, recommended nnMIL baseline |
+| `ab_mil`, `ds_mil` | 10-30 min | ~3-4 GB | Extended benchmark |
+| `trans_mil`, `vision_transformer`, `rrt` | 30-90 min | ~8-16 GB | Extended benchmark, memory-intensive |
 
-**Standard benchmark** (recommended): 2 tasks × 3 encoders × 2 models × 5 folds = 60 fold trainings. On 4× H100: **~1–3 hours**.
+**Standard benchmark** (recommended): 2 tasks × 3 encoders × 2 models × 5 folds = 60 fold trainings. On 4× H100: **~1-3 hours**.
 
-**Extended benchmark** (all models): 2 tasks × 3 encoders × 12 models × 5 folds = 360 fold trainings. On 4× H100: **~6–12 hours**.
+**Extended benchmark** (all models): 2 tasks × 3 encoders × 12 models × 5 folds = 360 fold trainings. On 4× H100: **~6-12 hours**.
 
 For large datasets (>800 slides), increase the SLURM time limit:
 
@@ -636,13 +636,13 @@ DATASET=tcga_brca sbatch --time=2-00:00:00 benchmarks/scripts/submit_benchmark.s
 The pipeline is fully idempotent. If a job times out or fails:
 
 1. **Completed experiments** are tracked in `results/_completed.json` and skipped on re-run
-2. **Per-fold checkpoints** — if fold 0–2 finished but fold 3 failed, folds 0–2 are skipped
-3. **Auto-continuation** — the SLURM script detects time limits and resubmits automatically
+2. **Per-fold checkpoints**, if fold 0-2 finished but fold 3 failed, folds 0-2 are skipped
+3. **Auto-continuation**, the SLURM script detects time limits and resubmits automatically
 
 To manually resume:
 
 ```bash
-# Just resubmit — same command, same args
+# Just resubmit, same command, same args
 DATASET=tcga_{code} sbatch benchmarks/scripts/submit_benchmark.sh
 ```
 
@@ -695,7 +695,7 @@ This happens when some slides failed during feature extraction. Check:
 2. Check `trident_output/skipped_slides.txt` for extraction failures
 3. Re-extract missing slides if needed (see [feature extraction tutorial](tcga_feature_extraction_tutorial.md#troubleshooting))
 
-The pipeline continues with available slides — a few missing slides won't invalidate results.
+The pipeline continues with available slides, a few missing slides won't invalidate results.
 
 ### Config Loading Errors
 

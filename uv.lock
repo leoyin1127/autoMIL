@@ -281,6 +281,11 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+examples-iris = [
+    { name = "pyyaml" },
+    { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scikit-learn", version = "1.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
 ml = [
     { name = "h5py" },
     { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -314,7 +319,9 @@ requires-dist = [
     { name = "jsonschema", specifier = ">=4.18" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "pyyaml", marker = "extra == 'examples-iris'", specifier = ">=6.0" },
     { name = "ray", marker = "extra == 'ray'", specifier = ">=2.55.1" },
+    { name = "scikit-learn", marker = "extra == 'examples-iris'", specifier = ">=1.4" },
     { name = "scikit-learn", marker = "extra == 'ml'", specifier = ">=1.3" },
     { name = "scipy", specifier = ">=1.11" },
     { name = "scipy", marker = "extra == 'ml'", specifier = ">=1.11" },
@@ -323,7 +330,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'ml'", specifier = ">=2.0" },
     { name = "watchdog", specifier = ">=4.0" },
 ]
-provides-extras = ["ml", "slurm", "ray"]
+provides-extras = ["ml", "slurm", "ray", "examples-iris"]
 
 [package.metadata.requires-dev]
 dev = [

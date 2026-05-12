@@ -1,192 +1,384 @@
 # Changelog
 
-autoMIL — F2-readiness framework refactor
+autoMIL: F2-readiness framework refactor.
 
-## 8.0.0 - Phase 8 decoupling completion + final acceptance (unreleased)
+## v1.0 milestone (shipped 2026-05-08, `git tag v1.0`)
 
-### BREAKING: `env.required` is now mandatory in `automil/config.yaml`
+The F2-readiness framework refactor. Nine phases (Phase 0 cleanup through
+Phase 8 acceptance), 92 plans executed, 69 v1 requirements delivered (100%
+v1 coverage across CLN / REG / BCK / TRJ / MRT / CAP / GTE / CLI / STP / DEC).
+Final acceptance: D-208 11-clause aggregator green in CI; sub-gate B
+sklearn-iris end-to-end green via real orchestrator subprocess; sub-gates A
+(CCRCC reproduction) and C (heterogeneous consumers) workstation-deferred
+behind `@pytest.mark.requires_ccrcc_data`. Full audit at
+[`.planning/milestones/v1.0-MILESTONE-AUDIT.md`](.planning/milestones/v1.0-MILESTONE-AUDIT.md).
 
-`automil check` fails with `Missing required env var: <name>` if any var
-declared under `env.required` is unset in the orchestrator's environment. This
-catches missing dataset paths (e.g. AUTOBENCH_CCRCC_ROOT) BEFORE submit
-rather than deep inside the training script.
+### BREAKING migrations summarised
 
-**Operator recovery (F-06 / Iter-2 explicit migration):** after upgrading,
-add an `env:` block to your existing `automil/config.yaml`. The 4-cell
-matrix (env.required vs env.passthrough x example values vs sentinel) is
-resolved as follows: `required` and `passthrough` each receive concrete
-example values; consumers fill in the actual list or remove vars they do
-not use. Concrete autobench-shaped recovery snippet:
+These accumulate across Phase 6, 7, and 8 entries below; consolidated for
+operators upgrading from a pre-v1.0 checkout:
+
+1. **`Backend.healthcheck` is abstract** (Phase 7). Custom Backend subclasses
+   must implement it or raise `NotImplementedError` with the locked message
+   `"healthcheck deferred to Phase 7+ for distributed backends (use salloc/ray status directly)"`.
+2. **`env.required` is mandatory** (Phase 8). `automil check` fails with
+   `Missing required env var: <name>` if anything declared in
+   `automil/config.yaml: env.required` is unset. Empty list (`required: []`) is fine.
+3. **`AUTOBENCH_ROOT` is no longer auto-injected** (Phase 8). Consumers
+   declare what they need under `env.passthrough`. Recovery snippet in the
+   Phase 8 entry below.
+4. **`node["test_auc"]` etc. moved to `node["metrics"]["test_auc"]`** (Phase 8).
+   Custom code reading `graph.json` directly must update the access path.
+5. **`orchestrator/running/` is per-backend namespaced** (Phase 6).
+   `running/<id>.json` (flat) → `running/<backend>/<id>.json`. The daemon
+   refuses to start if it detects flat layout. Stop the daemon, confirm
+   `ls automil/orchestrator/running/*.json` returns zero, upgrade, restart.
+
+### Phase 8. Decoupling completion + final acceptance (2026-05-08)
+
+**Theme:** prove the framework is generic. Zero `autobench` references in
+`src/automil/`; sklearn-iris second consumer end-to-end via the documented
+contract; CCRCC `node_0176` ±0.005 reproduction on the registry path.
+
+**BREAKING. `env.required` mandatory in `automil/config.yaml`.**
+`automil check` fails with `Missing required env var: <name>` if anything
+declared under `env.required` is unset. Catches missing dataset paths
+(e.g. `AUTOBENCH_CCRCC_ROOT`) BEFORE submit rather than deep inside the
+training script.
+
+Recovery for autobench-shaped consumers:
 
 ```yaml
 env:
   required:
     - AUTOBENCH_OVARIAN_ROOT
     - AUTOBENCH_CCRCC_ROOT
-    # add any env var your training script reads at startup
   passthrough:
     - AUTOBENCH_OVARIAN_ROOT
     - AUTOBENCH_CCRCC_ROOT
-    - HF_HOME  # if you cache HF models
-    # remove from passthrough any var not needed in subprocess env
+    - HF_HOME
 ```
 
-The `passthrough` list controls which env vars are forwarded into experiment
-subprocesses; the `required` list is what `automil check` enforces at startup.
-For sklearn-iris-style generic consumers with no env-var dependencies, both
-lists are empty (`required: []`, `passthrough: [AUTOMIL_*]`).
+For self-contained consumers (sklearn-iris-style, no env-var dependencies):
+`required: []`, `passthrough: [AUTOMIL_*]`.
 
-### BREAKING: `node["test_auc"]` etc no longer at top level
+**BREAKING. `node["test_auc"]` etc. no longer at top level.** The
+`graph.json` node payload migrates the autobench-named metrics
+(`val_auc`, `val_bacc`, `test_auc`, `test_bacc`) from top-level fields into
+a generic `node["metrics"]` dict. This removes the framework's hardcoded
+coupling to the autobench 4-key composite recipe and unblocks non-autobench
+consumers. Custom code reading these fields must change to
+`node["metrics"]["test_auc"]`. Framework-internal viz, CLI, and the
+cap-killed reconcile branch are all migrated.
 
-The graph.json node payload migrates the autobench-named metrics
-(`val_auc`, `val_bacc`, `test_auc`, `test_bacc`) from top-level fields into a
-generic `node["metrics"]` dict. This removes the framework's hardcoded coupling
-to autobench's 4-key composite recipe and unblocks non-autobench consumers
-(e.g. sklearn-iris).
+**BREAKING. `AUTOBENCH_ROOT` is no longer auto-injected into experiment
+env.** The orchestrator no longer auto-injects `AUTOBENCH_ROOT` or overlays
+`PYTHONPATH` to point at `benchmarks/`. Consumers that need these declare
+them under `env.passthrough` per the recovery snippet above.
 
-**Operator recovery:** if you have custom code reading `node["test_auc"]`
-directly from graph.json, change to `node["metrics"]["test_auc"]`. The
-framework's own viz dashboard and CLI surfaces are migrated. The cap-killed
-reconcile branch in `_orchestrator_daemon.py` is also migrated (Iter-2 / F-03);
-all node-write sites in the framework now share homogeneous storage shape.
-
-### BREAKING: AUTOBENCH_ROOT no longer auto-injected into experiment env
-
-The orchestrator no longer auto-injects `AUTOBENCH_ROOT` or overlays
-`PYTHONPATH` to point at `benchmarks/`. Consumers that need these vars
-declare them under `env.passthrough` per the recovery snippet above.
-
-### Added
+**Added:**
 
 - `src/automil/schemas/result.schema.json` (D-201, JSON Schema 2020-12)
-  describing the `result.json` contract. Validated at ingestion via
+  describing the `result.json` contract. Validated at ingest via
   `jsonschema.validate(...)`. Malformed payloads transition the node to
-  `crashed` with a pointer to the schema.
-- `examples/sklearn-iris/` directory with a ~75-line `train.py` demonstrating
-  the contract on a non-autobench consumer.
+  `crashed` with a schema-location pointer.
+- `examples/sklearn-iris/`, ~80-line `train.py` demonstrating the
+  contract on a non-autobench consumer (sklearn LogisticRegression on iris).
 - `docs/training-script-contract.md` (DEC-06) documenting the 6 contract items.
-- `tests/test_framework_purity.py` (D-206) regression-prevents autobench
-  leakage in `src/automil/`.
+- `tests/test_framework_purity.py` (D-206) regression-prevents `autobench`
+  leakage in `src/automil/` (5-entry content-anchor allowlist).
 - `tests/acceptance/test_final_phase8_acceptance.py` (D-205) final 3-sub-gate
-  acceptance gate. Sub-gate B drives the full submit + orchestrator subprocess
-  path so the daemon ingest validate hook is exercised end-to-end (F-04).
+  acceptance (sub-gate B drives the full submit + orchestrator subprocess
+  path so the daemon ingest validate hook is exercised end-to-end, F-04).
 - `tests/acceptance/test_phase8_acceptance.py` (D-208) 11-clause acceptance
   aggregator.
 - `automil/config.yaml: scoring.formula` field surfaced in the framework
   template `config.yaml.j2` per DEC-04 ROADMAP success criterion 3 (F-07).
   Documentation-only field; consumers describe their composite recipe.
 
-### Verification
+**Compatibility:** pre-D-200 `graph.json` files round-trip via the
+bootstrap loader; explicit `schema_version` bump deferred (forward-compatible
+cleanup). `pyproject.toml` adds `requires_ccrcc_data` marker. CI default
+filters `not requires_ccrcc_data and not requires_slurm and not requires_ray`.
+`jsonschema` is no new top-level dep; transitive since Phase 5.
 
-Phase 8 is complete when `uv run pytest tests/acceptance/test_phase8_acceptance.py -v`
-reports all 11 D-208 clauses PASS (or SKIP cleanly for the 2 data-gated
-sub-gates when AUTOBENCH_CCRCC_ROOT is unset).
+### Phase 7. Hardware autodetect + automil-setup skill (2026-05-07)
 
-### Compatibility
+**Theme:** detect hardware once, surface it to the user, never decide
+silently. The `/automil-setup` skill becomes idempotent and ships a
+mandatory dry-run gate.
 
-- Pre-D-200 graph.json files round-trip via the bootstrap loader; explicit
-  schema_version bump deferred (forward-compatible cleanup).
-- `pyproject.toml` adds `requires_ccrcc_data` marker. CI default filters
-  `not requires_ccrcc_data and not requires_slurm and not requires_ray`.
-- `jsonschema` is no new top-level dep; transitive since Phase 5.
-
-## 7.0.0 - Phase 7 hardware autodetect + automil-setup skill (unreleased)
-
-### BREAKING: `Backend.healthcheck` is now an abstract method
-
-Subclasses without a concrete `healthcheck` implementation are uninstantiable
+**BREAKING. `Backend.healthcheck` is now an abstract method.** Subclasses
+without a concrete `healthcheck` are uninstantiable
 (`TypeError: Can't instantiate abstract class ... with abstract method healthcheck`).
 
 - **`LocalBackend`** implements it (probes hardware via `nvidia-smi` /
   `rocm-smi` / CPU-only fallback per D-190).
-- **`SLURMBackend`** and **`RayBackend`** raise `NotImplementedError` with the
-  locked message
+- **`SLURMBackend`** and **`RayBackend`** raise `NotImplementedError` with
+  the locked message
   `"healthcheck deferred to Phase 7+ for distributed backends (use salloc/ray status directly)"`
   (D-189). Distributed-cluster healthcheck is deferred to a post-v1.0 phase.
 - **`MockSLURMBackend`** raises the same `NotImplementedError` for test-fixture parity.
 
-**Operator recovery:** if you maintain a custom Backend subclass outside this
-repo, add a `healthcheck` method that returns a `HealthReport` (or raises
-`NotImplementedError` with the locked message above for distributed backends).
+**Added:**
 
-### Added
-
-- `Backend.healthcheck() -> HealthReport` method on the Backend ABC (D-189 / STP-01).
-  `LocalBackend` implements it via `nvidia-smi` (CUDA), `rocm-smi` (ROCm), or
-  CPU-only fallback. Detection failures surface via `detection_status='failed'`.
-- `automil init` calls `LocalBackend.healthcheck()` between the `--update` guard
-  and template render. Detected values flow into `automil/config.yaml`'s `cap:`
-  and `hardware:` sections (D-191 / STP-02).
+- `Backend.healthcheck() -> HealthReport` on the Backend ABC (D-189 / STP-01).
+  `HealthReport` is a frozen dataclass with 8 fields: `gpu_count`, `gpu_vram_gb`,
+  `accelerator` (`cuda` / `rocm` / `cpu`), `python_version`, `automil_version`,
+  `detection_status` (`ok` / `partial` / `failed`), `detection_warnings`,
+  `detected_at`.
+- `automil init` calls `LocalBackend.healthcheck()` between the `--update`
+  guard and template render. Detected values flow into
+  `automil/config.yaml`'s `cap:` and `hardware:` sections (D-191 / STP-02).
 - `automil init --no-healthcheck` flag for CI / smoke-test paths.
-- `automil submit --max-time SECONDS` flag for seconds-precision timeouts (D-195).
-  `--timeout MINUTES` is preserved verbatim; when both are passed, `--max-time` wins.
-- `_shared/automil-setup/SKILL.md` expanded from the 122-line skeleton to ~250
+- `automil submit --max-time SECONDS` for seconds-precision timeouts (D-195).
+  `--timeout MINUTES` is preserved verbatim; when both are passed, `--max-time`
+  wins (translated via ceil-div to `--timeout`).
+- `_shared/automil-setup/SKILL.md` expanded from a 122-line skeleton to ~282
   lines covering Inspection Heuristics, Drafting Conventions, Idempotency
   Protocol, Setup-Done Gate, and Failure Modes (D-192..D-196 / STP-04..06).
 - `agent_assets/codex/skills/automil-setup/SKILL.md` empty-frontmatter overlay
   for Codex plain-markdown rendering (D-196 / STP-07 / Pitfall D).
 
-### Fixed
+**Fixed:** `automil init`'s template render now stamps detected hardware
+defaults (`max_concurrent_per_gpu`, `default_vram_estimate_gb`) instead of
+the prior hardcoded constants. Per the Pitfall 8 anti-acceptance,
+`default_vram_estimate_gb` is computed from `numpy.quantile(.95)` of empirical
+`vram_gb` observations in `automil/results.tsv` when ≥10 rows are present,
+and from `max(8.0, min(gpu_vram_gb) / 8.0)` otherwise.
 
-- `automil init`'s template render now stamps detected hardware defaults
-  (`max_concurrent_per_gpu`, `default_vram_estimate_gb`) instead of the prior
-  hardcoded constants. Per the Pitfall 8 anti-acceptance, `default_vram_estimate_gb`
-  is computed from `numpy.quantile(.95)` of empirical `vram_gb` observations in
-  `automil/results.tsv` when at least 10 rows are present, and from
-  `max(8.0, min(gpu_vram_gb) / 8.0)` otherwise.
+### Phase 6. SLURM backend (submitit) + Ray backend (raw `@ray.remote`) (2026-05-06)
 
-## 6.0.0 — Phase 6 SLURM + Ray backends (unreleased)
+**Theme:** distributed-backend support without freezing local-backend
+semantics into the contract. Ships as opt-in extras so default
+`pip install -e .` stays slim.
 
-### BREAKING: Per-backend `running/` namespacing
+**BREAKING. Per-backend `running/` namespacing.**
+`orchestrator/running/<id>.json` (flat) → `orchestrator/running/<backend>/<id>.json`
+(namespaced). autoMIL does not auto-migrate; the daemon refuses to start
+if it detects flat layout.
 
-`orchestrator/running/<id>.json` (flat) → `orchestrator/running/<backend>/<id>.json` (namespaced).
+**Operator upgrade path:**
 
-**Why:** Phase 6 introduces SLURMBackend and RayBackend (BCK-05, BCK-06). Each
-backend owns its own running-spec directory so cross-backend operations cannot
-corrupt each other (D-168, D-169). autoMIL 6.x does NOT auto-migrate flat layout
-to namespaced layout (per CLAUDE.md "Avoid backwards-compatibility hacks").
+```bash
+automil orchestrator stop
+ls automil/orchestrator/running/*.json 2>/dev/null | wc -l   # must be 0
+# upgrade
+automil orchestrator start
+```
 
-**Operators upgrading from 5.x must:**
+**Added:**
 
-1. Run `automil orchestrator stop` and wait for in-flight runs to terminate.
-2. Confirm `orchestrator/running/` contains zero `.json` files at the top level
-   (subdirectories are fine):
-   ```bash
-   ls automil/orchestrator/running/*.json 2>/dev/null | wc -l
-   # Expected: 0
-   ```
-3. Upgrade autoMIL.
-4. Restart the daemon: `automil orchestrator start`.
+- `SLURMBackend` (`src/automil/backends/slurm.py`), opt-in via
+  `pip install -e '.[slurm]'`. Dispatches via submitit `AutoExecutor`;
+  honors the Phase 4 cap contract via `slurm_additional_parameters={"signal": "B:TERM@30"}`
+  (30s SIGTERM grace, framework-mandated; `automil check` rejects operator
+  override). Walltime translated via `_walltime_to_timeout_min(walltime_seconds)`.
+- `RayBackend` (`src/automil/backends/ray.py`), opt-in via
+  `pip install -e '.[ray]'`. Dispatches via raw `@ray.remote` (NOT Ray Tune);
+  hybrid `RAY_ADDRESS → local fallback` (`backend.ray.allow_local_fallback`);
+  cancel via `ray.cancel(force=True, recursive=True)`; non-blocking poll via
+  `ray.wait(timeout=0)`.
+- `BackendNotInstalledError`, `SlurmDirectivesIncompleteError`,
+  `RayClusterUnreachableError` in `automil.backends.errors`.
+- `automil check` validates `backend.slurm.directives` completeness (rejects
+  `TODO_FILL_IN`) and Ray cluster reachability (advisory).
+- Cross-backend log unification: `archive/<id>/run.log` is orchestrator-owned
+  and drained from `backend.log_iter()` on terminal-state observation.
+- pytest markers `requires_slurm` / `requires_ray` for nightly real-cluster
+  tests (`test_contract_real_slurm.py` / `test_contract_real_ray.py`).
+- D-179 11-clause acceptance gate (`tests/backends/test_phase6_acceptance.py`):
+  9 PASS + 2 SKIP (extras-gated when `[slurm]` / `[ray]` absent).
 
-**Daemon refusal to start:** if the daemon detects flat `running/*.json` at startup
-without namespaced subdirectories, it exits with a `BREAKING CHANGE` message
-listing the files found. This guardrail prevents a half-migrated state from
-corrupting live runs.
+**Compatibility:** `pip install -e .` (no extras) still works; submitit and
+ray are NOT pulled. `automil --help`, `automil submit`, `automil cancel`,
+`automil resubmit` work unchanged for `backend.name: local` configs.
 
-### Verification
+### Phase 5. Generalization gate (2026-05-06)
 
-Phase 6 is complete when `uv run pytest tests/backends/test_phase6_acceptance.py -v`
-reports all 11 D-179 clauses passing (or skipping cleanly when `[slurm]`/`[ray]`
-extras absent). Each test maps to exactly one clause; partial failures localize
-which clause regressed.
+**Theme:** separate exploration from generalization with a pre-registered
+held-out manifest and paired statistical test.
 
-### Added
+**Added:**
 
-- `SLURMBackend` (`src/automil/backends/slurm.py`) — opt-in via `pip install -e '.[slurm]'`.
-  Dispatches via submitit AutoExecutor; honors Phase 4 cap contract via `--signal=B:TERM@30`.
-- `RayBackend` (`src/automil/backends/ray.py`) — opt-in via `pip install -e '.[ray]'`.
-  Dispatches via raw `@ray.remote` (NOT Ray Tune); hybrid `RAY_ADDRESS` → local fallback.
-- `BackendNotInstalledError`, `SlurmDirectivesIncompleteError`, `RayClusterUnreachableError`
-  in `automil.backends.errors`.
-- `automil check` validates `backend.slurm.directives` completeness (rejects `TODO_FILL_IN`)
-  and Ray cluster reachability (advisory).
-- Cross-backend log unification: `archive/<id>/run.log` is orchestrator-owned and
-  drained from `backend.log_iter()` on terminal-state observation.
-- pytest markers `requires_slurm` / `requires_ray` for nightly real-cluster tests.
+- `candidate` node status, set by `automil nominate <node_id>` (idempotent;
+  mutates `keep` → `candidate`). Manual nomination by default
+  (`gate.auto_nominate: false`, D-142).
+- `automil gate manifest`, writes and git-commits `gate_manifest.json`
+  BEFORE search via `write_manifest_committed`. Manifest schema carries
+  `(cell_id, dataset, encoder, task)` 4-tuples.
+- `automil promote <candidate_id>`, runs Stage B gate. Spawns held-out
+  evaluations through `Backend.submit(spec)` (NOT a parallel mechanism)
+  with `metadata.gate_eval='true'`. Statistics: paired Wilcoxon + BCa
+  bootstrap CI (1000 reps, GTE-04 locked per F1 paper §4.4) + Bonferroni
+  `alpha/K` (DIVIDE direction).
+- Promotion-rate metric exposed via `viz/api/promotion-rate` SSE and
+  `automil status` (GTE-06).
+- Pitfall-6 single-file anti-acceptance gate
+  (`tests/gate/test_pitfall6_held_out_isolation.py`), 35 D-149 assertions;
+  enforces that held-out cells are invisible to the search agent.
 
-### Compatibility
+**Deferred:** calibration pilot K-determination requires Leo workstation
+with CCRCC `node_0176` + 3-5 fresh cells; scaffold at
+`.planning/phase-05-calibration.md`.
 
-- `pip install -e .` (no extras) still works; submitit and ray are NOT pulled.
-- `automil --help`, `automil submit`, `automil cancel`, `automil resubmit` work unchanged
-  for `backend.name: local` configs.
-- Phase 5 generalization gate, Phase 4 cap, Phase 3 trajectory recorder are unchanged.
+### Phase 4. 6h per-cell hard cap + cell concept (2026-05-05)
+
+**Theme:** make `(dataset, encoder, parent_id)` a first-class graph entity
+with a framework-enforced wall-clock budget. Budget-killed runs reconcile
+gracefully via per-fold checkpoints and are stored as `executed` (with
+partial composite), never `crashed`.
+
+**Added:**
+
+- `cell_id` first-class on every node; `cells/get_or_create_cell` lookup
+  BEFORE writing queue spec; `metadata.cell_id` stamped on every queued spec.
+- Two-tier cap state machine (`active` → `refusing-new` at `T - safety_buffer`
+  → `terminating` at `T`); SIGTERM with 30s grace is the cap contract.
+- Per-fold checkpoint protocol: training scripts write `fold_<i>_result.json`
+  after each fold; `register_sigterm_flush` (in `runtime_helpers.py`)
+  installs a SIGTERM handler that aggregates completed folds into a single
+  `result.json` with `"partial": true`.
+- Reconciler reads `metadata.cancel_reason='cap'` written BEFORE the cancel
+  (Pitfall-4 ordering guarantee) and assigns `JobState.BUDGET_KILLED` (NOT
+  `crashed`).
+- Per-cell budget overrides: `automil submit --budget-seconds N --safety-buffer-seconds M`
+  honored only on the submit that opens the cell (D-134).
+- `automil cell list` / `status` / `show <id>` CLI surfaces.
+- D-115 21-test acceptance gate including Pitfall-4 anti-acceptance,
+  daemon-restart (5/5), reconcile cascade (5/5).
+
+### Phase 3. Trajectory recorder + multi-runtime asset reorg (2026-05-04)
+
+**Theme:** capture per-submit agent trajectories without leaking secrets
+or fossilising the format; reorganise `agent_assets/` so canonical content
+lives once with per-runtime overlays.
+
+**Added:**
+
+- `archive/<node_id>/trajectory.jsonl` canonical artifact. First line is
+  metadata `{schema_version, runtime, runtime_version, tool_schema_version,
+  automil_version, automil_runtime_env}`; subsequent lines are one event
+  each using OpenTelemetry `gen_ai.*` field names (no runtime
+  `opentelemetry-sdk` dependency).
+- Redaction-on-capture for `sk-…`, `hf_…`, `ghp_…`, AWS access keys,
+  `*_API_KEY=…`, `*_TOKEN=…`. Per-event 8 KB cap; per-file 5 MB soft / 50 MB
+  hard rotate producing `trajectory.<n>.jsonl` siblings. Trajectories
+  gitignored by default.
+- `automil trajectory record` / `export` / `status` CLI. `export` produces
+  a redacted, schema-validated bundle.
+- `src/automil/agent_assets/_shared/`, canonical SKILL/AGENTS content.
+- Per-runtime overlay directories: `claude/hooks/on_stop.sh`,
+  `codex/skills/automil-setup/`, `opencode/plugins/automil-trajectory.ts`,
+  `deepseek/README.md` (DeepSeek is a *model* routed via opencode/codex).
+- `automil init --runtime <claude|codex|opencode|deepseek-via-opencode|deepseek-via-codex|all>`
+  with auto-detect from existing `.claude/`, `.codex/`, `.opencode/` dirs.
+- `automil init --update` re-renders skills/hooks/AGENTS.md without
+  re-scaffolding.
+- `automil show-skill --runtime <r>` renders the merged per-runtime
+  SKILL/AGENTS file (`--asset SKILL` or `AGENTS`).
+- `AUTOMIL_RUNTIME` declared, never inferred (D-87), required in
+  `env.passthrough` so the trajectory recorder inside the experiment sees
+  the declared value.
+- End-to-end smoke test: experiment loop submits, runs, completes, and
+  writes a valid `result.json` under Claude Code AND under one of
+  {opencode, codex}, trajectories captured for both.
+
+### Phase 2. Backend ABC + LocalBackend re-export + MockSLURM fixture (2026-05-03)
+
+**Theme:** lock the backend contract against ≥2 implementations IN-phase
+so Phase 6 cannot accidentally inherit local-backend semantics (PIDs, sync
+status, `killpg`).
+
+**Added:**
+
+- `Backend(ABC)` in `src/automil/backends/base.py` with 5 abstract methods
+  (`submit`, `poll`, `list_running`, `cancel`, `log_iter`) plus the
+  state-not-control-flow `JobState` enum
+  (`pending | running | completed | crashed | cancelled | budget_killed`)
+  and frozen `JobHandle` / `JobSpec` dataclasses.
+- `LocalBackend` ships as a re-export shim over the existing 750-line
+  orchestrator (renamed to `_orchestrator_daemon.py`); 48-test baseline
+  suite stays green with empty behavioural diff.
+- `MockSLURMBackend` test fixture: eventual-consistency status (5s poll
+  lag), opaque `job_id`, fire-and-forget `cancel`, node-local filesystem.
+- Parameterised contract test (≥12 scenarios × 2 backends) gates the ABC
+  before Phase 6.
+- `ruff`/AST custom rule lint-blocks `os.kill`, `Popen`, and `pid`
+  references outside `backends/local.py` and `backends/_orchestrator_daemon.py`
+  (BCK-04 allowlist; viz/server.py allowlisted for daemon PID lifecycle).
+- `automil cancel <node_id>` and `automil resubmit <node_id>` wired through
+  `Backend.cancel` and `Backend.submit`. Cancelled nodes archive with
+  `status: cancelled`; resubmits get a fresh worktree.
+- `BACKENDS` registry singleton + `@register("name")` decorator on each
+  backend class.
+- `metadata.backend` written on every queued spec (BCK-01 / CLI-03/04 prereq).
+
+### Phase 1. Variant registry + config-driven train + reproduction sanity (2026-05-02)
+
+**Theme:** the keystone phase. Variants live as committed code modules
+selected via config; shared library files become read-only; the registry-only
+path reproduces a known-good node within ±0.005 from a clean checkout.
+
+**Added:**
+
+- `Variant` ABC family + frozen `VariantSpec` dataclass + internal
+  `Registry` class with `@register` decorator + `importlib.metadata.entry_points`
+  discovery.
+- `automil refresh-registry` regenerates per-parent `variants/__init__.py`
+  deterministically and idempotently.
+- Submit pre-validator chain: `identity` (mode-aware strict in
+  `architecture-preserving`, lenient in `free`), `interface` (subclass of
+  matching ABC, required-method signatures match), `purity` (no top-level
+  I/O / network / mutable globals).
+- `registry.protected` glob list, submit hard-rejects overlays touching
+  these paths (D-34); `automil check` fails on uncommitted edits to them.
+- `automil/config.yaml: registry.mode` selects `free` (default) or
+  `architecture-preserving`; `repro_tolerance` (default ±0.005);
+  `identity_constraints`.
+- `train.py`-side: model class, loss class, training policies, and
+  hyperparameters all read from `config.yaml`. Zero `args.X = literal`
+  overrides remain in framework code (verifiable via grep).
+- Variant manifest schema commits parent commit, composite, and node id.
+- Variant lifecycle CLI: `apply`, `revert-baseline` (mandatory pre-stash ,
+  never blind-checkout), `port-variant` (idempotent; rejects already-registered
+  nodes), `promote-variant`, `refresh-registry`, `verify-repro`.
+- Synthetic mini-consumer round-trip
+  (`tests/test_synthetic_consumer_roundtrip.py`) is the framework-side
+  acceptance gate per D-49/D-50: register → port → refresh → apply →
+  verify-repro end-to-end.
+
+### Phase 0. Tier 2 cleanup + CLI split + compat shim (2026-05-01)
+
+**Theme:** clear CONCERNS HIGH-severity backlog and prepare the codebase
+shape so new commands and modules have a place to land without disturbing
+existing tests.
+
+**Added:**
+
+- Subprocess `env` no longer leaks full `os.environ` to children; explicit
+  whitelist + `env.passthrough` config field (CLN-02).
+- `python-dotenv` replaces inline dotenv parser (CLN-03).
+- PID-file cross-checks process start time via `/proc/<pid>/stat` to detect
+  stale PID reuse (CLN-04).
+- `nvidia-smi` invocation is path-pinned via `shutil.which` and reported by
+  `automil check` when missing (CLN-05).
+- Monolithic `cli.py` split into `src/automil/cli/` per-command-group package
+  with thin `__init__.py` aggregator (no individual file >300 lines, CLN-06).
+- `compat.py` re-export shim with empty `Active` section + populated
+  `_PLANNED_MIGRATIONS` dict so pre-split `from automil.X import Y` paths
+  still resolve (CLN-07).
+- `automil reconcile --recompute-best` rebuilds `meta.best_node_id` from
+  the honest non-leaky composite by walking only `executed/keep` nodes
+  (CLI-07).
+- 48-test baseline suite stays green; no new behaviour beyond cleanup +
+  restructure + reconcile flag.
+
+---
+
+For phase-by-phase plans, success criteria, and acceptance-gate definitions,
+see [`.planning/milestones/v1.0-ROADMAP.md`](.planning/milestones/v1.0-ROADMAP.md).
+For the 69 v1 REQ-IDs and traceability, see
+[`.planning/milestones/v1.0-REQUIREMENTS.md`](.planning/milestones/v1.0-REQUIREMENTS.md).
+For the cross-phase integration audit, see
+[`.planning/milestones/v1.0-MILESTONE-AUDIT.md`](.planning/milestones/v1.0-MILESTONE-AUDIT.md).
