@@ -168,7 +168,15 @@ Your training script must honor the 6 items documented in
 5. Write `result.json` matching `automil/schemas/result.schema.json`.
 6. Declared env vars (under `env.required`) must be present at startup.
 
-The minimum valid `result.json` is `{"composite": <float>}`. A full payload:
+The minimum valid `result.json` is:
+
+```json
+{"composite": 0.912}
+```
+
+`composite` is the single scalar the experiment tree uses for ranking
+(higher is always better; for loss minimization, negate). All other
+fields are optional. A full example payload from the autobench consumer:
 
 ```json
 {
@@ -184,6 +192,10 @@ The minimum valid `result.json` is `{"composite": <float>}`. A full payload:
   "partial": false
 }
 ```
+
+The sklearn-iris consumer writes `{"composite": <accuracy>, "metrics": {"accuracy": 0.95, "f1": 0.94}, "status": "completed"}`.
+Both shapes validate against the same schema; the framework imposes no
+hardcoded metric keys.
 
 The orchestrator validates this at ingest via JSON Schema. Malformed payloads
 transition the node to `crashed` with a schema-location pointer. The

@@ -13,11 +13,17 @@
 
 ---
 
-**autoMIL** is a plug-and-play experiment framework for computational pathology
-and beyond. It overlays onto your existing ML project and lets any coding agent
-autonomously design, run, and learn from experiments under a hard wall-clock
-budget, with discovered variants reproducible, attributable to their parents,
-and portable across machines and LLM runtimes.
+**autoMIL** is a plug-and-play experiment framework for autonomous
+agent-driven model discovery. It overlays onto your existing ML project,
+in any language with any ML library, and lets any coding agent
+autonomously design, run, and learn from experiments under a configurable
+per-cell wall-clock budget, with discovered variants reproducible,
+attributable to their parents, and portable across machines and LLM
+runtimes. The original motivation was Multiple Instance Learning in
+computational pathology (see [`examples/ovarian_hrd`](examples/ovarian_hrd/)
+for a 189-experiment autonomous run); the framework itself is generic and
+runs sklearn-iris end-to-end via the same contract (see
+[`examples/sklearn-iris`](examples/sklearn-iris/)).
 
 [Getting Started](#quick-start) | [How It Works](#how-it-works) | [Training-Script Contract](docs/training-script-contract.md) | [Documentation](docs/getting-started.md)
 
@@ -169,7 +175,13 @@ env:
   passthrough: [AUTOMIL_*]     # vars forwarded to experiment subprocesses
 
 scoring:
-  formula: "(val_auc + val_bacc + test_auc + test_bacc) / 4"   # documentation only
+  # Documentation-only. Your training script computes the composite scalar
+  # and writes it to result.json directly; the framework does NOT evaluate
+  # this string. State the formula here so collaborators can read the
+  # recipe at a glance. Examples:
+  #   formula: "accuracy"                                          # sklearn-iris
+  #   formula: "(val_auc + val_bacc + test_auc + test_bacc) / 4"   # autobench
+  formula: ""
 
 cap:
   # Consumer-supplied. The framework provides the cap mechanism (two-tier
@@ -274,8 +286,15 @@ The seam between autoMIL and your code is the
 honor `SIGTERM` for partial flush, declare required env vars in
 `automil/config.yaml: env.required`. Any language, any ML library qualifies.
 
-The minimum valid payload is `{"composite": <float>}`. A full autobench
-example:
+The minimum valid payload is:
+
+```json
+{"composite": 0.912}
+```
+
+`composite` is the single scalar the experiment tree uses for ranking
+(higher is always better; for loss minimization, negate). Everything else
+is optional. A full example payload from the autobench consumer:
 
 ```json
 {
@@ -291,6 +310,9 @@ example:
   "peak_vram_mb": 4500
 }
 ```
+
+The sklearn-iris consumer writes `{"composite": <accuracy>}` with no
+metrics dict; both shapes validate against the same schema.
 
 The schema is JSON Schema 2020-12 and is validated at ingest by the
 orchestrator; malformed payloads transition the node to `crashed` with a
