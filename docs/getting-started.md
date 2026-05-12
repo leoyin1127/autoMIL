@@ -110,7 +110,11 @@ baseline:
   composite: 0.0                 # your starting performance
 
 cap:
-  budget_seconds: 21600          # 6h per-cell hard cap (Phase 4)
+  # cap is consumer-supplied. Framework provides the mechanism, you pick
+  # the values. Examples: 21600 (6h, autoMIL-paper campaign default),
+  # 60 (sklearn-iris demo), 1800 (30-min lab demo). See note below on the
+  # CLI / config / fallback precedence chain (D-134).
+  budget_seconds: 21600
   safety_buffer_seconds: 1800    # 30min refuse-new buffer
 
 backend:
@@ -132,12 +136,18 @@ A few notes on each:
 - **`scoring.formula`** is documentation-only. Your training script
   computes the composite scalar and writes it to `result.json`. State the
   formula here so collaborators can read the recipe at a glance.
-- **`cap.budget_seconds` / `cap.safety_buffer_seconds`**, autoMIL enforces
-  a two-tier wall-clock budget. At `T - safety_buffer`, the cell enters
-  `refusing-new` (no new submits accepted into this cell). At `T`, the cell
-  enters `terminating` and SIGTERM is sent to running experiments. Per-cell
-  override: `automil submit --budget-seconds N --safety-buffer-seconds M`
-  (honored only on the submit that opens the cell).
+- **`cap.budget_seconds` / `cap.safety_buffer_seconds`** are consumer-supplied
+  values. The framework provides the per-cell wall-clock cap *mechanism*:
+  at `T - safety_buffer` the cell enters `refusing-new` (no new submits
+  accepted into this cell); at `T` the cell enters `terminating` and
+  SIGTERM is sent to running experiments. The *values* are yours to pick.
+  The precedence chain is `CLI flag > config.yaml > framework fallback
+  (21600 / 1800)`. Override per-cell via
+  `automil submit --budget-seconds N --safety-buffer-seconds M` (D-134;
+  honored ONLY on the submit that creates the cell, later submits joining
+  the same cell log INFO and use the established values, preventing
+  sandbagging). 21600 (6h) is the autoMIL-paper campaign default; the
+  sklearn-iris example uses 60s.
 - **`backend.name`**, `local` works on any machine. `slurm` requires
   `pip install -e '.[slurm]'` and valid SLURM directives (`backend.slurm.directives.partition`,
   `account`, `cpus_per_task`, `mem_gb`). `ray` requires `pip install -e '.[ray]'`

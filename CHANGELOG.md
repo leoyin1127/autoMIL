@@ -224,10 +224,18 @@ with CCRCC `node_0176` + 3-5 fresh cells; scaffold at
 
 ### Phase 4. 6h per-cell hard cap + cell concept (2026-05-05)
 
+**Note on the "6h" in this phase's title:** 21600 seconds (6h) is the
+autoMIL-paper campaign-wide default that motivated this milestone. It is
+NOT a framework constant. The framework provides the cap *mechanism*; the
+*value* is consumer-supplied via `cap.budget_seconds` in
+`automil/config.yaml` (or `--budget-seconds` at submit time per D-134).
+The sklearn-iris example uses 60s; external consumers pick their own.
+
 **Theme:** make `(dataset, encoder, parent_id)` a first-class graph entity
-with a framework-enforced wall-clock budget. Budget-killed runs reconcile
-gracefully via per-fold checkpoints and are stored as `executed` (with
-partial composite), never `crashed`.
+with a framework-enforced per-cell wall-clock cap *mechanism* (consumer
+supplies the value). Budget-killed runs reconcile gracefully via per-fold
+checkpoints and are stored as `executed` (with partial composite), never
+`crashed`.
 
 **Added:**
 

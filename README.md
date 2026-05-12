@@ -81,7 +81,7 @@ autoMIL gives coding agents the infrastructure to run experiments autonomously:
 | **Pluggable backends** | `local` (default), `slurm` (submitit, opt-in via `[slurm]` extra), `ray` (raw `@ray.remote`, opt-in via `[ray]` extra). Same `Backend` ABC; same cap contract. |
 | **Hardware autodetect** | `automil init` probes CUDA / ROCm / CPU via `LocalBackend.healthcheck()` and stamps detected GPU count, VRAM, and concurrency defaults into `config.yaml`. |
 | **Variant registry** | Architectural changes ship as committed variant modules (`automil/variants/<parent>/<name>.py`) selected via config. Registry-only path reproduces a node end-to-end via `automil verify-repro`. |
-| **6h per-cell hard cap** | Two-tier wall-clock budget (`refusing-new` at T-buffer, `terminating` at T) with per-fold checkpoints. Budget-killed runs reconcile to `executed` with partial composite, never `crash`. |
+| **Configurable per-cell wall-clock cap** | Two-tier state machine (`refusing-new` at T-buffer, `terminating` at T) with per-fold checkpoints and a SIGTERM contract. The framework provides the *mechanism*; the *values* are consumer-supplied via `cap.budget_seconds` and `cap.safety_buffer_seconds` in `automil/config.yaml`, or per-cell via `automil submit --budget-seconds N --safety-buffer-seconds M` (D-134, honored only on the submit that creates the cell). Examples: 21600 (6h, autoMIL-paper campaign default), 60 (sklearn-iris demo). Budget-killed runs reconcile to `executed` with partial composite, never `crash`. |
 | **Generalization gate** | Pre-registered held-out manifest + paired Wilcoxon + bootstrap CI + Bonferroni, ships a `candidate` node status, manual nomination by default, promotion-rate metric exposed via SSE. |
 | **Trajectory recorder** | Per-submit JSONL using OpenTelemetry `gen_ai.*` keys with secret redaction (`sk-…`, `hf_…`, AWS keys) and bounded rotation (5 MB soft / 50 MB hard). |
 | **Multi-GPU orchestrator** | Background daemon with bin packing, OOM detection, crash recovery, namespaced `running/<backend>/`. |
@@ -172,8 +172,13 @@ scoring:
   formula: "(val_auc + val_bacc + test_auc + test_bacc) / 4"   # documentation only
 
 cap:
-  budget_seconds: 21600        # 6h per-cell hard cap
-  safety_buffer_seconds: 1800  # 30min refuse-new buffer
+  # Consumer-supplied. The framework provides the cap mechanism (two-tier
+  # state machine + SIGTERM contract); these values are yours to pick.
+  # Examples: 21600 (6h, autoMIL-paper campaign default), 60 (sklearn-iris),
+  # 1800 (a 30-min lab demo). Override per-cell via
+  # `automil submit --budget-seconds N --safety-buffer-seconds M` (D-134).
+  budget_seconds: 21600
+  safety_buffer_seconds: 1800
 ```
 
 Ensure your training script honors the
@@ -320,7 +325,11 @@ automil show-skill --runtime <r>                  Render merged per-runtime skil
 
 # Experiment lifecycle
 automil submit --node <id> --desc "..." [--files <f>] [--max-time SEC]
-                                                  Snapshot changed files and queue
+               [--budget-seconds N] [--safety-buffer-seconds M]
+                                                  Snapshot changed files and queue.
+                                                  --budget-seconds / --safety-buffer-seconds override
+                                                  cap.* for the cell this submit creates (D-134;
+                                                  ignored on subsequent submits joining the same cell).
 automil cancel <node_id>                          Cancel a running experiment
 automil resubmit <node_id>                        Re-queue a terminal experiment as a new node
 automil rank                                      Show top-ranked proposals (UCB)

@@ -481,7 +481,7 @@ Ask me directly :)
 
 ## Handling GDC UUID Rewrites (Stale GOLDMARK Manifests)
 
-> **TL;DR — when Step 3b returns 0 (or very few) matches, GDC has re-uploaded
+> **TL;DR, when Step 3b returns 0 (or very few) matches, GDC has re-uploaded
 > the slides with new file UUIDs. The patient/slide mapping is still correct;
 > only the file UUIDs are stale. Fix it with
 > `benchmarks/scripts/refresh_goldmark_uuids.py`.**
@@ -508,7 +508,7 @@ TCGA-2G-AAEW-01Z-00-DX1.<UUID>.svs
                         this part can change
 ```
 
-GDC sometimes re-uploads slides — same patient, same physical specimen, new
+GDC sometimes re-uploads slides, same patient, same physical specimen, new
 file UUID. When that happens, GOLDMARK's `slide_name` column points at file
 UUIDs that no longer exist in GDC, and the exact-match filter returns 0.
 
@@ -529,16 +529,16 @@ python benchmarks/scripts/refresh_goldmark_uuids.py datasets/{DATASET}
 ```
 
 It expects `datasets/{DATASET}/` to contain:
-- `normalized_manifest.csv` — from GOLDMARK
-- `gdc_manifest.txt` — from the GDC portal
+- `normalized_manifest.csv`, from GOLDMARK
+- `gdc_manifest.txt`, from the GDC portal
 
 It produces:
-- `gdc_manifest_matched.txt` — same purpose as before, but with **current**
+- `gdc_manifest_matched.txt`, same purpose as before, but with **current**
   GDC UUIDs (use this for the SLURM download in Step 3c)
-- `normalized_manifest.refreshed.csv` — GOLDMARK manifest with `slide_name`
+- `normalized_manifest.refreshed.csv`, GOLDMARK manifest with `slide_name`
   rewritten to match GDC's current UUIDs (use this as `mapping_csv` in your
   YAML)
-- `uuid_rewrites.tsv` — per-row audit log: `unchanged`, `rewritten`,
+- `uuid_rewrites.tsv`, per-row audit log: `unchanged`, `rewritten`,
   `not_found_in_gdc`, or `ambiguous`
 
 The script aborts if either input has a duplicate barcode (it never guesses)
@@ -555,10 +555,10 @@ When you suspect or confirm UUID rewrites, swap the following:
    ```
    (You no longer need to write the matching logic by hand.)
 
-2. **Step 3c (download) is unchanged** — it still reads
+2. **Step 3c (download) is unchanged**, it still reads
    `gdc_manifest_matched.txt`, which now contains current UUIDs.
 
-3. **Step 5 (YAML config)** — point `mapping_csv` at the refreshed file:
+3. **Step 5 (YAML config)**, point `mapping_csv` at the refreshed file:
    ```yaml
    paths:
      mapping_csv: "${data_root}/normalized_manifest.refreshed.csv"
@@ -583,5 +583,5 @@ echo "ambiguous: $(awk -F'\t' 'NR>1 && $3==\"ambiguous\"' uuid_rewrites.tsv | wc
 ```
 
 Healthy outcome: `missing == 0` and `ambiguous == 0`. Any non-zero value in
-those rows means the refreshed manifest is incomplete — review
+those rows means the refreshed manifest is incomplete, review
 `uuid_rewrites.tsv` before proceeding.

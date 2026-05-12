@@ -10,8 +10,10 @@
 
 Build a standalone, open-source framework that enables any coding agent to
 autonomously discover model improvements for any user's training code under
-a 6-hour-per-cell budget, with discovered variants reproducible, attributable
-to their parents, and portable across machines and LLM runtimes.
+a configurable per-cell wall-clock budget (e.g. 6h for the autoMIL-paper
+campaign, 60s for the sklearn-iris demo), with discovered variants
+reproducible, attributable to their parents, and portable across machines
+and LLM runtimes.
 
 autoMIL's framework core is consumer-agnostic. The included autobench package
 (`benchmarks/src/autobench/`) is one such consumer; `examples/sklearn-iris/`
@@ -49,7 +51,7 @@ automil CLI  ─►  Variant Registry (Phase 1) + Experiment Graph
 Backend ABC  ─►  LocalBackend / SLURMBackend / RayBackend
     │              same submit/poll/cancel/log_iter contract
     │
-    │  git worktree + overlay; 6h per-cell hard cap;
+    │  git worktree + overlay; configurable per-cell wall-clock cap;
     │  CUDA_VISIBLE_DEVICES masking
     ▼
 Isolated Execution  ─►  result.json (JSON-Schema validated at ingest)
@@ -119,7 +121,7 @@ automil/
 | **Variant registry, not runtime config** | 1 | Architectural changes need committed code modules. Config holds values, not callable code. Registry-only path reproduces a node end-to-end via `automil verify-repro`. |
 | **Backend ABC validated against ≥2 implementations IN-phase** | 2 | LocalBackend re-export shim + MockSLURMBackend fixture lock the contract against eventual-consistency status, opaque job IDs, fire-and-forget cancel, BEFORE Phase 6 inherits it. |
 | **Multi-runtime asset reorg with `_shared/` canonical + per-runtime overlays** | 3 | Avoid quadratic duplication across runtimes. `automil show-skill --runtime <r>` renders the merged result; ≥2 runtimes validated end-to-end. |
-| **6h per-cell wall-clock cap, framework-enforced** | 4 | Two-tier (refuse-new at T-buffer, terminate at T) with per-fold checkpoint protocol. Budget-killed runs reconcile to `executed` (with partial composite), never `crash`. SIGTERM with 30s grace is the cap contract honored across all backends. |
+| **Configurable per-cell wall-clock cap (mechanism, not value)** | 4 | Framework-enforced two-tier state machine (refuse-new at T-buffer, terminate at T) with per-fold checkpoint protocol; SIGTERM with 30s grace is the cap contract honored across all backends. The *values* (`budget_seconds`, `safety_buffer_seconds`) are consumer-supplied via `automil/config.yaml` or per-cell via `automil submit --budget-seconds N --safety-buffer-seconds M` (D-134). Examples: 21600 (6h, autoMIL-paper campaign), 60 (sklearn-iris). Budget-killed runs reconcile to `executed` (with partial composite), never `crash`. |
 | **Pre-registered manifest + paired statistical test** | 5 | Held-out cells invisible to the search agent; manual nomination by default; promotion-rate metric exposed via SSE. Pitfall-6 anti-acceptance gate enforces single-file isolation. |
 | **Pluggable backends as opt-in extras** | 6 | `pip install -e .` (no extras) keeps submitit and ray uninstalled. Per-backend `running/` namespacing prevents cross-backend corruption (D-168). |
 | **Hardware autodetect at init time, not runtime** | 7 | `LocalBackend.healthcheck()` reports detected hardware; `automil init` stamps detected GPU count, VRAM (`numpy.quantile(.95)` of empirical `vram_gb` when ≥10 rows), and concurrency defaults. Detect-and-warn pattern; never decides for the user. |
@@ -275,9 +277,10 @@ deferred workstation UAT items resolve.
 The core value statement is the contract:
 
 > An agent can autonomously discover model improvements for any user's
-> training code under a 6-hour-per-cell budget, with discovered variants
-> reproducible, attributable to their parents, and portable across
-> machines and LLM runtimes.
+> training code under a configurable per-cell wall-clock budget (6h for
+> the autoMIL-paper campaign, 60s for the sklearn-iris demo, whatever the
+> consumer picks), with discovered variants reproducible, attributable to
+> their parents, and portable across machines and LLM runtimes.
 
 All 9 phases shipped, 92 plans executed, 69 v1 requirements delivered.
 The D-208 11-clause acceptance gate green; sklearn-iris sub-gate B green
