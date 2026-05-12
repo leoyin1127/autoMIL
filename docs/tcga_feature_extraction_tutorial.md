@@ -5,19 +5,19 @@ End-to-end guide for extracting pathology features from TCGA whole-slide images 
 ## Overview
 
 **Goal:** Extract patch-level features from TCGA WSIs using 3 pathology foundation models:
-- **Virchow2** (2560-dim) — `paige-ai/Virchow2`
-- **H-optimus-1** (1536-dim) — `bioptimus/H-optimus-1`
-- **UNI2-h** (1536-dim) — `MahmoodLab/UNI2-h`
+- **Virchow2** (2560-dim), `paige-ai/Virchow2`
+- **H-optimus-1** (1536-dim), `bioptimus/H-optimus-1`
+- **UNI2-h** (1536-dim), `MahmoodLab/UNI2-h`
 
 **Pipeline:** GDC slide download → GOLDMARK metadata → YAML config → TRIDENT feature extraction
 
 **Output:** Per-slide `.pt` tensors in `{output_dir}/{encoder_key}/pt_files/`
 
-**Tracking sheet:** `datasets/TCGA-CPTAC-Datasets - TCGA-16.csv` — update your row as you complete each step.
+**Tracking sheet:** `datasets/TCGA-CPTAC-Datasets - TCGA-16.csv`, update your row as you complete each step.
 
 **Reference:**
-- `benchmarks/datasets/tcga_luad.yaml` — Leo's completed config (checked into repo)
-- `benchmarks/datasets/tcga_template.yaml` — template to copy for your dataset
+- `benchmarks/datasets/tcga_luad.yaml`, Leo's completed config (checked into repo)
+- `benchmarks/datasets/tcga_template.yaml`, template to copy for your dataset
 
 ## Prerequisites
 
@@ -46,8 +46,8 @@ source ~/.bashrc  # or restart shell to get uv in PATH
 uv sync
 
 # Verify installation
-uv run uv run python -c "import torch; print(f'PyTorch {torch.__version__}, CUDA: {torch.cuda.is_available()}')"
-uv run uv run python -c "from autobench.config import load_dataset_config; print('autobench OK')"
+uv run python -c "import torch; print(f'PyTorch {torch.__version__}, CUDA: {torch.cuda.is_available()}')"
+uv run python -c "from autobench.config import load_dataset_config; print('autobench OK')"
 ```
 
 ### 3. GDC Data Transfer Tool
@@ -65,7 +65,7 @@ export PATH="$HOME/bin:$PATH"  # add to ~/.bashrc to make permanent
 ```
 
 ### 4. HuggingFace Access
-Virchow2, Hoptimus-1 and UNI2-h are **gated models** — you need to request access:
+Virchow2, Hoptimus-1 and UNI2-h are **gated models**, you need to request access:
 1. Create a HuggingFace account at https://huggingface.co/
 2. Go to https://huggingface.co/paige-ai/Virchow2 and request access
 3. Go to https://huggingface.co/MahmoodLab/UNI2-h and request access
@@ -110,12 +110,12 @@ mkdir -p datasets/{DATASET}/wsi
 Also download the per-task split files (e.g., `EGFR_all_splits_*.csv`) for reference.
 
 The GOLDMARK manifest contains everything the pipeline needs:
-- `slide_name` — actual GDC filenames (e.g., `TCGA-05-4244-01Z-00-DX1.d4ff32cd-...svs`)
-- `sample_names` — patient/case ID (e.g., `TCGA-05-4244`)
-- `{GENE}_binary` columns — 0/1 labels for each biomarker (e.g., `EGFR_binary`, `KRAS_binary`)
-- `split_1` through `split_5` — pre-defined 5-fold cross-validation splits
+- `slide_name`, actual GDC filenames (e.g., `TCGA-05-4244-01Z-00-DX1.d4ff32cd-...svs`)
+- `sample_names`, patient/case ID (e.g., `TCGA-05-4244`)
+- `{GENE}_binary` columns, 0/1 labels for each biomarker (e.g., `EGFR_binary`, `KRAS_binary`)
+- `split_1` through `split_5`, pre-defined 5-fold cross-validation splits
 
-**No transformation needed** — the YAML config maps these columns directly to what the pipeline expects.
+**No transformation needed**, the YAML config maps these columns directly to what the pipeline expects.
 
 ### Step 3: Download the GDC Manifest and Filter for Slides
 
@@ -127,13 +127,13 @@ The GOLDMARK manifest contains everything the pipeline needs:
 4. Click into the project page
 5. Click the **Manifest** button at the top
 
-![GDC Project Page — Manifest download](public/Screenshot%202026-03-31%20at%2001.56.01.png)
+![GDC Project Page, Manifest download](public/Screenshot%202026-03-31%20at%2001.56.01.png)
 
 Save the manifest file to `datasets/{DATASET}/gdc_manifest.txt`.
 
 #### 3b. Filter the manifest to only include slides used by GOLDMARK
 
-The full GDC manifest includes ALL files (genomic, clinical, imaging — e.g., 36,224 files for TCGA-LUAD). We only need the ~465 slides that GOLDMARK actually uses. Run this to create a matched manifest:
+The full GDC manifest includes ALL files (genomic, clinical, imaging, e.g., 36,224 files for TCGA-LUAD). We only need the ~465 slides that GOLDMARK actually uses. Run this to create a matched manifest:
 
 ```bash
 cd ~/scratch/autoMIL
@@ -194,7 +194,7 @@ echo "Downloaded: $(ls datasets/{DATASET}/wsi/*.svs | wc -l) slides"
 
 Fill in your row in `https://docs.google.com/spreadsheets/d/1DVzgG7EfkQwOw-hjWqI8gwagAzdG9jG-fR8z7-IDbEk/edit?usp=sharing`:
 - Fill in the **DOI**, **Radiology** columns, **Pathology** columns, **License**, and other dataset metadata from GDC/TCIA.
-- In the **Tasks** cell, record the class distribution for each biomarker task. Format: `task_name (total: positive vs negative)`. For example, CPTAC-CCRCC's BAP1 task is recorded as `BAP1_mutation (103: 20 vs 83)` — meaning 103 cases with labels, 20 positive (mutant), 83 negative (wildtype). You can compute this from the manifest's binary columns. List each task on a new line.
+- In the **Tasks** cell, record the class distribution for each biomarker task. Format: `task_name (total: positive vs negative)`. For example, CPTAC-CCRCC's BAP1 task is recorded as `BAP1_mutation (103: 20 vs 83)`, meaning 103 cases with labels, 20 positive (mutant), 83 negative (wildtype). You can compute this from the manifest's binary columns. List each task on a new line.
 
 ### Step 5: Create Dataset YAML Config
 
@@ -208,7 +208,7 @@ Edit the YAML file. The GOLDMARK normalized manifest has standardized column nam
 
 ```yaml
 name: tcga_luad
-description: "TCGA-LUAD — Lung Adenocarcinoma (EGFR, KRAS mutation prediction)"
+description: "TCGA-LUAD, Lung Adenocarcinoma (EGFR, KRAS mutation prediction)"
 
 paths:
   data_root: "${AUTOBENCH_TCGA_LUAD_ROOT}"
@@ -274,8 +274,8 @@ extraction:
 **What to customize per dataset:**
 - `name` and `description`
 - `paths.data_root` env var name (e.g., `AUTOBENCH_TCGA_BRCA_ROOT`)
-- `tasks` — one entry per biomarker. Check your GOLDMARK manifest for the `{GENE}_binary` column names
-- `task_strategy_feasibility` — list all your task names
+- `tasks`, one entry per biomarker. Check your GOLDMARK manifest for the `{GENE}_binary` column names
+- `task_strategy_feasibility`, list all your task names
 
 ### Step 6: Configure Environment
 
@@ -304,7 +304,7 @@ print(f'Encoders: {list(ds.encoder_models.values())}')
 
 ### Step 7: Run Feature Extraction via SLURM
 
-The Fir cluster has H100 MIG GPU slices — a **3g.40gb** (40 GB) slice is sufficient for feature extraction and more resource-efficient than a full H100.
+The Fir cluster has H100 MIG GPU slices, a **3g.40gb** (40 GB) slice is sufficient for feature extraction and more resource-efficient than a full H100.
 
 ```bash
 mkdir -p logs
@@ -392,8 +392,8 @@ datasets/{DATASET}/
 ```
 
 Each `.h5` feature file contains two datasets:
-- `features`: `(num_patches, embedding_dim)` float32 — the patch embeddings
-- `coords`: `(num_patches, 2)` int64 — the (x, y) patch coordinates
+- `features`: `(num_patches, embedding_dim)` float32, the patch embeddings
+- `coords`: `(num_patches, 2)` int64, the (x, y) patch coordinates
 
 The benchmark pipeline automatically converts these to `.pt` tensors during experiment preparation.
 

@@ -1,4 +1,4 @@
-# AutoBench — MIL Benchmark Suite
+# AutoBench, MIL Benchmark Suite
 
 Benchmark suite for evaluating and improving Multiple Instance Learning (MIL)
 models in computational pathology. Demonstrates **autoMIL** across multiple
@@ -9,7 +9,7 @@ datasets.
 | Dataset | Tasks | Classes | Slides | Config |
 |---------|-------|---------|--------|--------|
 | **Ovarian** | BRCA, HRD | 2 (binary) | ~400 | `datasets/ovarian.yaml` |
-| **CLWD** | Subtype (7-class, 6-class) | 6–7 | 408 | `datasets/clwd.yaml` |
+| **CLWD** | Subtype (7-class, 6-class) | 6-7 | 408 | `datasets/clwd.yaml` |
 | **Placeholder** | TBD | TBD | TBD | `datasets/placeholder.yaml` |
 
 ## Setup

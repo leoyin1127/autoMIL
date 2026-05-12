@@ -8,16 +8,18 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-49%20passing-brightgreen.svg)](#)
+[![Milestone v1.0](https://img.shields.io/badge/milestone-v1.0%20shipped-brightgreen.svg)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-950%20collected-brightgreen.svg)](#)
 
 ---
 
-**autoMIL** is a plug-and-play experiment framework for computational pathology.
-It overlays onto your existing ML project and lets any coding agent autonomously
-design, run, and learn from experiments, pushing your models further than
-manual iteration ever could.
+**autoMIL** is a plug-and-play experiment framework for computational pathology
+and beyond. It overlays onto your existing ML project and lets any coding agent
+autonomously design, run, and learn from experiments under a hard wall-clock
+budget, with discovered variants reproducible, attributable to their parents,
+and portable across machines and LLM runtimes.
 
-[Getting Started](#quick-start) | [How It Works](#how-it-works) | [Documentation](docs/getting-started.md)
+[Getting Started](#quick-start) | [How It Works](#how-it-works) | [Training-Script Contract](docs/training-script-contract.md) | [Documentation](docs/getting-started.md)
 
 </div>
 
@@ -73,14 +75,20 @@ autoMIL gives coding agents the infrastructure to run experiments autonomously:
 | Feature | Description |
 |---------|-------------|
 | **Plug-and-play** | Overlays onto any existing ML project. No restructuring needed. |
-| **Agent-agnostic** | Claude Code (first-class), Cursor, Codex, Aider, Windsurf, or any agent. |
+| **Multi-runtime agents** | First-class skills for Claude Code, Codex, OpenCode, and DeepSeek (routed via opencode/codex). `automil init --runtime` auto-detects or installs explicitly. |
 | **Full-codebase scope** | Agent edits any file: architectures, losses, augmentations, optimizers. |
 | **Git worktree isolation** | Each experiment runs in a snapshot. Only changed files stored. |
-| **Multi-GPU orchestrator** | Background daemon with bin packing, OOM detection, crash recovery. |
-| **Experiment tree** | UCB-inspired scoring balances exploitation and exploration across branches. |
-| **3D dashboard** | Interactive Three.js visualization with live SSE updates. |
+| **Pluggable backends** | `local` (default), `slurm` (submitit, opt-in via `[slurm]` extra), `ray` (raw `@ray.remote`, opt-in via `[ray]` extra). Same `Backend` ABC; same cap contract. |
+| **Hardware autodetect** | `automil init` probes CUDA / ROCm / CPU via `LocalBackend.healthcheck()` and stamps detected GPU count, VRAM, and concurrency defaults into `config.yaml`. |
+| **Variant registry** | Architectural changes ship as committed variant modules (`automil/variants/<parent>/<name>.py`) selected via config. Registry-only path reproduces a node end-to-end via `automil verify-repro`. |
+| **6h per-cell hard cap** | Two-tier wall-clock budget (`refusing-new` at T-buffer, `terminating` at T) with per-fold checkpoints. Budget-killed runs reconcile to `executed` with partial composite, never `crash`. |
+| **Generalization gate** | Pre-registered held-out manifest + paired Wilcoxon + bootstrap CI + Bonferroni, ships a `candidate` node status, manual nomination by default, promotion-rate metric exposed via SSE. |
+| **Trajectory recorder** | Per-submit JSONL using OpenTelemetry `gen_ai.*` keys with secret redaction (`sk-…`, `hf_…`, AWS keys) and bounded rotation (5 MB soft / 50 MB hard). |
+| **Multi-GPU orchestrator** | Background daemon with bin packing, OOM detection, crash recovery, namespaced `running/<backend>/`. |
+| **Experiment tree** | UCB-inspired scoring balances exploitation and exploration across branches; Pareto-dominance keep/discard via consumer-supplied `composite` scalar. |
+| **3D dashboard** | Interactive Three.js visualization with live SSE updates (`localhost:8420`). |
 | **Persistent learnings** | Knowledge accumulates across sessions. Agents don't repeat mistakes. |
-| **Setup validation** | `automil check` catches config issues before experiments run. |
+| **Setup validation** | `automil check` validates protected files, registry purity, backend directives, and `env.required` before experiments run. |
 
 ---
 
@@ -120,14 +128,30 @@ claude
 ```
 
 The agent scopes your codebase, configures everything, verifies the training
-contract, and establishes a baseline. Fully autonomous.
+contract, and establishes a baseline. Fully autonomous. The setup skill
+follows a documented idempotency protocol and runs a 1-minute dry-run gate
+before declaring done.
+
+</details>
+
+<details>
+<summary><b>With another runtime (Codex, OpenCode, DeepSeek)</b></summary>
+
+```bash
+automil init --runtime codex                   # or opencode, deepseek-via-opencode, deepseek-via-codex
+automil show-skill --runtime codex             # render merged per-runtime skill to stdout
+```
+
+`automil init` auto-detects from existing `.claude/`, `.codex/`, `.opencode/`
+directories when `--runtime` is omitted. The canonical skill content lives
+in `_shared/`; per-runtime overlays only carry diffs.
 
 </details>
 
 <details>
 <summary><b>Manual setup</b></summary>
 
-Edit `automil/config.yaml`:
+Edit `automil/config.yaml`. Minimum sections you must touch:
 
 ```yaml
 run:
@@ -139,10 +163,23 @@ files:
 
 baseline:
   composite: 0.814             # your starting performance
+
+env:
+  required: []                 # vars that MUST be set before submit
+  passthrough: [AUTOMIL_*]     # vars forwarded to experiment subprocesses
+
+scoring:
+  formula: "(val_auc + val_bacc + test_auc + test_bacc) / 4"   # documentation only
+
+cap:
+  budget_seconds: 21600        # 6h per-cell hard cap
+  safety_buffer_seconds: 1800  # 30min refuse-new buffer
 ```
 
-Ensure your training script writes [`result.json`](#training-script-contract)
-before exiting, then validate:
+Ensure your training script honors the
+[training-script contract](docs/training-script-contract.md) (writes
+`result.json` matching `automil/schemas/result.schema.json`, exits cleanly
+on SIGTERM with a partial result). Then validate:
 
 ```bash
 automil check
@@ -226,7 +263,14 @@ the complete project context at runtime.
 
 ## Training Script Contract
 
-The only thing autoMIL needs from your code: write `result.json` before exiting.
+The seam between autoMIL and your code is the
+[training-script contract](docs/training-script-contract.md): write a
+`result.json` matching `automil/schemas/result.schema.json` before exiting,
+honor `SIGTERM` for partial flush, declare required env vars in
+`automil/config.yaml: env.required`. Any language, any ML library qualifies.
+
+The minimum valid payload is `{"composite": <float>}`. A full autobench
+example:
 
 ```json
 {
@@ -243,15 +287,24 @@ The only thing autoMIL needs from your code: write `result.json` before exiting.
 }
 ```
 
+The schema is JSON Schema 2020-12 and is validated at ingest by the
+orchestrator; malformed payloads transition the node to `crashed` with a
+schema-location pointer.
+
 <details>
 <summary><b>Environment variables available to your script</b></summary>
 
 | Variable | Value | Description |
 |----------|-------|-------------|
-| `CUDA_VISIBLE_DEVICES` | Physical GPU ID | Masked by orchestrator |
-| `AUTOMIL_GPU` | `0` | Logical device (always 0) |
-| `AUTOMIL_NODE_ID` | `node_0042` | Experiment identifier |
-| `AUTOMIL_DESC` | `"try focal loss"` | Experiment description |
+| `CUDA_VISIBLE_DEVICES` | Physical GPU ID | Masked by orchestrator. |
+| `AUTOMIL_GPU` | `0` | Logical device, always 0 because masking is already applied. |
+| `AUTOMIL_NODE_ID` | `node_0042` | Experiment identifier. |
+| `AUTOMIL_DESC` | `"try focal loss"` | Experiment description. |
+| `AUTOMIL_RUNTIME` | `claude` / `codex` / ... | Runtime declared by the agent for trajectory tagging. |
+
+Vars listed under `env.passthrough` in `config.yaml` are forwarded from the
+orchestrator process to each experiment subprocess. `AUTOBENCH_ROOT`-style
+auto-injection was removed in v1.0 (Phase 8 / DEC-01); declare what you need.
 
 </details>
 
@@ -260,17 +313,47 @@ The only thing autoMIL needs from your code: write `result.json` before exiting.
 ## CLI Reference
 
 ```
-automil init                                    Add autoMIL to current repo
-automil check                                   Validate project setup
-automil submit --node <id> --desc "..." --files <f>   Queue an experiment
-automil rank                                    Show top proposals
-automil propose --parent <id> --desc "..."      Add a proposal
-automil reconcile                               Sync graph with orchestrator
-automil status                                  Show experiment summary
-automil start-loop / stop-loop                  Control agent loop
-automil orchestrator start / stop / status      GPU scheduler daemon
-automil viz start / stop / status               3D visualization dashboard
+# Project setup + validation
+automil init [--runtime <r>] [--no-healthcheck]   Overlay automil/ on current repo
+automil check                                     Validate setup (protected files, env.required, backend, registry)
+automil show-skill --runtime <r>                  Render merged per-runtime skill file to stdout
+
+# Experiment lifecycle
+automil submit --node <id> --desc "..." [--files <f>] [--max-time SEC]
+                                                  Snapshot changed files and queue
+automil cancel <node_id>                          Cancel a running experiment
+automil resubmit <node_id>                        Re-queue a terminal experiment as a new node
+automil rank                                      Show top-ranked proposals (UCB)
+automil propose --parent <id> --desc "..."        Add a brainstormed proposal
+automil reconcile [--recompute-best]              Sync graph with orchestrator state
+automil status                                    Show experiment summary
+
+# Variant registry (Phase 1)
+automil port-variant <node_id>                    Convert a node's overlay into a registered variant module
+automil promote-variant <variant_id>              Move a gate-passing candidate to canonical
+automil refresh-registry                          Regenerate per-kind variants/__init__.py deterministically
+automil apply <node_id>                           Apply a node's variant selection to config.yaml
+automil revert-baseline                           Reset registry.protected paths to base_commit (mandatory pre-stash)
+automil verify-repro <node_id>                    Reproduce a node via the registry path; assert |actual - expected| < tolerance
+
+# Cell budget cap (Phase 4)
+automil cell list / status / show <id>            Inspect cell budget state and consumed seconds
+
+# Generalization gate (Phase 5)
+automil nominate <node_id>                        Mark keep-status node as a gate candidate
+automil promote <candidate_id>                    Run Stage B gate (paired Wilcoxon + bootstrap CI + Bonferroni)
+automil gate manifest / status                    Manage / inspect the gate manifest
+
+# Trajectory recorder (Phase 3)
+automil trajectory record / export / status       JSONL trajectory capture and redacted export bundle
+
+# Loop + daemons
+automil start-loop / stop-loop                    Control agent loop flag
+automil orchestrator start / stop / status        GPU scheduler daemon (best-fit bin packing)
+automil viz start / stop / status                 3D visualization dashboard at localhost:8420
 ```
+
+Run `automil <command> --help` for full flag listings.
 
 ---
 
@@ -282,19 +365,26 @@ your-project/                    # your repo (untouched)
   models/
   train.py
   ...
-  automil/                       # added by autoMIL
-    config.yaml                  # project settings
-    program.md                   # agent instructions
+  automil/                       # added by automil init
+    config.yaml                  # project settings (run, files, env, scoring, cap, gate, backend, hardware)
+    program.md                   # agent instructions for the loop
     learnings.md                 # accumulated insights
     graph.json                   # experiment tree (gitignored)
+    cells/                       # cell budget state (Phase 4)
+    variants/                    # registered variant modules (Phase 1)
+      <parent>/                  #   one subdir per registered parent
+        <name>.py                #   committed code; selected via config
+        __init__.py              #   regenerated by `automil refresh-registry`
     orchestrator/
       queue/                     # pending
+      running/<backend>/         # per-backend live job specs (Phase 6)
       archive/                   # permanent record
         node_0001/
           train.py               # only changed files
           spec.json              # experiment spec
-          run.log                # stdout/stderr
+          run.log                # stdout/stderr (orchestrator-owned, drained from backend.log_iter)
           result.json            # metrics
+          trajectory.jsonl       # agent prompt + tool-call events (Phase 3, gitignored by default)
       completed/                 # notifications
 ```
 
@@ -302,34 +392,38 @@ your-project/                    # your repo (untouched)
 
 ## Agent Compatibility
 
-| Agent | Support Level | How to Start |
-|-------|:------------:|-------------|
-| **Claude Code** | First-class | `/automil-setup` then `/automil` |
-| **Cursor** | Full | Add `automil/program.md` to rules |
-| **Codex** | Full | Include `automil/program.md` in context |
-| **Aider** | Full | `/read automil/program.md` |
-| **Windsurf** | Full | Add `automil/program.md` to Cascade |
+| Runtime | Support Level | How to Start |
+|---------|:------------:|-------------|
+| **Claude Code** | First-class | `automil init --runtime claude` then `/automil-setup`, then `/automil` |
+| **Codex** | First-class | `automil init --runtime codex`; per-runtime SKILL/AGENTS overlay shipped |
+| **OpenCode** | First-class | `automil init --runtime opencode`; per-runtime SKILL/AGENTS overlay shipped |
+| **DeepSeek** | First-class (routed) | `automil init --runtime deepseek-via-opencode` (or `deepseek-via-codex`); DeepSeek is a model accessed through a host runtime |
+| **Cursor / Aider / Windsurf** | Compatible | Point the agent at `automil/program.md` and the [contract](docs/training-script-contract.md), any agent that can read files, edit code, and run shell commands works |
 
-Any agent that can read files, edit code, and run shell commands works.
-See [Agent Compatibility Guide](docs/agent-compatibility.md) for details.
+The canonical skill content lives under `_shared/`; per-runtime directories
+ship only diffs/overlays. `automil show-skill --runtime <r>` renders the
+merged result to stdout. See the [Agent Compatibility Guide](docs/agent-compatibility.md).
 
 ---
 
 ## Examples
 
-| Example | Task | Dataset | Experiments | Result |
-|---------|------|---------|:-----------:|--------|
-| [`ovarian_hrd`](examples/ovarian_hrd/) | Binary HRD classification | 206 ovarian WSIs | 189 | 0.814 -> 0.851 (+4.5%) |
-| [`clwd`](examples/clwd/) | 7-class subtype classification | 408 lung WSIs | - | Skeleton |
-| [`placeholder`](examples/placeholder/) | - | - | - | Template |
+| Example | Task | Library | Notes | Result |
+|---------|------|---------|-------|--------|
+| [`sklearn-iris`](examples/sklearn-iris/) | 3-class iris classification | scikit-learn | Reference second-consumer (~80 LOC, no `automil.*` imports) demonstrating the [training-script contract](docs/training-script-contract.md) | composite ≈ 0.95 |
+| [`ovarian_hrd`](examples/ovarian_hrd/) | Binary HRD classification | CLAM-MB / H-optimus-1 | Pre-v1.0 autonomous run | 0.814 → 0.851 (+4.5%, 189 experiments) |
+| [`clwd`](examples/clwd/) | 7-class lung subtype classification | autobench | Skeleton | - |
+| [`placeholder`](examples/placeholder/) | - | - | Template emitted by `automil init` | - |
 
 ---
 
 ## Documentation
 
-- **[Getting Started](docs/getting-started.md)** - Full setup, configuration, and usage
-- **[Agent Compatibility](docs/agent-compatibility.md)** - Per-agent setup instructions
-- **[Implementation Report](docs/implementation-report.md)** - Architecture and design decisions
+- **[Getting Started](docs/getting-started.md)**, full setup, configuration, and usage
+- **[Training-Script Contract](docs/training-script-contract.md)**, the seam between framework and consumer (6 contract items + SIGTERM patterns)
+- **[Agent Compatibility](docs/agent-compatibility.md)**, per-runtime setup, overlay merge model, multi-runtime asset layout
+- **[Implementation Report](docs/implementation-report.md)**, v1.0 architecture, design decisions, and the 9-phase refactor that produced it
+- **[CHANGELOG](CHANGELOG.md)**, v1.0 milestone release notes (BREAKING migration paths included)
 
 ---
 
