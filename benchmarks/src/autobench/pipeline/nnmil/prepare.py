@@ -69,7 +69,7 @@ def prepare_nnmil_experiment(
         "description": f"{dataset_name} {task_name.upper()} classification, strategy {strategy}",
         "task_type": "classification",
         "task_name": f"{task_name}_{strategy}_{encoder_key}",
-        "evaluation_setting": "5fold",
+        "evaluation_setting": f"{n_splits}fold",
         "feature_dir": h5_dir,
         "labels": labels_map,
         "metric": "bacc",

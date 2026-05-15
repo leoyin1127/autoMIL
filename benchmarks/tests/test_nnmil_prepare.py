@@ -306,7 +306,8 @@ class TestPrepareNnmilExperiment:
             plan = json.load(f)
 
         assert plan["task_type"] == "classification"
-        assert plan["evaluation_setting"] == "5fold"
+        # n_splits=3 was passed; evaluation_setting reflects actual fold count
+        assert plan["evaluation_setting"] == "3fold"
         assert "feature_statistics" in plan
         assert "data_splits" in plan
         assert "training_configuration" in plan
