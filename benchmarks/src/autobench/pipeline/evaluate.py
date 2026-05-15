@@ -72,10 +72,19 @@ def compute_confidence_intervals(
     n_bootstrap: int = 1000,
     seed: int = 42,
 ) -> dict[str, dict[str, float]]:
-    """Compute mean and CI across folds via percentile bootstrap.
+    """Cross-fold percentile bootstrap CI on per-fold scalar metrics.
 
-    Matches upstream nnMIL's CI procedure (lib/nnMIL/.../utils.py:180):
-    resample fold metrics with replacement, take 2.5/97.5 percentiles.
+    Resamples the K fold-level metric values with replacement n_bootstrap
+    times, takes the mean of each resample, and reports 2.5/97.5
+    percentiles of the bootstrap distribution. This is the standard
+    procedure for reporting CIs on K-fold CV summary statistics and
+    captures variability across the random partition.
+
+    Note: this is NOT the same as upstream nnMIL's bootstrap at
+    ``lib/nnMIL/utilities/utils.py:180``, which resamples per-sample
+    predictions on a fixed test set and returns mean+std only. We
+    deliberately use a different statistical object because we report
+    K-fold CV summaries, not single-test-set numbers.
     """
     metric_names = list(fold_metrics[0].keys())
     alpha = 1 - confidence
