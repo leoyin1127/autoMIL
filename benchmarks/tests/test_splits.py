@@ -124,3 +124,76 @@ class TestStandardCV:
             df1 = pd.read_csv(os.path.join(dir1, f"splits_{fold}.csv"))
             df2 = pd.read_csv(os.path.join(dir2, f"splits_{fold}.csv"))
             assert df1.equals(df2)
+
+
+class TestPatientLevelStratification:
+    """Splits must keep all slides of one case in the same partition."""
+
+    @pytest.fixture
+    def multi_slide_csv(self, tmp_path):
+        # 40 cases, 2 slides each (80 slides total). Balanced labels.
+        rows = []
+        for case_idx in range(40):
+            label = "pos" if case_idx % 2 == 0 else "neg"
+            for slide_idx in range(2):
+                rows.append({
+                    "case_id": f"P{case_idx:03d}",
+                    "slide_id": f"P{case_idx:03d}_slide{slide_idx}",
+                    "label": label,
+                })
+        csv_path = tmp_path / "multi.csv"
+        pd.DataFrame(rows).to_csv(csv_path, index=False)
+        return str(csv_path)
+
+    def test_no_case_crosses_train_val_test(self, multi_slide_csv, tmp_path, registries):
+        splits_dir = str(tmp_path / "splits_multi")
+        strategy_cfg = registries.strategy_registry["standard"]
+        create_strategy_splits(
+            multi_slide_csv, splits_dir, strategy_cfg, n_splits=4, seed=42,
+        )
+        src = pd.read_csv(multi_slide_csv)
+        slide_to_case = src.set_index("slide_id")["case_id"].to_dict()
+        for fold in range(4):
+            sdf = pd.read_csv(os.path.join(splits_dir, f"splits_{fold}.csv"))
+            train_cases = {slide_to_case[s] for s in sdf["train"].dropna()}
+            val_cases = {slide_to_case[s] for s in sdf["val"].dropna()}
+            test_cases = {slide_to_case[s] for s in sdf["test"].dropna()}
+            assert not (train_cases & val_cases), f"fold {fold}: train∩val cases"
+            assert not (train_cases & test_cases), f"fold {fold}: train∩test cases"
+            assert not (val_cases & test_cases), f"fold {fold}: val∩test cases"
+
+    def test_both_slides_of_a_case_in_same_partition(self, multi_slide_csv, tmp_path, registries):
+        splits_dir = str(tmp_path / "splits_multi")
+        strategy_cfg = registries.strategy_registry["standard"]
+        create_strategy_splits(
+            multi_slide_csv, splits_dir, strategy_cfg, n_splits=4, seed=42,
+        )
+        src = pd.read_csv(multi_slide_csv)
+        slide_to_case = src.set_index("slide_id")["case_id"].to_dict()
+        for fold in range(4):
+            sdf = pd.read_csv(os.path.join(splits_dir, f"splits_{fold}.csv"))
+            for partition_col in ("train", "val", "test"):
+                slides = sdf[partition_col].dropna().tolist()
+                case_to_slides_here: dict = {}
+                for s in slides:
+                    case_to_slides_here.setdefault(slide_to_case[s], []).append(s)
+                # Every case in this partition should contribute BOTH its slides
+                for case, slides_here in case_to_slides_here.items():
+                    assert len(slides_here) == 2, (
+                        f"fold {fold} {partition_col}: case {case} has only "
+                        f"{len(slides_here)} slide(s), expected 2"
+                    )
+
+    def test_raises_when_case_id_missing(self, tmp_path, registries):
+        df = pd.DataFrame({
+            "slide_id": ["s0", "s1", "s2"],
+            "label": ["a", "b", "a"],
+        })
+        csv_path = tmp_path / "no_case.csv"
+        df.to_csv(csv_path, index=False)
+        splits_dir = str(tmp_path / "splits_nc")
+        strategy_cfg = registries.strategy_registry["standard"]
+        with pytest.raises(ValueError, match="case_id"):
+            create_strategy_splits(
+                str(csv_path), splits_dir, strategy_cfg, n_splits=2, seed=42,
+            )

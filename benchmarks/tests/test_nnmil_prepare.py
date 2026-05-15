@@ -113,8 +113,8 @@ class TestAnalyzeFeatures:
         expected = int(stats["num_patches_per_slide"]["median"] * 0.5)
         assert stats["recommended_max_seq_length"] == expected
 
-    def test_max_seq_length_capped_at_4096(self, tmp_path):
-        """When median patches are very large, max_seq_length caps at 4096."""
+    def test_max_seq_length_uncapped(self, tmp_path):
+        """Matches nnMIL planner.py:129 — int(median * 0.5) with no upper cap."""
         h5_dir = tmp_path / "features_big"
         h5_dir.mkdir()
         for i in range(5):
@@ -123,8 +123,8 @@ class TestAnalyzeFeatures:
                 f.create_dataset("coords", data=np.zeros((15000, 2), dtype=np.int32))
 
         stats = _analyze_features(str(h5_dir), [f"slide_{i:05d}" for i in range(5)], 768)
-        # median=15000, 0.5*15000=7500 > 4096 -> should be capped
-        assert stats["recommended_max_seq_length"] == 4096
+        # median=15000, 0.5*15000=7500 -> no cap
+        assert stats["recommended_max_seq_length"] == 7500
 
 
 # ---------------------------------------------------------------------------
@@ -149,25 +149,37 @@ class TestGenerateTrainingConfig:
         config = _generate_training_config(stats, n_samples=50)
         assert config["batch_size"] == 16
 
-    def test_large_dataset_larger_batch(self):
+    def test_large_dataset_batch_matches_planner(self):
+        """planner.py:639-657 — n_train>800 → batch_size=32 (clamped to [16,48])."""
         stats = {
             "feature_dimension": 768,
             "num_patches_per_slide": {"median": 400},
         }
-        config = _generate_training_config(stats, n_samples=800)
-        assert config["batch_size"] == 48
+        config = _generate_training_config(stats, n_samples=2000)
+        assert config["batch_size"] == 32
 
-    def test_max_seq_length_capped_at_4096(self):
-        """With high median patches, max_seq_length should cap at 4096."""
+    def test_mid_dataset_batch_matches_planner(self):
+        """planner.py:643 — 200<=n_train<=800 → 24 if <400 else 32."""
         stats = {
             "feature_dimension": 768,
-            "num_patches_per_slide": {"median": 13236},  # real-world median
+            "num_patches_per_slide": {"median": 400},
+        }
+        cfg_400 = _generate_training_config(stats, n_samples=400)
+        assert cfg_400["batch_size"] == 24
+        cfg_600 = _generate_training_config(stats, n_samples=600)
+        assert cfg_600["batch_size"] == 32
+
+    def test_max_seq_length_uncapped(self):
+        """planner.py:129 — int(median * 0.5) with no upper cap."""
+        stats = {
+            "feature_dimension": 768,
+            "num_patches_per_slide": {"median": 13236},
         }
         config = _generate_training_config(stats, n_samples=200)
-        assert config["max_seq_length"] == 4096
+        assert config["max_seq_length"] == 6618
 
-    def test_vram_aware_batch_high_dim_encoder(self):
-        """virchow2 (2560-dim) should get a smaller batch than conch_v15 (768-dim)."""
+    def test_batch_size_independent_of_feat_dim(self):
+        """Planner clamps to [16,48] regardless of encoder dim."""
         stats_virchow2 = {
             "feature_dimension": 2560,
             "num_patches_per_slide": {"median": 13236},
@@ -178,20 +190,8 @@ class TestGenerateTrainingConfig:
         }
         cfg_virchow2 = _generate_training_config(stats_virchow2, n_samples=200)
         cfg_conch = _generate_training_config(stats_conch, n_samples=200)
-        # virchow2 should have smaller batch due to VRAM constraint
-        assert cfg_virchow2["batch_size"] < cfg_conch["batch_size"]
-        # Both should have max_seq_length capped at 4096
-        assert cfg_virchow2["max_seq_length"] == 4096
-        assert cfg_conch["max_seq_length"] == 4096
-
-    def test_vram_batch_floor_is_8(self):
-        """Even with absurdly large feat_dim, batch should not go below 8."""
-        stats = {
-            "feature_dimension": 10000,
-            "num_patches_per_slide": {"median": 13236},
-        }
-        config = _generate_training_config(stats, n_samples=200)
-        assert config["batch_size"] >= 8
+        assert cfg_virchow2["batch_size"] == cfg_conch["batch_size"]
+        assert 16 <= cfg_virchow2["batch_size"] <= 48
 
 
 # ---------------------------------------------------------------------------

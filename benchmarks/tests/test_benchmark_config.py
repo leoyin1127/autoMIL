@@ -86,7 +86,7 @@ class TestTrainConfig:
     def test_defaults(self):
         t = TrainConfig()
         assert t.max_epochs == 200
-        assert t.lr == 1e-4
+        assert t.lr == 2e-4
         assert t.early_stopping is True
         assert t.weighted_sample is True
         assert t.seed == 42
@@ -160,14 +160,12 @@ class TestNnmilRuntimeOverrides:
     def test_default_overrides_include_num_workers(self):
         assert NNMIL_RUNTIME_DEFAULTS["num_workers"] == 0
 
-    def test_attention_model_override(self):
-        cfg = get_nnmil_runtime_overrides("vision_transformer")
-        assert cfg["num_workers"] == 0
-        assert cfg["batch_size"] == 4
-        assert cfg["max_seq_length"] == 4096
-
-    def test_non_overridden_model_gets_defaults_only(self):
+    def test_any_model_gets_defaults_only(self):
+        # NNMIL_MODEL_RUNTIME_OVERRIDES is empty post-Level-D revert; every
+        # model_type returns just NNMIL_RUNTIME_DEFAULTS.
         cfg = get_nnmil_runtime_overrides("ab_mil")
+        assert cfg == {"num_workers": 0}
+        cfg = get_nnmil_runtime_overrides("vision_transformer")
         assert cfg == {"num_workers": 0}
 
     def test_registry_keys_are_valid_nnmil_models(self, registries):

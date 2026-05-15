@@ -153,7 +153,7 @@ def _analyze_features(
             "percentile_75": float(np.percentile(arr, 75)),
             "percentile_95": float(np.percentile(arr, 95)),
         },
-        "recommended_max_seq_length": min(int(median * 0.5), 4096),
+        "recommended_max_seq_length": int(median * 0.5),
     }
 
 
