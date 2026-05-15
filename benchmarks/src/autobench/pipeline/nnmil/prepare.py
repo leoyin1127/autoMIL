@@ -101,7 +101,13 @@ def prepare_nnmil_experiment(
         **dataset_json,
         "feature_statistics": feature_stats,
         "data_splits": data_splits,
-        "training_configuration": _generate_training_config(feature_stats, len(task_df), n_classes=len(label_dict)),
+        "training_configuration": _generate_training_config(
+            feature_stats,
+            len(task_df),
+            n_classes=len(label_dict),
+            metric=dataset_json["metric"],
+            min_class_count=int(task_df["label"].value_counts().min()),
+        ),
         "random_seed": seed,
     }
     with open(plan_path, "w") as f:
@@ -212,34 +218,65 @@ def _load_splits_as_nnmil_format(
     return data_splits
 
 
-def _generate_training_config(feature_stats: dict, n_samples: int, n_classes: int = 2) -> dict:
-    """Generate nnMIL training configuration from feature statistics."""
+def _generate_training_config(
+    feature_stats: dict,
+    n_samples: int,
+    n_classes: int = 2,
+    metric: str = "bacc",
+    min_class_count: int | None = None,
+) -> dict:
+    """Generate nnMIL training configuration, matching upstream planner.
+
+    Replicates ``lib/nnMIL/preprocessing/experiment_planner.py:573-725``
+    so the wrapper's plan is bit-identical to what
+    ``nnMIL_plan_experiment.py`` would emit.
+    """
     feat_dim = feature_stats["feature_dimension"]
     hidden_dim = max(256, feat_dim // 4)
     median_patches = feature_stats["num_patches_per_slide"]["median"]
 
-    # Cap max_seq_length at 4096 (standard in MIL literature: AB-MIL, TransMIL, DSMIL).
-    # Training uses random subsampling per epoch so capping acts as data augmentation.
-    # Val/test always use ALL patches (dataset overrides max_seq_length=None).
-    MAX_SEQ_LENGTH_CAP = 4096
-    max_seq_length = min(int(median_patches * 0.5), MAX_SEQ_LENGTH_CAP)
+    # planner.py:129 — no cap on max_seq_length
+    max_seq_length = int(median_patches * 0.5)
 
-    # VRAM-aware batch_size: each experiment must fit in ~5 GB.
-    # Conservative estimate: 20 bytes per element (bf16 fwd + fp32 bwd + overhead).
-    VRAM_BUDGET_BYTES = 5 * 1024**3
-    MODEL_OVERHEAD_BYTES = int(0.5 * 1024**3)
-    per_sample_bytes = max_seq_length * feat_dim * 20
-    vram_batch = max(8, (VRAM_BUDGET_BYTES - MODEL_OVERHEAD_BYTES) // per_sample_bytes)
+    # planner.py:596 fallback: train set ≈ 80% of total when split info absent
+    num_train_samples = int(n_samples * 0.8)
 
-    # Data-driven batch minimum: larger for smaller datasets to ensure minority class visibility
-    if n_samples < 100:
-        data_batch = 16
-    elif n_samples < 500:
-        data_batch = 32
+    # planner.py:602-657 batch_size formula (replicated verbatim, including the
+    # buggy minority-visibility upgrade where min(candidates)=16 always no-ops)
+    batch_size_candidates: list[int] = []
+    if min_class_count is not None and min_class_count > 0:
+        p_rare = min_class_count / n_samples
+        batch_size_candidates.append(int(3 / p_rare))
+    batch_size_candidates.extend([16, 48])
+    if num_train_samples < 200:
+        batch_size_candidates.append(16)
+    elif num_train_samples <= 800:
+        batch_size_candidates.extend([24, 32])
     else:
-        data_batch = 48
+        batch_size_candidates.extend([32, 48])
 
-    batch_size = min(data_batch, vram_batch)
+    if num_train_samples < 200:
+        batch_size = 16
+    elif num_train_samples <= 800:
+        batch_size = 24 if num_train_samples < 400 else 32
+    else:
+        batch_size = 32
+
+    minority_constraint = [bs for bs in batch_size_candidates if 16 <= bs <= 48]
+    if minority_constraint:
+        min_minority = min(minority_constraint)
+        if min_minority > batch_size:
+            batch_size = min(min_minority, 48)
+    batch_size = max(16, min(48, batch_size))
+
+    # planner.py:660-674 — adaptive batch_sampler on metric
+    metric_lower = metric.lower()
+    if "auc" in metric_lower:
+        batch_sampler = "auc"
+    elif metric_lower in ("bacc", "balanced_accuracy", "f1", "f1_score"):
+        batch_sampler = "balanced"
+    else:
+        batch_sampler = "random"
 
     return {
         "feature_dimension": feat_dim,
@@ -247,11 +284,11 @@ def _generate_training_config(feature_stats: dict, n_samples: int, n_classes: in
         "max_seq_length": max_seq_length,
         "use_original_length": False,
         "batch_size": batch_size,
+        "batch_sampler": batch_sampler,
         "learning_rate": 3e-4,
-        "batch_sampler": "balanced",
-        "num_epochs": 100,
-        "warmup_epochs": 10 if n_samples < 200 else 5,
         "weight_decay": 0.01 if hidden_dim >= 512 else 1e-4,
+        "num_epochs": 100,
+        "warmup_epochs": 10 if num_train_samples < 500 else 5,
         "dropout": 0.25,
         "patience": 10,
         "num_classes": n_classes,
