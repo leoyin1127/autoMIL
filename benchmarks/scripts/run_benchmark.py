@@ -80,9 +80,9 @@ def parse_args() -> argparse.Namespace:
 
     # Training
     p.add_argument("--max_epochs", type=int, default=200)
-    p.add_argument("--lr", type=float, default=1e-4)
+    p.add_argument("--lr", type=float, default=2e-4)
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--n_folds", type=int, default=5)
+    p.add_argument("--n_folds", type=int, default=10)
     p.add_argument("--no_early_stopping", action="store_true")
     p.add_argument("--patience", type=int, default=20)
     p.add_argument("--stop_epoch", type=int, default=50)
