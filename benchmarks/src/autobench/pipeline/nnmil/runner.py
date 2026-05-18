@@ -6,6 +6,7 @@ import json
 import os
 
 from autobench.pipeline.config import ExperimentConfig
+from autobench.pipeline.clam.runner import _write_fold_result_json
 from autobench.pipeline.evaluate import compute_confidence_intervals
 from autobench.pipeline.nnmil.train import train_nnmil_fold
 
@@ -19,6 +20,14 @@ def run_nnmil_experiment(
 
     Returns a summary dict in the SAME schema as the CLAM runner
     (``run_experiment``), enabling seamless aggregation.
+
+    Per-fold archive files (fold_<i>_result.json under
+    AUTOMIL_RESULTS_DIR) are written via the shared helper from
+    ``clam.runner``. The autoMIL cap-killed reconcile path
+    (``automil/cells/reconcile.py::reconcile_budget_kill``) walks
+    ``archive/<node>/fold_*_result.json``; without these files, nnMIL
+    cap-killed nodes would always be reported as ``partial_folds=0``
+    and marked crashed even when several folds had completed cleanly.
     """
     results_dir = os.path.join(benchmark_dir, "results", exp_cfg.results_subdir)
     os.makedirs(results_dir, exist_ok=True)
@@ -44,6 +53,7 @@ def run_nnmil_experiment(
             exp_cfg, plan_path, fold, results_dir, device=device,
         )
         fold_results.append(result)
+        _write_fold_result_json(fold, result)
 
     test_fold_metrics = [fr["test_metrics"] for fr in fold_results]
     val_fold_metrics = [fr["val_metrics"] for fr in fold_results]

@@ -78,6 +78,12 @@ def run_smmile_experiment(
         split_subdir = task_name
     splits_dir = os.path.join(benchmark_dir, "splits", split_subdir)
 
+    # Per-fold archive helper: cap-killed reconcile walks
+    # archive/<node>/fold_*_result.json; nnMIL and CLAM both emit these
+    # via _write_fold_result_json, so SMMILe must too for symmetric
+    # autoMIL recovery on cap-killed runs.
+    from autobench.pipeline.clam.runner import _write_fold_result_json
+
     fold_results: list[dict] = []
     for fold in range(n_folds):
         print(f"\n  [{task_name}/{encoder_key}] Fold {fold}/{n_folds}")
@@ -94,6 +100,7 @@ def run_smmile_experiment(
             fea_dim=fea_dim, device=device, seed=seed, cfg=cfg,
         )
         fold_results.append(result)
+        _write_fold_result_json(fold, result)
 
     # Aggregate across folds
     test_fold_metrics = [fr["test_metrics"] for fr in fold_results]

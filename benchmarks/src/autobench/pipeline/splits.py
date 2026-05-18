@@ -43,8 +43,10 @@ def create_strategy_splits(
     Parameters
     ----------
     strategy_cfg:
-        Reserved for future use.  Currently ignored — all strategies
-        use patient-stratified k-fold.
+        Only ``standard`` is implemented today. A non-``standard`` value
+        is rejected explicitly so a new strategy added to a dataset YAML
+        doesn't silently produce in-distribution splits while the
+        operator believes they configured a held-out cohort.
 
     Returns a list of paths to the generated split CSVs.
     """
@@ -54,6 +56,16 @@ def create_strategy_splits(
             f"Task CSV {task_csv} is missing required 'case_id' column. "
             "Patient-level stratification cannot proceed."
         )
+    if strategy_cfg is not None:
+        strategy_name = getattr(strategy_cfg, "strategy", None)
+        if strategy_name and strategy_name != "standard":
+            raise NotImplementedError(
+                f"strategy {strategy_name!r} is not implemented; only "
+                "'standard' (patient-stratified k-fold) is supported. "
+                "A held-out cohort split would silently regress to "
+                "in-distribution if we let this fall through — implement "
+                "the strategy branch explicitly before using it."
+            )
     os.makedirs(splits_dir, exist_ok=True)
 
     return _splits_standard_cv(df, splits_dir, n_splits, seed)
