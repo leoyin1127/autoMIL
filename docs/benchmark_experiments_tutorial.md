@@ -19,7 +19,16 @@ This gives a focused benchmark grid of **tasks × 3 encoders × 2 models**, enou
 
 **Pipeline:** Data preparation → Experiment grid generation → Multi-GPU training → Cross-fold aggregation → Results export
 
-**Output:** Per-experiment `summary.json` with mean/std/95% CI across 5-fold CV, plus aggregated CSV tables.
+**Output:** Per-experiment `summary.json` with mean/std/95% CI across 10-fold patient-stratified CV, plus aggregated CSV tables.
+
+> **Methodology note.** The wrapper's defaults now match the published CLAM
+> README invocation (`--lr 2e-4`, `--k 10`, `--early_stopping`,
+> `--weighted_sample`) and use **patient-level stratified k-fold** on
+> `case_id`. All slides from one case are forced into the same partition.
+> Earlier campaign artifacts (pre-2026-05) used slide-level splits, which
+> leaks same-patient signal across train/val/test and inflates reported
+> AUCs on cohorts with multi-slide cases. Numbers from those runs are not
+> directly comparable to current runs.
 
 ## Prerequisites
 
@@ -67,7 +76,7 @@ The benchmark pipeline has four phases, all handled automatically by the SLURM s
 ```
 Phase 1: Data Preparation (automatic)
   mapping CSV → task CSVs (case_id, slide_id, label)
-                → stratified k-fold splits (5 folds)
+                → patient-stratified k-fold splits on case_id (10 folds)
                 → H5 features → PyTorch .pt tensors
 
 Phase 2: Experiment Grid Generation
@@ -172,7 +181,7 @@ uv run python benchmarks/scripts/run_benchmark.py \
     --no_wandb
 ```
 
-This runs 1 experiment (5 folds) and takes ~10-30 minutes depending on dataset size.
+This runs 1 experiment (10 folds) and takes ~20-60 minutes depending on dataset size.
 
 #### Option B: SLURM Batch Job (recommended)
 
@@ -399,7 +408,7 @@ This is the key output. Each experiment produces one:
   "model_type": "clam_mb",
   "framework": "clam",
   "strategy": "standard",
-  "n_folds": 5,
+  "n_folds": 10,
   "seed": 42,
   "test": {
     "auc_roc":           {"mean": 0.72, "std": 0.08, "ci_low": 0.62, "ci_high": 0.82},
@@ -552,13 +561,13 @@ Experiment Grid:
 
 Training:
   --max_epochs N            Maximum training epochs (default: 200)
-  --lr RATE                 Learning rate (default: 1e-4)
+  --lr RATE                 Learning rate (default: 2e-4, matches CLAM README)
   --seed N                  Random seed (default: 42)
-  --n_folds N               Number of CV folds (default: 5)
-  --no_early_stopping       Disable early stopping
+  --n_folds N               Number of CV folds (default: 10, matches CLAM README --k 10)
+  --no_early_stopping       Disable early stopping (default: on, matches CLAM README)
   --patience N              Early stopping patience (default: 20)
   --stop_epoch N            Minimum epochs before early stopping (default: 50)
-  --no_weighted_sample      Disable class-weighted sampling
+  --no_weighted_sample      Disable class-weighted sampling (default: on, matches CLAM README)
 
 Logging:
   --wandb_project NAME      W&B project (default: {dataset}-benchmark)
@@ -621,9 +630,9 @@ These are rough estimates based on a single H100 GPU. Multi-GPU (4× H100) divid
 | `ab_mil`, `ds_mil` | 10-30 min | ~3-4 GB | Extended benchmark |
 | `trans_mil`, `vision_transformer`, `rrt` | 30-90 min | ~8-16 GB | Extended benchmark, memory-intensive |
 
-**Standard benchmark** (recommended): 2 tasks × 3 encoders × 2 models × 5 folds = 60 fold trainings. On 4× H100: **~1-3 hours**.
+**Standard benchmark** (recommended): 2 tasks × 3 encoders × 2 models × 10 folds = 120 fold trainings. On 4× H100: **~2-6 hours**.
 
-**Extended benchmark** (all models): 2 tasks × 3 encoders × 12 models × 5 folds = 360 fold trainings. On 4× H100: **~6-12 hours**.
+**Extended benchmark** (all models): 2 tasks × 3 encoders × 12 models × 10 folds = 720 fold trainings. On 4× H100: **~12-24 hours**.
 
 For large datasets (>800 slides), increase the SLURM time limit:
 
