@@ -7,7 +7,8 @@ Six corner cases the legacy `partition('=')` parser silently mishandled
 2. `export KEY=value` produces key `KEY`, not `export KEY`.
 3. Inline `# comment` after an unquoted value is dropped from the value.
 4. Pre-existing `os.environ` entries are NOT overwritten (setdefault semantic).
-5. `<root>/.env` is searched before `<root>/benchmarks/.env` (first writer wins).
+5. `<root>/.env` is always loaded; additional files come from
+   `env.dotenv_files` in automil/config.yaml. First writer wins.
 6. Missing files are silently ignored — constructor never raises.
 """
 from __future__ import annotations
@@ -30,15 +31,23 @@ def orch_factory(tmp_path, monkeypatch):
     """Build an orchestrator pointed at tmp_path with a minimal automil/ skeleton.
 
     Returns (factory_callable, project_root_path). Calling the factory
-    constructs a fresh ExperimentOrchestrator whose `__init__` invokes
-    `_load_dotenv` against `tmp_path`.
+    with an optional ``dotenv_files`` list constructs a fresh
+    ExperimentOrchestrator whose ``__init__`` invokes ``_load_dotenv``
+    against ``tmp_path``.
     """
     automil_dir = tmp_path / "automil"
     automil_dir.mkdir()
-    (automil_dir / "config.yaml").write_text("orchestrator:\n  poll_interval_sec: 5\n")
+    config_path = automil_dir / "config.yaml"
+    config_path.write_text("orchestrator:\n  poll_interval_sec: 5\n")
     (tmp_path / ".git").mkdir()  # so _find_git_root succeeds if walked
 
-    def _factory():
+    def _factory(dotenv_files: list[str] | None = None):
+        if dotenv_files:
+            entries = "\n".join(f"    - {p}" for p in dotenv_files)
+            config_path.write_text(
+                "orchestrator:\n  poll_interval_sec: 5\n"
+                "env:\n  dotenv_files:\n" + entries + "\n"
+            )
         return ExperimentOrchestrator(project_root=tmp_path, automil_dir=automil_dir)
 
     return _factory, tmp_path
@@ -78,8 +87,12 @@ def test_no_override_existing_env(orch_factory, monkeypatch):
     assert os.environ.get("PREEXISTING") == "from_shell"
 
 
-def test_search_order_root_then_benchmarks(orch_factory, monkeypatch):
-    """`<root>/.env` is loaded BEFORE `<root>/benchmarks/.env`; first writer wins."""
+def test_search_order_root_then_configured(orch_factory, monkeypatch):
+    """`<root>/.env` is loaded BEFORE configured extra dotenv files; first writer wins.
+
+    Extra files are listed in ``env.dotenv_files`` of automil/config.yaml,
+    not hardcoded to any consumer-specific directory.
+    """
     factory, root = orch_factory
     _write_env(root / ".env", "OVERLAP=root_wins\n")
     _write_env(
@@ -88,13 +101,25 @@ def test_search_order_root_then_benchmarks(orch_factory, monkeypatch):
     )
     monkeypatch.delenv("OVERLAP", raising=False)
     monkeypatch.delenv("ONLY_BENCH", raising=False)
-    factory()
+    factory(dotenv_files=["benchmarks/.env"])
     assert os.environ.get("OVERLAP") == "root_wins"
     assert os.environ.get("ONLY_BENCH") == "ok"
 
 
+def test_benchmarks_env_not_loaded_without_config(orch_factory, monkeypatch):
+    """`benchmarks/.env` is NOT loaded by default — framework purity (memory rule:
+    autoMIL is generic; autobench is one consumer). Consumers opt in via
+    ``env.dotenv_files``.
+    """
+    factory, root = orch_factory
+    _write_env(root / "benchmarks" / ".env", "BENCH_ONLY=should_not_load\n")
+    monkeypatch.delenv("BENCH_ONLY", raising=False)
+    factory()  # no dotenv_files configured
+    assert "BENCH_ONLY" not in os.environ
+
+
 def test_missing_files_is_noop(orch_factory):
-    """Missing `.env` AND `benchmarks/.env` is a silent no-op — no exception."""
+    """Missing `.env` is a silent no-op — no exception."""
     factory, _ = orch_factory
     factory()  # Must not raise
 

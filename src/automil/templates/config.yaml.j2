@@ -67,7 +67,11 @@ orchestrator:
 
 viz:
   port: 8420
-  host: "0.0.0.0"
+  # Default 127.0.0.1: dashboard only reachable from the host machine.
+  # Set to "0.0.0.0" if you need to view it from another host on a trusted
+  # network. The SSE stream has no auth and surfaces PIDs, GPU utilization,
+  # and node descriptions.
+  host: "127.0.0.1"
 
 # --- Registry (Phase 1, REG-04 / REG-06 / REG-07) ---
 registry:
@@ -110,6 +114,15 @@ env:
   passthrough:
     - AUTOMIL_*       # All automil framework variables (includes AUTOMIL_RUNTIME)
     - AUTOMIL_RUNTIME # Runtime declaration: explicit, never inferred (D-87)
+
+  # Additional .env files to load (paths relative to project_root). The
+  # orchestrator always loads `.env` at the project root; entries here are
+  # additive. First-write-wins, and the shell environment overrides both.
+  # Use this when the project keeps environment variables in a subdirectory
+  # (e.g. a consumer package with its own `.env`). Example:
+  #   dotenv_files:
+  #     - "configs/.env.local"
+  dotenv_files: []
 
 # --- Composite scoring (DEC-04 / D-200) ---
 # scoring.formula is documentation-only: the framework does NOT evaluate it.

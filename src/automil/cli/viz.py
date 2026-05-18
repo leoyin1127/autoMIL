@@ -15,11 +15,18 @@ def viz_group():
 
 @viz_group.command("start")
 @click.option("--port", default=8420, help="Server port")
-def viz_start(port: int):
+@click.option(
+    "--host", default=None,
+    help="Bind address (default: 127.0.0.1; falls back to viz.host in "
+         "automil/config.yaml then AUTOMIL_VIZ_HOST env var). Pass 0.0.0.0 "
+         "only on trusted networks — the dashboard exposes PIDs and node "
+         "descriptions and has no auth.",
+)
+def viz_start(port: int, host: str | None):
     """Start the 3D visualization dashboard."""
     adir = _find_automil_dir()
     from automil.viz.server import cmd_start
-    cmd_start(port=port, project_root=adir.parent)
+    cmd_start(port=port, project_root=adir.parent, host=host)
 
 
 @viz_group.command("stop")

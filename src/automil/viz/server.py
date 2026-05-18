@@ -262,7 +262,11 @@ def create_app() -> web.Application:
     return app
 
 
-def cmd_start(port: int = DEFAULT_PORT, project_root: Path | None = None):
+def cmd_start(
+    port: int = DEFAULT_PORT,
+    project_root: Path | None = None,
+    host: str | None = None,
+):
     global GRAPH_FILE, GPU_STATE_FILE, PID_FILE, LOG_FILE
     if project_root is None:
         project_root = Path.cwd()
@@ -271,6 +275,24 @@ def cmd_start(port: int = DEFAULT_PORT, project_root: Path | None = None):
     GPU_STATE_FILE = automil_dir / "orchestrator" / "gpu_state.json"
     PID_FILE = automil_dir / "orchestrator" / "viz_server.pid"
     LOG_FILE = automil_dir / "orchestrator" / "viz_server.log"
+
+    # Bind host resolution order: explicit arg > automil/config.yaml viz.host
+    # > AUTOMIL_VIZ_HOST env var > 127.0.0.1 (loopback default).
+    # Loopback default keeps the dashboard off the LAN unless the operator
+    # opts in explicitly. The SSE stream and gpu_state.json carry PIDs,
+    # GPU utilization, and node descriptions; on a shared workstation those
+    # should not be browseable by every host on the subnet.
+    if host is None:
+        cfg_host: str | None = None
+        config_path = automil_dir / "config.yaml"
+        if config_path.exists():
+            try:
+                import yaml as _yaml
+                cfg = _yaml.safe_load(config_path.read_text()) or {}
+                cfg_host = (cfg.get("viz") or {}).get("host")
+            except Exception:
+                cfg_host = None
+        host = cfg_host or os.environ.get("AUTOMIL_VIZ_HOST") or "127.0.0.1"
 
     if PID_FILE.exists():
         pid = int(PID_FILE.read_text().strip())
@@ -300,9 +322,17 @@ def cmd_start(port: int = DEFAULT_PORT, project_root: Path | None = None):
         app = create_app()
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, "0.0.0.0", port, shutdown_timeout=2.0)
+        site = web.TCPSite(runner, host, port, shutdown_timeout=2.0)
         await site.start()
-        logging.info(f"Viz server running on http://localhost:{port}")
+        if host in ("0.0.0.0", "::"):
+            logging.warning(
+                "Viz server bound to %s:%d — reachable from any host on the "
+                "network. The SSE stream exposes graph.json and gpu_state.json "
+                "(PIDs, GPU utilization, node descriptions). Set viz.host to "
+                "'127.0.0.1' in automil/config.yaml unless remote access is "
+                "intended.", host, port,
+            )
+        logging.info(f"Viz server running on http://{host}:{port}")
 
         # Wait for shutdown signal
         stop_event = asyncio.Event()

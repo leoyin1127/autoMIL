@@ -12,10 +12,10 @@ autoMIL is an autonomous experiment framework for Multiple Instance Learning in 
 autoMIL overlays an `automil/` subdirectory onto an existing git repo. It does NOT create train.py or prepare.py. The agent scopes the full codebase and determines what to edit.
 
 **Core modules:**
-- `graph.py` - Experiment tree tracking with UCB-inspired scoring and Pareto-dominance keep/discard
+- `graph.py` - Experiment tree tracking with UCB-inspired scoring and composite-score dominance for keep/discard
 - `runner.py` - Git worktree overlay for isolated parallel experiment execution
-- `orchestrator.py` - GPU scheduler daemon with best-fit bin packing
-- `cli.py` - Click-based CLI wrapping all operations
+- `backends/_orchestrator_daemon.py` - GPU scheduler daemon with best-fit bin packing (entrypoint at `orchestrator.py`)
+- `cli/` - Click-based CLI wrapping all operations
 - `viz/server.py` - Real-time 3D dashboard (aiohttp + SSE + Three.js)
 
 **Key design decisions:**
@@ -23,9 +23,10 @@ autoMIL overlays an `automil/` subdirectory onto an existing git repo. It does N
 - Experiments are tracked as a directed tree in `graph.json`, not a flat log
 - Each experiment stores only its changed files (overlay), not the full repo
 - The orchestrator runs experiments in git worktrees, overlaying modified files on a base commit
-- Keep/discard is computed by the framework via Pareto dominance, not by the training script
+- Keep/discard is decided by the framework via single-axis composite-score comparison (child kept iff `child.composite > parent.composite`); the training script reports the composite scalar via `result.json` (see D-200)
 - `results.tsv` is written solely by the orchestrator from `result.json`, never by train.py
 - `_recover_orphans()` only runs in the daemon loop (`run()`), never on construction (to prevent `status`/`stop` from corrupting live runs)
+- Viz dashboard binds 127.0.0.1 by default; opt in to LAN access via `viz.host` in config.yaml (no auth on the SSE stream)
 
 ## Commands
 

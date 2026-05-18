@@ -101,6 +101,8 @@ env:
     - AUTOBENCH_OVARIAN_ROOT
     - AUTOBENCH_PLACEHOLDER_ROOT
     - AUTOBENCH_TCGA_LUAD_ROOT
+  dotenv_files:
+    - benchmarks/.env
 
 viz:
   port: 8421

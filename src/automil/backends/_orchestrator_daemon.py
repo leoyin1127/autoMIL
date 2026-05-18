@@ -532,16 +532,36 @@ class ExperimentOrchestrator:
         (which is typically gitignored). Loading here ensures the
         orchestrator's child processes inherit the variables.
 
+        The set of files is configurable via ``env.dotenv_files`` in
+        ``automil/config.yaml`` (list of paths relative to project_root).
+        ``.env`` at the project root is always loaded if it exists; the
+        config field is additive and consumer-specific (consumer projects
+        whose .env lives outside the project root add the relative path
+        here).
+
         Uses python-dotenv so quoted values, the ``export`` prefix, and
         inline ``# comments`` after unquoted values are handled
         correctly (CLN-03; see CONCERNS.md §"Naive .env parser").
         Pre-existing entries in ``os.environ`` are preserved
         (``setdefault`` semantic) — the shell wins over the file.
         """
-        candidates = [
-            self.project_root / ".env",
-            self.project_root / "benchmarks" / ".env",
-        ]
+        env_cfg = (self.config or {}).get("env", {}) if isinstance(self.config, dict) else {}
+        extra_files = env_cfg.get("dotenv_files", []) or []
+
+        candidates: list[Path] = [self.project_root / ".env"]
+        for rel in extra_files:
+            rel_str = str(rel).strip()
+            if not rel_str:
+                continue
+            p = Path(rel_str)
+            if p.is_absolute():
+                logger.warning(
+                    "env.dotenv_files entry %r is absolute; ignored "
+                    "(paths must be relative to project root)", rel_str,
+                )
+                continue
+            candidates.append(self.project_root / p)
+
         for env_file in candidates:
             if not env_file.is_file():
                 continue
