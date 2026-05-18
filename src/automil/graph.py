@@ -60,26 +60,27 @@ def locked_update(graph_path: str | Path):
 
 class ExperimentGraph:
     # Generic by default. Consumers that want technique-name normalisation
-    # (MIL pathology, sklearn-iris, ...) pass ``technique_map=`` to the
-    # constructor or set it via config. The framework ships no MIL- or
-    # pathology-specific keys here; the previous bundled map leaked the
-    # first consumer's vocabulary into the generic core. The autobench
-    # consumer's normalisation map is now at
-    # ``benchmarks/src/autobench/pipeline/technique_map.py``.
+    # supply their own dict via ``technique_map=`` on the constructor (or
+    # to ``import_from_tsv``). The framework ships no domain-specific
+    # vocabulary here — the empty default is the contract.
     DEFAULT_TECHNIQUE_MAP: dict[str, str] = {}
 
     def __init__(self, path: str | Path, technique_map: dict[str, list[str]] | None = None, data: dict | None = None):
         self.path = Path(path)
         self._technique_map = technique_map if technique_map is not None else self.DEFAULT_TECHNIQUE_MAP
+        loaded_from_disk = False
         if data is not None:
             self._data = data
         elif self.path.exists():
             self._data = json.loads(self.path.read_text())
+            loaded_from_disk = True
         else:
             self._data = {}
-        # Normalize: fill in missing top-level keys / meta sub-keys with
-        # defaults so legacy / partial graph.json files don't crash later
-        # property access. Existing values are preserved (setdefault).
+        # Normalize: fill in missing top-level / meta keys with defaults
+        # so legacy schemas and fresh-init paths both work. When loading
+        # an existing file that's missing keys, log a warning — partial-
+        # write corruption silently filled in with defaults would mask
+        # real data loss, and operators need a paper trail.
         defaults = {
             "schema_version": 1,
             "meta": {
@@ -97,11 +98,25 @@ class ExperimentGraph:
             "nodes": {},
             "technique_stats": {},
         }
+        missing_top = [k for k in defaults if k not in self._data]
         for k, v in defaults.items():
             self._data.setdefault(k, v if not isinstance(v, dict) else dict(v))
-        # Normalize meta sub-keys too (in case of an older schema).
+        missing_meta = [k for k in defaults["meta"] if k not in self._data["meta"]]
         for mk, mv in defaults["meta"].items():
             self._data["meta"].setdefault(mk, mv if not isinstance(mv, dict) else dict(mv))
+        if loaded_from_disk and (missing_top or missing_meta):
+            # Top-level missing keys are the more alarming signal (file
+            # exists but is structurally incomplete). Meta-only gaps are
+            # usually schema-version drift from an old graph and are
+            # safe to fill silently — but we still report the meta keys
+            # so a schema migration audit can pick them up.
+            logger.warning(
+                "graph.json at %s loaded with missing keys "
+                "(top-level=%r, meta=%r); filled with defaults. If this "
+                "is not a known schema migration, check for partial-"
+                "write corruption.",
+                self.path, missing_top, missing_meta,
+            )
 
     @staticmethod
     def load(path: str | Path) -> ExperimentGraph:
@@ -796,16 +811,13 @@ class ExperimentGraph:
         Column order is read from the header row, not hardcoded — any
         columns beyond ``node_id``, ``composite``, ``vram_gb``,
         ``elapsed_min``, ``status``, ``description`` are mapped into the
-        node's ``metrics`` dict by their header name. This means
-        autobench-style TSVs (val_auc, val_bacc, test_auc, test_bacc)
-        and any other consumer's TSV both round-trip without code
-        changes.
+        node's ``metrics`` dict by their header name. Any consumer's TSV
+        round-trips without framework changes.
 
-        ``technique_map`` is the optional consumer-specific shorthand map
-        for tagging techniques from the description; default empty (no
-        tagging). Pass ``AUTOBENCH_TECHNIQUE_MAP`` from
-        ``benchmarks/src/autobench/pipeline/technique_map.py`` to recover
-        the previous MIL-shorthand behaviour.
+        ``technique_map`` is the optional consumer-specific shorthand
+        dict for tagging techniques from the description; default empty
+        (no tagging). Pass the consumer's own map to recover
+        domain-shorthand behaviour.
         """
         g = ExperimentGraph(path=graph_path, technique_map=technique_map or {})
 

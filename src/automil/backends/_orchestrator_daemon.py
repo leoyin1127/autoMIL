@@ -956,6 +956,16 @@ class ExperimentOrchestrator:
         extension, blocked CUDA kernel) would sit in VRAM indefinitely
         after a cap-driven or operator cancel.
         """
+        # Drop pending-sigkill entries whose experiment is no longer
+        # tracked here (completion or timeout path popped self.running
+        # without clearing the deadline). Otherwise the dict grows
+        # unbounded across the daemon's lifetime.
+        orphans = [
+            eid for eid in self._pending_sigkill_at if eid not in self.running
+        ]
+        for eid in orphans:
+            self._pending_sigkill_at.pop(eid, None)
+
         now = time.time()
         for exp_id, exp in list(self.running.items()):
             retcode = exp.process.poll()
