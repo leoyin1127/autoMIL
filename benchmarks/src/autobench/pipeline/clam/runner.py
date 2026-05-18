@@ -31,7 +31,12 @@ def _write_fold_result_json(fold_index: int, result: dict) -> None:
     if not results_dir:
         return  # not running under autoMIL orchestrator
 
-    fold_count = int(os.environ.get("AUTOMIL_FOLD_COUNT", "5"))
+    # AUTOMIL_FOLD_COUNT is set by the orchestrator from
+    # `automil/config.yaml: training.fold_count` (default 10 post-Level-D).
+    # The literal "10" fallback here matters only when this helper is
+    # invoked outside the orchestrator (e.g. local debugging without env
+    # vars); production paths always have it set.
+    fold_count = int(os.environ.get("AUTOMIL_FOLD_COUNT", "10"))
 
     def _unwrap(metric):
         # auc_roc may be float OR {"mean": float, ...} (CI-dict shape)

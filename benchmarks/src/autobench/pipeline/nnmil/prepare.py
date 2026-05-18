@@ -245,10 +245,16 @@ def _generate_training_config(
     """
     feat_dim = feature_stats["feature_dimension"]
     hidden_dim = max(256, feat_dim // 4)
-    median_patches = feature_stats["num_patches_per_slide"]["median"]
 
-    # planner.py:129 — no cap on max_seq_length
-    max_seq_length = int(median_patches * 0.5)
+    # Prefer the value computed once by _analyze_features to keep the
+    # planner.py:129 formula in one place. Fall back to the live
+    # computation for callers that hand-build a stats dict without going
+    # through _analyze_features (e.g. unit tests). Both branches use the
+    # same formula; this just keeps them from drifting silently.
+    if "recommended_max_seq_length" in feature_stats:
+        max_seq_length = int(feature_stats["recommended_max_seq_length"])
+    else:
+        max_seq_length = int(feature_stats["num_patches_per_slide"]["median"] * 0.5)
 
     # planner.py:596 fallback: train set ≈ 80% of total when split info absent
     num_train_samples = int(n_samples * 0.8)

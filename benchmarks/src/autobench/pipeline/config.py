@@ -211,6 +211,15 @@ def build_registries(ds: DatasetConfig) -> Registries:
 # ---------------------------------------------------------------------------
 # nnMIL runtime overrides (universal, not dataset-specific)
 # ---------------------------------------------------------------------------
+#
+# ``NNMIL_RUNTIME_DEFAULTS`` are applied to every nnMIL trainer
+# regardless of model type. ``NNMIL_MODEL_RUNTIME_OVERRIDES`` is a
+# hook-point left empty by default — per-model VRAM mitigations
+# (e.g., batch_size=4 for transformer-family heads) go here. Empty dict
+# means "no model-specific overrides"; the planner-emitted batch_size
+# stands. Restoration of the Phase-pre-Level-D values for
+# vision_transformer / rrt / trans_mil / ilra_mil is documented in
+# .planning/decisions/N4-overrides-removed.md (placeholder; see audit).
 
 NNMIL_RUNTIME_DEFAULTS: dict[str, int] = {
     "num_workers": 0,
@@ -220,7 +229,12 @@ NNMIL_MODEL_RUNTIME_OVERRIDES: dict[str, dict[str, int]] = {}
 
 
 def get_nnmil_runtime_overrides(model_type: str) -> dict[str, int]:
-    """Return fixed runtime overrides for nnMIL model type."""
+    """Return fixed runtime overrides for nnMIL model type.
+
+    Always includes ``NNMIL_RUNTIME_DEFAULTS``; layers any model-specific
+    overrides from ``NNMIL_MODEL_RUNTIME_OVERRIDES`` on top. The dict
+    being empty by default is intentional — see module-level comment.
+    """
     overrides = dict(NNMIL_RUNTIME_DEFAULTS)
     overrides.update(NNMIL_MODEL_RUNTIME_OVERRIDES.get(model_type, {}))
     return overrides
