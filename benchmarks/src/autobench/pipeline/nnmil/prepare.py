@@ -123,7 +123,14 @@ def _analyze_features(
     expected_dim: int,
     sample_size: int = 100,
 ) -> dict:
-    """Analyze H5 feature files to get statistics for nnMIL config."""
+    """Analyze H5 feature files to get statistics for nnMIL config.
+
+    Raises FileNotFoundError if no H5 file exists in the sample. The
+    upstream planner (``experiment_planner.py:113-114``) raises in the
+    same case; silently substituting fallback values would produce a
+    dataset_plan.json with median=max=min=256 and the trainer would
+    proceed against a phantom dataset.
+    """
     patch_counts: list[int] = []
     feat_dim = expected_dim
 
@@ -138,7 +145,12 @@ def _analyze_features(
             patch_counts.append(shape[0])
 
     if not patch_counts:
-        patch_counts = [256]  # fallback
+        raise FileNotFoundError(
+            f"No H5 feature files found in {h5_dir} for the {len(sample)} "
+            f"sampled slide_ids (first sample: {sample[:3]!r}). Verify the "
+            "feature-extraction step ran for this encoder and the path "
+            "matches the dataset YAML's features_base_dir."
+        )
 
     arr = np.array(patch_counts)
     median = float(np.median(arr))

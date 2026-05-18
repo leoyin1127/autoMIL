@@ -76,6 +76,34 @@ def _splits_standard_cv(
     case_ids = case_table["case_id"].values
     case_labels = case_table["label"].values
 
+    # Upfront feasibility check: sklearn raises mid-fit with a generic message
+    # ("n_splits=N cannot be greater than the number of members in each class")
+    # which is hard to interpret on a small minority class. Fail early with the
+    # concrete numbers so the operator can drop n_splits or merge classes.
+    label_counts = pd.Series(case_labels).value_counts().to_dict()
+    min_label_count = int(min(label_counts.values()))
+    if min_label_count < n_splits:
+        raise ValueError(
+            f"Cannot run {n_splits}-fold patient-stratified CV: smallest "
+            f"class has only {min_label_count} cases. Per-class case counts "
+            f"(case_id-deduplicated): {label_counts}. Reduce n_splits to "
+            f"<= {min_label_count} or merge minority classes."
+        )
+    # The inner train_test_split (test_size=0.125) needs each class to have
+    # >= 2 train_val cases after the outer split removes ~1/n_splits cases.
+    # With min_label_count >= n_splits guaranteed above, the worst case has
+    # min_label_count*(1-1/n_splits) train_val cases per class; we still want
+    # at least 2 (1 train + 1 val) so refuse if the projected count is < 2.
+    projected_train_val_per_class = min_label_count - (min_label_count // n_splits)
+    if projected_train_val_per_class < 2:
+        raise ValueError(
+            f"Cannot carve an inner val set: after the outer {n_splits}-fold "
+            f"split, the smallest class would have only "
+            f"{projected_train_val_per_class} cases in train+val, but "
+            f"train_test_split(stratify=...) requires >= 2. Reduce n_splits "
+            f"or augment the minority class."
+        )
+
     # Map case_id -> list of slide_ids for expansion
     case_to_slides = df.groupby("case_id")["slide_id"].apply(list).to_dict()
 

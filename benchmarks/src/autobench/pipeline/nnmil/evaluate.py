@@ -1,4 +1,24 @@
-"""Normalize nnMIL metrics to shared benchmark format."""
+"""Normalize nnMIL metrics to shared benchmark format.
+
+Methods-note on AUC formula provenance
+--------------------------------------
+The CLAM and nnMIL paths in this wrapper compute multi-class AUC differently,
+and the difference is intentional — each path matches its own upstream.
+
+- CLAM path:  ``pipeline/evaluate.py::compute_extended_metrics`` recomputes
+  AUC from predictions using upstream CLAM's per-class ``roc_curve`` +
+  ``nanmean`` formula (``lib/CLAM/utils/core_utils.py:514-527``).
+- nnMIL path: the AUC value passed in via ``raw_metrics["{split}/auroc"]``
+  is produced by nnMIL's trainer using
+  ``sklearn.metrics.roc_auc_score(multi_class='ovr', average='macro')``
+  (``lib/nnMIL/utilities/utils.py:130-141``). We map it through without
+  recomputation.
+
+For binary tasks the two formulas agree. For multi-class tasks (e.g. CLWD
+``subtype_7class``) the numbers will differ. This is faithful to each
+framework's published methodology; cross-framework multi-class AUC
+comparison should note the asymmetry.
+"""
 
 from __future__ import annotations
 
@@ -22,6 +42,10 @@ def normalize_nnmil_metrics(raw_metrics: dict, split: str = "test") -> dict[str,
 
     Returns a dict compatible with ``compute_extended_metrics`` output
     (keys: auc_roc, accuracy, balanced_accuracy, f1, sensitivity, specificity).
+
+    The ``auc_roc`` value here is the OvR-macro AUC produced by nnMIL's
+    trainer; see the module docstring for the provenance asymmetry vs. the
+    CLAM path.
     """
     result: dict[str, float] = {}
 
