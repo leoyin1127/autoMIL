@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import subprocess
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class Runner:
@@ -21,9 +24,23 @@ class Runner:
         return self._worktree_base / node_id
 
     def create_worktree(self, base_commit: str, node_id: str) -> Path:
-        """Create a detached worktree at the given commit."""
+        """Create a detached worktree at the given commit.
+
+        If a worktree directory already exists at the target path, it is
+        wiped before the new ``git worktree add`` runs. This handles the
+        common case where a previous launch was interrupted and left
+        ``.automil_worktrees/<node_id>/`` orphaned. The wipe is logged at
+        WARNING so the paper trail survives — if that orphan was holding
+        unsaved state (extremely rare; framework-owned subtree), the
+        operator can correlate against the log line.
+        """
         wt_path = self._worktree_base / node_id
         if wt_path.exists():
+            logger.warning(
+                "Runner.create_worktree: %s already exists; wiping before recreate "
+                "(likely an interrupted prior launch). Original contents lost.",
+                wt_path,
+            )
             shutil.rmtree(wt_path)
 
         subprocess.run(
