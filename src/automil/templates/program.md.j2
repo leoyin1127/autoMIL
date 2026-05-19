@@ -74,11 +74,17 @@ Run `automil check` to verify everything is configured correctly.
 1. Run `automil reconcile` to sync graph with orchestrator state
 2. Run `automil rank` to get top proposals. If none, brainstorm new ones.
 3. Read `automil/learnings.md` to avoid repeating failed approaches.
-4. For each selected proposal:
-   a. Edit project files to implement the idea
-   b. Run `automil submit --node <id> --desc "..." --files <changed files>`
-   c. Clean up only the changes created for that proposal. Do not use destructive
-      restore commands that may discard unrelated local work.
+4. For each selected proposal — **prefer the variant-registry path**:
+   a. If the change is a variant of a registered parent (model / loss / policy),
+      add a new module under `automil/variants/<parent>/<name>.py`, update
+      `automil/config.yaml` to select it, then `automil submit`. The variant
+      is committed code; there is nothing to clean up in the working tree.
+   b. Otherwise (free-mode exploratory edit), edit the project files, then
+      `automil submit --node <id> --desc "..." --files <changed files>`.
+      After submit, selectively restore ONLY the files you changed for this
+      proposal: `git restore --source=HEAD -- <each-file>`. Never use bulk
+      commands (`git checkout .`, `git restore .`, `git stash -k`) — they
+      discard unrelated local work.
 5. Wait for completion notifications in `automil/orchestrator/completed/`
 6. Read results, update graph via `automil reconcile`
 7. Update `automil/learnings.md` with insights

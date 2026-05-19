@@ -114,10 +114,18 @@ Then follow Phase 2 in `automil/program.md`:
 1. `uv run automil reconcile`
 2. `uv run automil rank` to get top proposals. If none, brainstorm new ones.
 3. Read `automil/learnings.md` to avoid repeating failures.
-4. For each proposal:
-   a. Edit project files to implement the idea
-   b. `uv run automil submit --node <id> --desc "..." --files <changed files>`
-   c. Restore working tree: `git checkout -- <files>`
+4. For each proposal — **prefer the variant-registry path**:
+   a. If the change is a variant of a registered parent (model / loss / policy),
+      add a new module under `automil/variants/<parent>/<name>.py`, update
+      `automil/config.yaml` to select it, and `uv run automil submit` — no
+      working-tree cleanup needed; the variant is committed code.
+   b. Otherwise (free-mode exploratory edit), edit the project files, then
+      `uv run automil submit --node <id> --desc "..." --files <changed files>`.
+      After submit, **selectively** restore ONLY the files you changed for
+      that proposal: `git restore --source=HEAD -- <each-file>`. Never use
+      bulk commands (`git checkout .`, `git restore .`, `git stash -k`) —
+      they discard unrelated local work, including config edits or notes
+      you may have made between submits.
 5. Wait for Monitor completion events (do **not** poll) — the watcher
    streams `Completed node_...` lines as they arrive
 6. `uv run automil reconcile` to update graph
@@ -134,6 +142,7 @@ Then follow Phase 2 in `automil/program.md`:
 - Update `automil/learnings.md` after every result
 - Commit winning experiments to git
 - File paths in submit --files must be relative to git repo root
+- Restore selectively after submit; never bulk-restore the working tree
 
 ## Stopping
 
